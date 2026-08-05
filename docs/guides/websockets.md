@@ -22,11 +22,12 @@ Use SSE when you only need server-push. Use WebSocket when clients need to send 
 
 ## Installation
 
-WebSocket support requires the `ws` package (optional peer dependency):
+WebSocket support uses the `ws` package, declared as an **optional dependency** of
+`@spfn/core` — a normal install already brings it in. Only if you installed with optional
+dependencies disabled do you need to add it yourself:
 
 ```bash
 pnpm add ws
-pnpm add -D @types/ws
 ```
 
 ## Define WS Router
@@ -38,12 +39,13 @@ import { defineEvent } from '@spfn/core/event';
 import { Type } from '@sinclair/typebox';
 
 // Reuse existing events or define WS-specific ones
-const userUpdated = defineEvent('userUpdated', Type.Object({
+// (export them — the server emits through these same objects)
+export const userUpdated = defineEvent('userUpdated', Type.Object({
     userId: Type.String(),
     name: Type.String(),
 }));
 
-const notification = defineEvent('notification', Type.Object({
+export const notification = defineEvent('notification', Type.Object({
     message: Type.String(),
     level: Type.Union([Type.Literal('info'), Type.Literal('warning'), Type.Literal('error')]),
 }));
@@ -169,9 +171,14 @@ If a new subscription requests events not yet on the server, the client reconnec
 
 WebSocket connections cannot carry custom headers, so SPFN uses the same **Token Exchange** pattern as SSE:
 
-1. Client calls `POST /ws/token` with Bearer JWT → receives a one-time token
+1. Client calls the token endpoint with its normal auth → receives a one-time token
 2. Client opens `ws://host/ws?events=...&token=...`
-3. Server verifies the token and rejects (4001) if invalid
+3. Server verifies **and consumes** the token, rejecting with 4001 if it is missing or invalid
+
+The token endpoint path is **derived** from the WS path by replacing its last segment:
+`/ws` → `POST /token`, `/realtime/ws` → `POST /realtime/token`. It is registered directly on
+the Hono app with `config.middlewares` applied, so whatever authenticates your routes also
+authenticates token issuance.
 
 Enable with `auth: { enabled: true }`:
 
@@ -191,31 +198,62 @@ export default defineServerConfig()
 
 ### Acquire token in client
 
+The token endpoint is registered directly on the backend server, **not** through the route
+DSL — so it never appears in the generated route map and there is no `api.*` entry for it.
+SSE ships `createAuthSSEClient` and an `eventRouteMap` for this; WebSocket has no
+equivalent, so wire `acquireToken` yourself.
+
+**Through the Next.js RPC proxy (recommended).** Add one entry to the proxy's route map —
+the same thing `eventRouteMap` does for SSE:
+
+```typescript
+// app/api/rpc/[routeName]/route.ts
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { routeMap } from '@/generated/route-map';
+
+export const { GET, POST } = createRpcProxy({
+    routeMap: { ...routeMap, wsToken: { method: 'POST', path: '/token' } },
+});
+```
+
 ```typescript
 const client = createWSClient<WSRouter>({
     acquireToken: async () =>
     {
-        const res = await fetch('/ws/token', {
+        const res = await fetch('/api/rpc/wsToken', {
             method: 'POST',
-            headers: { Authorization: `Bearer ${getJwt()}` },
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),          // the proxy 400s on an empty body
         });
         const { token } = await res.json();
+
         return token;
     },
 });
 ```
 
-Or use the RPC proxy (recommended with `@spfn/core`):
+**Calling the backend directly.** Works when the browser can reach the backend origin and
+carry its own credentials:
 
 ```typescript
-import { createWSClient } from '@spfn/core/event/ws/client';
-import { api } from '@/generated/api';
-import type { WSRouter } from '@/server/ws';
-
 const client = createWSClient<WSRouter>({
-    acquireToken: () => api.wsToken.post().then(r => r.token),
+    acquireToken: async () =>
+    {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_SPFN_API_URL}/token`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${getJwt()}` },
+        });
+        const { token } = await res.json();
+
+        return token;
+    },
 });
 ```
+
+> The WS **upgrade** path (`/ws`) is auto-skipped by proxy-guard, but the **token**
+> endpoint is deliberately not — it mints credentials, so it stays guarded. Under
+> `proxyGuard({ mode: 'strict' })` the direct call above is rejected; use the proxy route.
 
 ### Shared token manager with `@spfn/auth`
 
@@ -234,6 +272,12 @@ export default defineServerConfig()
     })
     .build();
 ```
+
+Pass a **lazy resolver** (`() => getOneTimeTokenManager()`), not the manager itself —
+`getOneTimeTokenManager()` throws until `createAuthLifecycle()` has run. With the pool
+shared, any token from auth's own endpoint also opens the socket, so `acquireToken` can be
+`() => authApi.issueOneTimeToken.call().then(r => r.token)` (needs `authRouteMap` merged
+into your RPC proxy).
 
 ### Authorization
 
@@ -274,6 +318,9 @@ export default defineServerConfig()
 | `4001` | Missing or invalid token |
 | `4003` | Not authorized for any requested events |
 | `1001` | Server shutting down |
+| `1002` | Unparseable request URL |
+| `1008` | `Origin` not in `allowedOrigins` |
+| `1013` | At capacity — `maxConnections`, `maxConnectionsPerSubject`, or send-buffer overflow |
 | `1011` | Internal server error during connection setup |
 
 ## API Reference
@@ -311,8 +358,13 @@ defineWSRouter({
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `path` | string | `/ws` | WS endpoint path. Token endpoint is derived as `<path-dir>/token` |
-| `pingInterval` | number | `30000` | Keep-alive ping interval (ms). `0` to disable |
+| `path` | string | `/ws` | WS endpoint path. Token endpoint replaces the last segment (`/ws` → `/token`) |
+| `pingInterval` | number | `30000` | Keep-alive ping interval (ms). `0` to disable. A socket that misses a pong is terminated |
+| `maxPayload` | number | `1048576` | Max inbound frame size (bytes) |
+| `maxBufferedBytes` | number | `1048576` | Outbound buffer cap; over it the connection is closed with `1013` |
+| `maxConnections` | number | `10000` | Global concurrent-connection cap |
+| `maxConnectionsPerSubject` | number | `0` | Per-subject cap (`0` = unlimited) |
+| `allowedOrigins` | string[] | - | `Origin` allow-list for the upgrade. Unset = no check |
 | `auth.enabled` | boolean | `false` | Enable token authentication |
 | `auth.tokenTtl` | number | `30000` | Token TTL (ms) |
 | `auth.store` | SSETokenStore | Auto (Cache → InMemory) | Token store |
@@ -323,5 +375,5 @@ defineWSRouter({
 
 ## Related
 
-- [Events](/docs/api-reference/events) — pub/sub event system and SSE streaming
+- [Events](/docs/packages/core/event) — pub/sub event system and SSE streaming
 - [Authentication](/docs/guides/authentication) — JWT auth and one-time tokens

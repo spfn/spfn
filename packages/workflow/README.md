@@ -1,10 +1,19 @@
 # @spfn/workflow
 
-Lightweight workflow engine - Pipeline orchestration based on `@spfn/core` Jobs
+> **When one background job is really five, and step three fails**
+
+`@spfn/core/job` runs a job. That is enough until a process is actually a chain — import
+the file, validate the rows, charge the card, issue the receipt, notify the customer —
+where each step needs the previous step's output, a failure in the middle must not redo
+the charge, and someone will ask which step a stuck order is sitting on.
+
+`@spfn/workflow` is a workflow engine that defines and executes such processes by chaining
+Jobs together, on top of `@spfn/core` Jobs.
+
+> **Alpha.** The narrowest of the SPFN packages in production use — expect its API to move
+> more than the beta ones. If your process is a single job, stay on `@spfn/core/job`.
 
 ## Overview
-
-`@spfn/workflow` is a workflow engine that defines and executes complex business processes by chaining multiple Jobs together.
 
 ```
 ┌─────────┐    data   ┌─────────┐    data   ┌─────────┐

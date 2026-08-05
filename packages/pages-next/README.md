@@ -1,5 +1,7 @@
 # @spfn/pages-next
 
+> **One content repo, deployed your way or hosted for you**
+
 Next.js integration for [`@spfn/pages`](../pages/README.md) — turns a validated
 site model into a deployable site. One package, two modes:
 

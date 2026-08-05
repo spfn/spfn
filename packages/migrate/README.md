@@ -1,8 +1,19 @@
 # @spfn/migrate
 
-`@spfn/migrate` is a utility for performing code-based data migrations in SPFN applications. 
+> **Change the data, not the schema — exactly once**
 
-While schema changes (adding columns, creating tables) are handled by Drizzle's SQL migrations, `@spfn/migrate` handles **data transformations** (backfilling data, state transitions, complex calculations) using TypeScript.
+Adding a column is a schema change and Drizzle handles it. Filling that column for the
+rows that already exist is a different problem: it is TypeScript, it may take minutes, and
+it must not run twice. Doing it by hand against production is how a backfill gets applied
+three times.
+
+`@spfn/migrate` runs those data transformations — backfills, state transitions, derived
+calculations — and keeps a ledger of what has already run, so a redeploy skips them.
+
+| | Handled by |
+|---|---|
+| Add a table or column | Drizzle SQL migrations (`spfn db generate` / `migrate`) |
+| Fill, reshape or move the rows inside it | this package |
 
 ## Installation
 

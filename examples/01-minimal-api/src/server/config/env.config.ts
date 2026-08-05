@@ -5,7 +5,7 @@
  * This minimal example declares none; SPFN core still validates its own required
  * variables (e.g. SPFN_API_URL for the Next.js proxy).
  *
- * @see https://spfn.dev/docs/guides/environment
+ * @see https://superfunction.xyz/docs/packages/core/env
  */
 
 import { defineEnvSchema, createEnvRegistry } from '@spfn/core/env';

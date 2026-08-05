@@ -1,20 +1,68 @@
 ---
 title: "Deployment"
-description: "Learn how to deploy Superfunction applications using Docker"
+description: "Deploy a Superfunction application to Vercel or to an always-on container"
 order: 4
 available: true
 ---
 
 # Deployment
 
-Superfunction applications are designed to be deployed using Docker, providing consistent environments across development and production.
+There are two targets, and both ship from the same repository.
+
+| | Vercel (serverless) | Always-on (container or process) |
+|---|---|---|
+| Setup | `spfn add vercel` | `spfn build && spfn start`, or the generated Docker files |
+| Where the backend runs | Vercel Functions on the same origin as the frontend | a long-lived process you host |
+| Background jobs | **not processed** — enqueuing works, nothing drains the queue | in-process worker runs |
+| WebSocket events | no | yes |
+| Periodic DB health check | off | on |
+
+Pick Vercel when the product is request/response and you want no infrastructure to
+operate. Pick always-on when background jobs, WebSockets, or the health check matter.
+Nothing stops you from running both: the same application, deployed twice, with jobs on
+the always-on side.
+
+## Vercel
+
+```bash
+spfn add vercel
+```
+
+That scaffolds `src/app/api/backend/[[...route]]/route.ts` (a `hono/vercel` adapter),
+`vercel.json`, and an `.npmrc` for the `@spfn` registry. The SPFN app mounts under
+`/api/backend`, so frontend and backend share one origin — set `SPFN_API_URL` to
+`https://<your-domain>/api/backend`.
+
+Three things to know:
+
+- It runs on the **Node runtime, not edge**, because SPFN needs `pg` and native `bcrypt`.
+- `hono` must be a direct dependency of the app, so `hono/vercel` resolves.
+- Seed and RBAC provisioning move to a deploy-time step (`provisionInfrastructure`) rather
+  than running per cold start, and the job worker does not run at all. If your app enqueues
+  jobs, drain them from a scheduled endpoint (Vercel Cron calling a route that processes a
+  batch) or run an always-on deployment alongside.
+
+If you use the Vercel Supabase integration, the adapter maps the injected `POSTGRES_URL`
+onto `DATABASE_URL` for you.
+
+The rest of this guide covers the **always-on** path.
 
 ## Prerequisites
 
-- Docker and Docker Compose installed
-- PostgreSQL 16+ (provided via Docker)
-- Redis 7+ (optional, provided via Docker for caching/sessions)
-- Node.js 22+ (for local development)
+Minimum versions the framework requires:
+
+| | Minimum | Note |
+|---|---|---|
+| Node.js | 18.18+ | 20+ if you use `--mode full`, which includes the MCP server |
+| PostgreSQL | 14+ | required; not optional |
+| Redis | — | optional, only for features that use it |
+
+The bundled files pin newer versions than the minimum on purpose: the generated Dockerfile
+builds on `node:22-alpine` and the compose file runs `postgres:16-alpine` and Redis 7. Those
+are what SPFN tests against, not a floor you have to meet.
+
+For the always-on path you also need Docker and Docker Compose, unless you run
+`spfn build && spfn start` directly on a host.
 
 ## Docker Compose Setup
 
@@ -189,7 +237,7 @@ LOG_LEVEL=info
 For a managed workflow, `spfn secret` stores deployed secrets in encrypted SOPS files
 (`secrets/<env>.enc.json`, backend chosen by `.sops.yaml` — age / GCP KMS / AWS KMS)
 that are safe to commit; your GitOps step decrypts them into env at deploy time. Local
-secrets go to the OS keychain instead. See [CLI → spfn secret](../api-reference/cli.md#spfn-secret).
+secrets go to the OS keychain instead. See [CLI → spfn secret](/docs/packages/cli#spfn-secret).
 
 ## Building for Production
 

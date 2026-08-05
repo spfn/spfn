@@ -20,25 +20,38 @@ available: true
 ## Installation
 
 ```bash
-pnpm add @spfn/monitor
+pnpm add @spfn/monitor drizzle-orm@1.0.0-rc.4
 ```
 
-Run migrations:
+`@spfn/core`, `@spfn/auth` and `@spfn/notification` are peers you already have; `next` is an
+optional peer, needed only for the dashboard components.
+
+Create the tables (`error_groups`, `error_events`, `logs` in the `spfn_monitor` schema):
 
 ```bash
-pnpm spfn db push
+pnpm spfn db push                                # dev: push the schema directly
+pnpm spfn db generate && pnpm spfn db migrate    # production: with migration history
 ```
 
 ## Server Configuration
 
+Mount `monitorRouter` as a **package router** on your app router:
+
+```typescript
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
+import { monitorRouter } from '@spfn/monitor/server';
+
+export const appRouter = defineRouter({ /* your routes */ })
+    .packages([monitorRouter]);
+```
+
 ```typescript
 // src/server/server.config.ts
 import { defineServerConfig } from '@spfn/core/server';
-import { mergeRouters } from '@spfn/core/route';
 import {
     createMonitorErrorHandler,
     createMonitorLifecycle,
-    monitorRouter,
 } from '@spfn/monitor/server';
 import { appRouter } from './router';
 
@@ -46,10 +59,13 @@ export default defineServerConfig()
     .middleware({
         onError: createMonitorErrorHandler(),
     })
-    .routes(mergeRouters(appRouter, monitorRouter))
+    .routes(appRouter)
     .lifecycle(createMonitorLifecycle())
     .build();
 ```
+
+Package routes are served but stay out of `AppRouter`'s client types — call them through
+`monitorApi` (see [API Client Usage](#api-client-usage)), not the generated `api` client.
 
 ## Environment Variables
 
@@ -60,12 +76,19 @@ export default defineServerConfig()
 | `SPFN_MONITOR_LOG_RETENTION_DAYS` | `30` | Days to retain logs |
 | `SPFN_MONITOR_MIN_STATUS_CODE` | `500` | Minimum HTTP status code to track |
 
+The retention values are read by `getErrorRetentionDays()` / `getLogRetentionDays()`, but the
+package ships no purge scheduler — nothing deletes old rows on its own. Schedule
+`getLogStore().purge(date)` or `logsRepository.deleteOlderThan(date)` yourself.
+
+All four can also be set in code with `configureMonitor({ ... })` from `@spfn/monitor/config`,
+which takes precedence over the environment.
+
 ## Error Tracking
 
 ### How It Works
 
 1. An error occurs in a route handler
-2. `createMonitorErrorHandler()` generates a fingerprint (`SHA-256(name:message:path)`)
+2. `createMonitorErrorHandler()` generates a fingerprint (`SHA-256(name:message:path)`, first 16 hex chars)
 3. Checks if an error group with this fingerprint exists:
    - **New error** — Creates group + event, sends Slack notification
    - **Active/Ignored** — Increments count + creates event (no notification)
@@ -78,9 +101,11 @@ createMonitorErrorHandler({
     // Only track 5xx errors (default: 500)
     minStatusCode: 500,
 
+    // Shown in the Slack notification title, e.g. "[production]"
+    environment: process.env.NODE_ENV,
+
     // Attach custom metadata to each error event
     extractMetadata: (err, ctx) => ({
-        env: process.env.NODE_ENV,
         serverInstance: process.env.HOSTNAME,
     }),
 });

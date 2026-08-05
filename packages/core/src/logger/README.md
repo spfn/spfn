@@ -13,9 +13,9 @@ import { logger } from '@spfn/core/logger';
 import type { LogLevel, Transport } from '@spfn/core/logger';
 ```
 
-`logger` (and `Logger`, `LogLevel`, `Transport`) is also re-exported from the package
-root `@spfn/core`, so `import { logger } from '@spfn/core'` works too. Prefer the
-`@spfn/core/logger` subpath for clarity.
+There is **no** root `.` export for `@spfn/core`, so `import { logger } from '@spfn/core'`
+does not resolve. `logger`, `Logger`, `LogLevel` and `Transport` all come from the
+`@spfn/core/logger` subpath. (Older snippets showing the root form are stale.)
 
 ---
 

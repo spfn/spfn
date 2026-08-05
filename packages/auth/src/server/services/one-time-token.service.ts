@@ -23,9 +23,9 @@ export async function issueOneTimeTokenService(userId: string): Promise<IssueOne
     const manager = getOneTimeTokenManager();
     const token = await manager.issue(userId);
 
-    // TTL is internal to the manager; estimate expiresAt from current time + default TTL
-    // The actual expiration is managed by the token store
-    const expiresAt = new Date(Date.now() + 30000).toISOString();
+    // Read the TTL off the manager rather than assuming the default: an app that
+    // configured a different one would otherwise be told the wrong expiry.
+    const expiresAt = new Date(Date.now() + manager.ttlMs).toISOString();
 
     return { token, expiresAt };
 }

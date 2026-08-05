@@ -2,7 +2,42 @@
 
 Define your Drizzle ORM entities here. These are your database table schemas.
 
+`@spfn/auth` ships its own tables (users, keys, roles, …) as package migrations — they
+are not declared here and you never redefine them. This directory is for your app's
+own tables only.
+
+## What is already in this directory
+
+| File | Role |
+| --- | --- |
+| `example.entity.ts` | The `examples` table this app's repository and routes use |
+| `config.ts` | Barrel that re-exports every table — this is the path drizzle-kit reads (`DRIZZLE_SCHEMA_PATH`, default `./src/server/entities/config.ts`) |
+
+`example.entity.ts` uses SPFN's column helpers rather than hand-written columns —
+prefer these in new entities so every table gets the same primary key and timestamps:
+
+```typescript
+// src/server/entities/example.entity.ts
+import { pgTable, text } from 'drizzle-orm/pg-core';
+import { id, timestamps } from '@spfn/core/db';
+
+export const examples = pgTable('examples', {
+    id: id(),                 // bigserial primary key
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    ...timestamps(),          // createdAt + updatedAt, timezone-aware
+});
+
+export type Example = typeof examples.$inferSelect;
+export type NewExample = typeof examples.$inferInsert;
+```
+
+Add every new table to `config.ts`, or drizzle-kit will not see it.
+
 ## Defining Entities
+
+The examples below are plain Drizzle, spelling out what `id()` and `timestamps()`
+generate for you.
 
 Create entity files using Drizzle ORM's `pgTable` for the public schema:
 
@@ -83,16 +118,20 @@ export const products = pgTable('products', {
 ## Database Migration
 
 ```bash
-# Generate migration from your entities
-npx spfn db generate
+# Generate migration from your entities → src/server/drizzle/
+pnpm spfn db generate
 
-# Run migrations
-npx spfn db migrate
+# Run migrations — applies @spfn/auth's migrations and this app's
+pnpm spfn db migrate
+
+# See which migrations are applied vs pending, per package
+pnpm spfn db status
 ```
 
 ## Learn More
 
-- [Getting Started](https://spfn.dev/docs/getting-started)
-- [Routing Guide](https://spfn.dev/docs/routing)
-- [Database Helpers](https://spfn.dev/docs/database)
-- [Transaction Management](https://spfn.dev/docs/transactions)
+- [Schema & column helpers](../../../../../packages/core/src/db/schema/README.md) — `id()`, `timestamps()`, `foreignKey()`
+- [Database package](https://superfunction.xyz/docs/packages/core/db)
+- [Transactions](https://superfunction.xyz/docs/packages/core/db/transaction)
+- [Routing](https://superfunction.xyz/docs/packages/core/route)
+- [Auth package](https://superfunction.xyz/docs/packages/auth)

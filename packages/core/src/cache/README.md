@@ -64,7 +64,7 @@ Aliases & types:
 ## Quick Start
 
 ```typescript
-import { startServer } from '@spfn/core';
+import { startServer } from '@spfn/core/server';
 
 await startServer(); // calls initCache() — cache enabled if CACHE_URL is set, else disabled
 ```

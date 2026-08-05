@@ -1,7 +1,9 @@
 /**
- * Add SPFN Ecosystem Packages
+ * Add a capability to an SPFN project
  *
- * Installs and sets up SPFN packages with database migrations
+ * Two kinds of argument:
+ *   - a scoped package name — installs it and applies its bundled migrations
+ *   - a deploy target — scaffolds the files that target needs (currently `vercel`)
  */
 
 import { Command } from 'commander';
@@ -33,6 +35,8 @@ async function addPackage(packageName: string): Promise<void>
         console.log(chalk.yellow('\n💡 Examples:'));
         console.log(chalk.gray('  pnpm spfn add @spfn/cms'));
         console.log(chalk.gray('  pnpm spfn add @mycompany/spfn-analytics'));
+        console.log(chalk.gray('\n  Deploy targets are unscoped. The only one today is:'));
+        console.log(chalk.gray('  pnpm spfn add vercel'));
         process.exit(1);
     }
 
@@ -140,6 +144,6 @@ async function addPackage(packageName: string): Promise<void>
  * Add command group
  */
 export const addCommand = new Command('add')
-    .description('Install and set up SPFN ecosystem packages, or scaffold a deploy target (vercel)')
-    .argument('<package>', 'Package name (e.g., @spfn/cms, @mycompany/spfn-analytics) or "vercel"')
+    .description('Add a capability to this project: an SPFN ecosystem package, or a deploy target')
+    .argument('<package|target>', 'Scoped package name (e.g., @spfn/cms, @mycompany/spfn-analytics), or a deploy target: vercel')
     .action(addPackage);

@@ -1,8 +1,16 @@
 # @spfn/notification
 
-Multi-channel notification system for SPFN applications.
+> **The messages your product has to send before it has anything to say**
 
-## Features
+A verification code. A password reset. An invitation. A receipt. None of these are your
+product, and all of them are required before it ships. `@spfn/auth` already emits the
+events — registration, invitation created, invitation accepted — and this package is what
+turns those into a delivered email or SMS.
+
+Multi-channel delivery for SPFN applications: one call site, a provider behind it, and a
+record of what was sent.
+
+## What you get
 
 - **Multi-channel support**: Email, SMS, Slack (Push coming soon)
 - **Provider pattern**: Pluggable providers (AWS SES, AWS SNS, etc.)

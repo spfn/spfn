@@ -314,7 +314,10 @@ registered, guarded by `config.middlewares`; if a cache (Redis/Valkey) is availa
 used as the token store automatically (multi-instance safe), else in-memory.
 
 **WebSockets** (`.websockets(wsRouter)`) attach a WS handler at `/ws` (override via
-`{ path }`); `{ auth: { enabled: true } }` adds `POST /ws/token` the same way as SSE.
+`{ path }`); `{ auth: { enabled: true } }` adds a token endpoint the same way as SSE. The
+token path replaces the WS path's **last segment** with `token`, so the default `/ws`
+yields **`POST /token`** — not `/ws/token`. A custom `{ path: '/api/ws' }` yields
+`POST /api/token`.
 
 **Workflows** (`.workflows(workflowRouter)`) require database enabled — throws otherwise —
 and call the router's `_init(getDatabase(), workflowsConfig)` after infrastructure.

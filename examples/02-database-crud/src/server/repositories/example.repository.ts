@@ -15,7 +15,7 @@ export class ExampleRepository extends BaseRepository
 
     async findById(id: string)
     {
-        return await this._findOne(examples, { id: BigInt(id) });
+        return await this._findOne(examples, { id: Number(id) });
     }
 
     async createExample(data: { name: string; description: string })
@@ -25,12 +25,12 @@ export class ExampleRepository extends BaseRepository
 
     async updateExample(id: string, data: Partial<{ name: string; description: string }>)
     {
-        return await this._updateOne(examples, { id: BigInt(id) }, data);
+        return await this._updateOne(examples, { id: Number(id) }, data);
     }
 
     async deleteExample(id: string)
     {
-        return await this._deleteOne(examples, { id: BigInt(id) });
+        return await this._deleteOne(examples, { id: Number(id) });
     }
 
     async countAll()

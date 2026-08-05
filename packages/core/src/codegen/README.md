@@ -174,7 +174,7 @@ export type RouteName = keyof RouteMap;
 ```
 
 `watchPatterns` are `[routerPath, 'src/server/routes/**/*.ts', ...additionalRouteDirs]` and
-`runOn` is `['watch', 'build', 'start', 'manual']` (runs in every mode).
+`runOn` is `['watch', 'manual', 'build']` — every trigger the CLI fires, so it runs in every mode.
 
 ---
 
@@ -201,7 +201,7 @@ generator's own surface.
 |---|---|---|
 | Reads the router by | parsing the source | **loading the module** and walking `RouteDef`s |
 | Covers | every registered route | only routes carrying `.contract()` |
-| `runOn` | `watch`, `build`, `start`, `manual` | `watch`, `build`, `manual` |
+| `runOn` | `watch`, `manual`, `build` | `watch`, `build`, `manual` |
 | Can fail a build | no | **yes**, on the `build` trigger only |
 
 Loading rather than parsing is what makes the contract correct: real routes build schemas from
@@ -264,7 +264,7 @@ const orchestrator = new CodegenOrchestrator({ generators, cwd, debug: true });
 
 // Run once. Trigger defaults to 'manual'; only generators whose runOn includes it execute.
 await orchestrator.generateAll();            // 'manual'
-await orchestrator.generateAll('build');     // e.g. build-time
+await orchestrator.generateAll('build');     // what `spfn build` dispatches
 
 // Watch mode: runs an initial 'watch' pass, then returns a promise that stays pending
 // (keeping the process alive) until close() is called.
@@ -310,7 +310,7 @@ export default function createAdminNavGenerator(): Generator
     return {
         name: 'admin-nav',
         watchPatterns: ['src/app/admin/**/nav.config.tsx'],
-        runOn: ['watch', 'build'],
+        runOn: ['watch', 'manual', 'build'],
 
         async generate(options: GeneratorOptions): Promise<void>
         {

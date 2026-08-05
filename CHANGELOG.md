@@ -80,7 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `SPFN_AUTH_SESSION_SECRET` (was `SESSION_SECRET`)
   - `SPFN_AUTH_ADMIN_ACCOUNTS` (was `ADMIN_ACCOUNTS`)
   - Legacy variable names still supported for backward compatibility
-  - See [Environment Variables Documentation](/packages/auth/README.md#environment-variables)
+  - See [Environment Variables Documentation](/packages/auth/README.md#which-environment-variables-do-i-need)
 
 - **Routes Structure**: Reorganized routes into modular structure
   - `/auth/*` routes for authentication operations

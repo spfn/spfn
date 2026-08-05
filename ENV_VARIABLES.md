@@ -1,38 +1,82 @@
 # SPFN Environment Variables
 
-This document lists all environment variables used in the SPFN framework.
+This document lists the environment variables read by `@spfn/core` and the `spfn` CLI.
+Variables owned by other packages (`@spfn/auth`, `@spfn/cms`, `@spfn/storage`, …) are
+listed under [Package-Specific Variables](#package-specific-variables).
+
+Verified against the source on 2026-08-05. The authoritative definition is
+`packages/core/src/config/schema.ts`; where a variable is read directly through
+`process.env` the read site is named instead.
+
+> **Renamed since the previous revision.** Old names are no longer read by any code.
+> Nothing throws when they are left in place — the cache simply stays disabled and the
+> API URL falls back to `http://localhost:8790` — so an outdated `.env` file fails
+> silently. Rename these keys:
+>
+> | Old name | New name |
+> |---|---|
+> | `REDIS_URL` | `CACHE_URL` |
+> | `REDIS_WRITE_URL` | `CACHE_WRITE_URL` |
+> | `REDIS_READ_URL` | `CACHE_READ_URL` |
+> | `REDIS_SENTINEL_HOSTS` | `CACHE_SENTINEL_HOSTS` |
+> | `REDIS_MASTER_NAME` | `CACHE_MASTER_NAME` |
+> | `REDIS_CLUSTER_NODES` | `CACHE_CLUSTER_NODES` |
+> | `REDIS_PASSWORD` | `CACHE_PASSWORD` |
+> | `REDIS_TLS_REJECT_UNAUTHORIZED` | `CACHE_TLS_REJECT_UNAUTHORIZED` |
+> | `SERVER_API_URL` | `SPFN_API_URL` |
+> | `NEXT_PUBLIC_API_URL` | `NEXT_PUBLIC_SPFN_API_URL` |
 
 ## Table of Contents
 
 - [API Configuration](#api-configuration)
 - [Database Configuration](#database-configuration)
-- [Cache/Redis Configuration](#cacheredis-configuration)
+- [Cache Configuration](#cache-configuration)
 - [Server Configuration](#server-configuration)
 - [Logger Configuration](#logger-configuration)
+- [Package-Specific Variables](#package-specific-variables)
 
 ---
 
 ## API Configuration
 
-### `SERVER_API_URL`
-- **Type**: `string`
-- **Required**: No
-- **Default**: Falls back to `NEXT_PUBLIC_API_URL`
-- **Description**: Internal API URL for server-side calls (Next.js SSR/API Routes)
-- **Usage**: Server-side only (not exposed to browser)
-- **Example**: `http://localhost:8791`, `http://spfn-service:8791` (k8s)
-- **Location**: `packages/core/src/client/contract-client.ts`
+> `SERVER_API_URL` was renamed to `SPFN_API_URL`, and `NEXT_PUBLIC_API_URL` to
+> `NEXT_PUBLIC_SPFN_API_URL`. No code reads the old names — `SERVER_API_URL` survives
+> only in a stale doc comment at `packages/core/src/nextjs/proxy/interceptors/types.ts:225`.
 
-### `NEXT_PUBLIC_API_URL`
-- **Type**: `string`
-- **Required**: No
-- **Default**: `http://localhost:4000`
-- **Description**: Public API URL for client-side calls (browser)
+### `SPFN_API_URL`
+- **Type**: `string` (URL)
+- **Required**: Yes
+- **Default**: None (call sites fall back to `http://localhost:8790`)
+- **Description**: SPFN backend URL used by the Next.js RPC proxy for server-side calls
+- **Usage**: Server-side (also readable by Next.js server code)
+- **Example**: `http://localhost:8790`, `http://spfn-service:8790` (k8s)
+- **Location**: `packages/core/src/config/schema.ts:399`, read at `packages/core/src/nextjs/proxy/rpc.ts:115`
+
+### `NEXT_PUBLIC_SPFN_API_URL`
+- **Type**: `string` (URL)
+- **Required**: Yes
+- **Default**: None (call sites fall back to `http://localhost:8790`)
+- **Description**: Public API URL for browser-side calls (SSE and WebSocket clients)
 - **Usage**: Available in both server and client
-- **Example**: `https://api.example.com`, `http://localhost:8791`
-- **Location**: `packages/core/src/client/contract-client.ts`
+- **Example**: `https://api.example.com`, `http://localhost:8790`
+- **Location**: `packages/core/src/config/schema.ts:406`, read at `packages/core/src/event/sse/client.ts:72` and `packages/core/src/event/ws/client.ts:70`
 
-**Priority**: `config.baseUrl` > `SERVER_API_URL` > `NEXT_PUBLIC_API_URL` > `'http://localhost:4000'`
+### `SPFN_APP_URL`
+- **Type**: `string` (URL)
+- **Required**: No
+- **Default**: None (SSR falls back to the inbound request `Host` header)
+- **Description**: Next.js application URL, used by the SPFN server to build absolute URLs
+- **Example**: `http://localhost:3790`, `https://your-app.com`
+- **Location**: `packages/core/src/config/schema.ts:413`, read at `packages/core/src/nextjs/client/core.ts:123`
+
+### `RPC_PROXY_TIMEOUT`
+- **Type**: `number` (milliseconds)
+- **Required**: No
+- **Default**: `120000`
+- **Description**: Abort timeout for requests the Next.js proxy forwards to the backend. Keep it below `FETCH_HEADERS_TIMEOUT`.
+- **Location**: `packages/core/src/config/schema.ts:420`
+
+**Priority**: explicit `apiUrl` option > `SPFN_API_URL` > `'http://localhost:8790'`
 
 ---
 
@@ -44,253 +88,282 @@ This document lists all environment variables used in the SPFN framework.
 - **Default**: None
 - **Description**: PostgreSQL database connection string
 - **Example**: `postgresql://user:password@localhost:5432/dbname`
-- **Location**:
-  - `packages/cli/src/commands/db.ts`
-  - `packages/cli/src/commands/add.ts`
-  - `packages/core/src/db/drizzle.config.ts`
+- **Location**: `packages/core/src/config/schema.ts:54`, read at `packages/core/src/server/start-server.ts:301`
+
+### `DATABASE_WRITE_URL`
+- **Type**: `string` (PostgreSQL connection URL)
+- **Required**: No
+- **Default**: None
+- **Description**: Write (master) database URL in the master–replica setup
+- **Location**: `packages/core/src/config/schema.ts:62`
+
+### `DATABASE_READ_URL`
+- **Type**: `string` (PostgreSQL connection URL)
+- **Required**: No
+- **Default**: None
+- **Description**: Read (replica) database URL in the master–replica setup
+- **Location**: `packages/core/src/config/schema.ts:70`
 
 ### `DRIZZLE_SCHEMA_PATH`
 - **Type**: `string`
 - **Required**: No
-- **Default**: `./src/server/entities/index.ts`
-- **Description**: Path to Drizzle schema files
-- **Location**: `packages/core/src/db/drizzle.config.ts`
+- **Default**: `./src/server/entities/config.ts`
+- **Description**: Path to the Drizzle schema barrel that drizzle-kit reads
+- **Location**: `packages/core/src/config/schema.ts:224`
 
 ### `DRIZZLE_OUT_DIR`
 - **Type**: `string`
 - **Required**: No
 - **Default**: `./drizzle`
 - **Description**: Output directory for Drizzle migrations
-- **Location**: `packages/core/src/db/drizzle.config.ts`
+- **Location**: `packages/core/src/config/schema.ts:231`
 
 ### `TRANSACTION_TIMEOUT`
 - **Type**: `number` (milliseconds)
 - **Required**: No
 - **Default**: `30000` (30 seconds)
 - **Description**: Transaction timeout for database operations
-- **Location**: `packages/core/src/db/transaction/runner.ts`
+- **Location**: `packages/core/src/config/schema.ts:188`, read at `packages/core/src/db/transaction/runner.ts:157`
+
+### Additional database variables
+
+All defined in `packages/core/src/config/schema.ts`.
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `DB_POOL_MAX` | number | `10` | Max connections in the pool |
+| `DB_POOL_READ_MAX` | number | falls back to `DB_POOL_MAX` | Max connections for the read-replica pool |
+| `DB_POOL_IDLE_TIMEOUT` | number (seconds) | `30` | Idle connection timeout |
+| `DB_RETRY_MAX` | number | `3` | Max connection retry attempts |
+| `DB_RETRY_INITIAL_DELAY` | number (ms) | `100` | First retry delay |
+| `DB_RETRY_MAX_DELAY` | number (ms) | `10000` | Retry delay cap |
+| `DB_RETRY_FACTOR` | number | `2` | Exponential backoff factor |
+| `DB_HEALTH_CHECK_ENABLED` | boolean | `true` | Run periodic health checks |
+| `DB_HEALTH_CHECK_INTERVAL` | number (ms) | `60000` | Health check interval |
+| `DB_HEALTH_CHECK_RECONNECT` | boolean | `true` | Reconnect on health check failure |
+| `DB_HEALTH_CHECK_MAX_RETRIES` | number | `3` | Retries before marking the DB failed |
+| `DB_HEALTH_CHECK_RETRY_INTERVAL` | number (ms) | `5000` | Delay between health check retries |
+| `DB_MONITORING_ENABLED` | boolean | `false` | Query performance monitoring |
+| `DB_MONITORING_SLOW_THRESHOLD` | number (ms) | `1000` | Slow query threshold |
+| `DB_MONITORING_LOG_QUERIES` | boolean | `false` | Log every query, not just slow ones |
+| `DB_MAX_ROWS` | number | `0` (unlimited) | Safety ceiling on rows returned by `findMany` |
+| `DB_DEBUG_TRACE` | boolean | `false` | Detailed debug tracing |
+| `TRANSACTION_IDLE_TIMEOUT` | number (ms) | `30000` | Idle time before Postgres kills a transaction (`0` disables) |
+| `JOB_POLLING_INTERVAL_SECONDS` | number (seconds) | `2` | How often a pg-boss worker polls for jobs |
 
 ---
 
-## Cache/Redis Configuration
+## Cache Configuration
+
+> The whole `REDIS_*` family was renamed to `CACHE_*`. **Nothing throws when the old
+> names are left in place** — `hasCacheConfig()` finds no `CACHE_*` key, logs
+> "No cache configuration found" and returns no client, so the app runs cacheless.
+> Check the startup log if caching silently stopped working.
+
+All cache variables are declared in `packages/core/src/config/schema.ts` and read
+directly from `process.env` in `packages/core/src/cache/cache-factory.ts`.
 
 ### Single Instance Mode
 
-#### `REDIS_URL`
+#### `CACHE_URL`
 - **Type**: `string`
-- **Required**: No (optional if Redis not used)
+- **Required**: No (optional if no cache is used)
 - **Default**: None
-- **Description**: Redis connection URL for single instance mode
+- **Description**: Redis/Valkey connection URL for single instance mode. Formerly `REDIS_URL`.
 - **Example**:
   - `redis://localhost:6379`
-  - `rediss://secure.redis.com:6380` (TLS)
+  - `rediss://secure.cache.com:6380` (TLS)
   - `redis://:password@localhost:6379` (with auth)
-- **Location**: `packages/core/src/cache/redis-factory.ts`
+- **Location**: `packages/core/src/config/schema.ts:251`, read at `packages/core/src/cache/cache-factory.ts:118`
 
 ### Read/Write Split Mode
 
-#### `REDIS_WRITE_URL`
+#### `CACHE_WRITE_URL`
 - **Type**: `string`
 - **Required**: Yes (if using read/write split)
 - **Default**: None
-- **Description**: Redis master node URL for write operations
+- **Description**: Master node URL for write operations. Formerly `REDIS_WRITE_URL`.
 - **Example**: `redis://master:6379`
-- **Location**: `packages/core/src/cache/redis-factory.ts`
+- **Location**: `packages/core/src/config/schema.ts:259`, read at `packages/core/src/cache/cache-factory.ts:119`
 
-#### `REDIS_READ_URL`
+#### `CACHE_READ_URL`
 - **Type**: `string`
 - **Required**: Yes (if using read/write split)
 - **Default**: None
-- **Description**: Redis replica node URL for read operations
+- **Description**: Replica node URL for read operations. Formerly `REDIS_READ_URL`.
 - **Example**: `redis://replica:6379`
-- **Location**: `packages/core/src/cache/redis-factory.ts`
+- **Location**: `packages/core/src/config/schema.ts:267`, read at `packages/core/src/cache/cache-factory.ts:120`
 
 ### Sentinel Mode
 
-#### `REDIS_SENTINEL_HOSTS`
+#### `CACHE_SENTINEL_HOSTS`
 - **Type**: `string` (comma-separated)
 - **Required**: Yes (if using Sentinel)
 - **Default**: None
-- **Description**: Comma-separated list of Redis Sentinel hosts
+- **Description**: Sentinel hosts. A host without a port defaults to `26379`. Formerly `REDIS_SENTINEL_HOSTS`.
 - **Example**: `sentinel1:26379,sentinel2:26379,sentinel3:26379`
-- **Location**: `packages/core/src/cache/redis-factory.ts`
+- **Location**: `packages/core/src/config/schema.ts:275`, read at `packages/core/src/cache/cache-factory.ts:122`
 
-#### `REDIS_MASTER_NAME`
+#### `CACHE_MASTER_NAME`
 - **Type**: `string`
 - **Required**: Yes (if using Sentinel)
 - **Default**: None
-- **Description**: Redis Sentinel master name
+- **Description**: Sentinel master name. Formerly `REDIS_MASTER_NAME`.
 - **Example**: `mymaster`
-- **Location**: `packages/core/src/cache/redis-factory.ts`
+- **Location**: `packages/core/src/config/schema.ts:287`, read at `packages/core/src/cache/cache-factory.ts:123`
 
 ### Cluster Mode
 
-#### `REDIS_CLUSTER_NODES`
+#### `CACHE_CLUSTER_NODES`
 - **Type**: `string` (comma-separated)
 - **Required**: Yes (if using Cluster)
 - **Default**: None
-- **Description**: Comma-separated list of Redis Cluster nodes
+- **Description**: Cluster nodes. A node without a port defaults to `6379`. Formerly `REDIS_CLUSTER_NODES`.
 - **Example**: `node1:6379,node2:6379,node3:6379`
-- **Location**: `packages/core/src/cache/redis-factory.ts`
+- **Location**: `packages/core/src/config/schema.ts:281`, read at `packages/core/src/cache/cache-factory.ts:121`
 
-### Common Redis Options
+### Common Cache Options
 
-#### `REDIS_PASSWORD`
+#### `CACHE_PASSWORD`
 - **Type**: `string`
 - **Required**: No
 - **Default**: None
-- **Description**: Redis authentication password
-- **Location**: `packages/core/src/cache/redis-factory.ts`
+- **Description**: Authentication password. Applied in Sentinel and Cluster mode only — in single-instance and read/write-split mode put the password in the URL. Formerly `REDIS_PASSWORD`.
+- **Location**: `packages/core/src/config/schema.ts:293`, read at `packages/core/src/cache/cache-factory.ts:124`
 
-#### `REDIS_TLS_REJECT_UNAUTHORIZED`
+#### `CACHE_TLS_REJECT_UNAUTHORIZED`
 - **Type**: `string` (`'true'` | `'false'`)
 - **Required**: No
 - **Default**: `'true'`
-- **Description**: Whether to reject unauthorized TLS connections
+- **Description**: Whether to reject unauthorized TLS connections. Only takes effect for a `rediss://` URL. Formerly `REDIS_TLS_REJECT_UNAUTHORIZED`.
 - **Example**: `'false'` (for self-signed certificates)
-- **Location**: `packages/core/src/cache/redis-factory.ts`
+- **Location**: `packages/core/src/config/schema.ts:300`, read at `packages/core/src/cache/cache-factory.ts:63`
+
+#### `CACHE_MAX_RETRIES_PER_REQUEST`
+- **Type**: `number`
+- **Required**: No
+- **Default**: `3` (ioredis' own default is 20)
+- **Description**: Retries per command before it rejects, so a cache outage fails fast instead of hanging
+- **Location**: `packages/core/src/config/schema.ts:306`, read at `packages/core/src/cache/cache-factory.ts:21`
+
+#### `CACHE_ENABLE_OFFLINE_QUEUE`
+- **Type**: `boolean`
+- **Required**: No
+- **Default**: `true`
+- **Description**: Queue commands while disconnected (`true`), or reject immediately for strict fail-fast (`false`)
+- **Location**: `packages/core/src/config/schema.ts:312`, read at `packages/core/src/cache/cache-factory.ts:22`
 
 ---
 
 ## Server Configuration
 
 ### `NODE_ENV`
-- **Type**: `string` (`'development'` | `'production'` | `'test'`)
+- **Type**: `string` (`'local'` | `'development'` | `'staging'` | `'production'` | `'test'`)
 - **Required**: No
-- **Default**: Auto-set by CLI commands
-- **Description**: Node.js environment mode
-- **Location**: Multiple locations across codebase
-- **Note**: Auto-set to `'production'` in build/start commands
+- **Default**: `'local'`
+- **Description**: Node.js environment mode. Also picks which `.env.{NODE_ENV}` files load.
+- **Location**: `packages/core/src/config/schema.ts:44`
+- **Note**: The CLI sets it only when it is not already set — `'production'` in `spfn build` / `spfn start`, `'development'` in `spfn dev`.
 
 ### `SPFN_PORT`
 - **Type**: `string` | `number`
 - **Required**: No
-- **Default**: Falls back to `PORT`, then `8790`
-- **Description**: SPFN server port
-- **Example**: `8791`
-- **Location**: `packages/cli/src/commands/build.ts`, `packages/cli/src/commands/start.ts`
-
-### `PORT`
-- **Type**: `string` | `number`
-- **Required**: No
 - **Default**: `8790`
-- **Description**: Fallback server port
-- **Location**: `packages/cli/src/commands/build.ts`, `packages/cli/src/commands/start.ts`
+- **Description**: Port for the production server entry point that `spfn build` generates. There is **no** fallback to `PORT` on this path.
+- **Example**: `8791`
+- **Location**: `packages/cli/src/commands/build.ts:170`; `spfn start --port` writes it at `packages/cli/src/commands/start.ts:76`
 
 ### `SPFN_HOST`
 - **Type**: `string`
 - **Required**: No
-- **Default**: Falls back to `HOST`, then `0.0.0.0`
-- **Description**: SPFN server host
+- **Default**: `0.0.0.0`
+- **Description**: Host for the generated production server entry point. There is **no** fallback to `HOST` on this path.
 - **Example**: `localhost`, `0.0.0.0`
-- **Location**: `packages/cli/src/commands/build.ts`, `packages/cli/src/commands/start.ts`
+- **Location**: `packages/cli/src/commands/build.ts:171`; `spfn start --host` writes it at `packages/cli/src/commands/start.ts:77`
+
+### `PORT`
+- **Type**: `number`
+- **Required**: No
+- **Default**: `4000`
+- **Description**: Port used by `startServer()` when neither the call argument nor the config file sets one. `spfn dev` reads it with its own fallback of `4000`.
+- **Location**: `packages/core/src/config/schema.ts:332`, read at `packages/core/src/server/start-server.ts:242`
 
 ### `HOST`
 - **Type**: `string`
 - **Required**: No
-- **Default**: `0.0.0.0`
-- **Description**: Fallback server host
-- **Location**: `packages/cli/src/commands/build.ts`, `packages/cli/src/commands/start.ts`
+- **Default**: `localhost`
+- **Description**: Host used by `startServer()` when neither the call argument nor the config file sets one
+- **Location**: `packages/core/src/config/schema.ts:338`, read at `packages/core/src/server/start-server.ts:243`
+
+### Timeouts, proxy trust, rate limiting
+
+All defined in `packages/core/src/config/schema.ts`.
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `SERVER_TIMEOUT` | number (ms) | `120000` | Inbound request timeout |
+| `SERVER_KEEPALIVE_TIMEOUT` | number (ms) | `65000` | Keep-alive timeout |
+| `SERVER_HEADERS_TIMEOUT` | number (ms) | `60000` | Headers timeout |
+| `SHUTDOWN_TIMEOUT` | number (ms) | `280000` | Graceful shutdown budget |
+| `FETCH_CONNECT_TIMEOUT` | number (ms) | `10000` | Outbound TCP connect timeout |
+| `FETCH_HEADERS_TIMEOUT` | number (ms) | `300000` | Outbound response-header timeout |
+| `FETCH_BODY_TIMEOUT` | number (ms) | `300000` | Outbound timeout between body chunks |
+| `SPFN_PROXY_SECRET` | string (secret) | None | Shared HMAC secret signing proxy→backend requests. Unset disables proxy-guard signing. Same value in both processes; belongs in `.env.local`. |
+| `SPFN_PROXY_SECRET_PREVIOUS` | string (secret) | None | Grace keys still accepted during rotation, `<keyId>:<secret>` comma-separated. Backend-only — `.env.server`. |
+| `TRUSTED_PROXY_HOPS` | number | `1` | Reverse proxies in front of the Next.js proxy, for real-client-IP extraction |
+| `RATE_LIMIT_MODE` | `'off'` \| `'on'` | `'off'` | Global default rate limiter |
+| `RATE_LIMIT_DEFAULT_LIMIT` | number | `100` | Requests per window for the default limiter |
+| `RATE_LIMIT_DEFAULT_WINDOW_MS` | number (ms) | `60000` | Window length for the default limiter |
+| `RATE_LIMIT_FAIL_CLOSED` | boolean | `false` | Reject with 429 when the cache backing the limiter is down |
+| `SAFE_FETCH_BLOCK_PRIVATE_IPS` | boolean | `true` | `safeFetch` blocks requests resolving to private/reserved IPs |
 
 ---
 
 ## Logger Configuration
 
-### General
+> The logger no longer reads any of `LOGGER_ADAPTER`, `LOGGER_FILE_ENABLED`, `LOG_DIR`,
+> `SLACK_WEBHOOK_URL`, `SLACK_CHANNEL`, `SLACK_USERNAME`, `SMTP_HOST`, `SMTP_PORT`,
+> `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` or `EMAIL_TO`. No code in the repository
+> reads them. Slack and email delivery moved to `@spfn/notification` and `@spfn/monitor`
+> — see [Package-Specific Variables](#package-specific-variables).
 
-#### `LOGGER_ADAPTER`
-- **Type**: `string` (`'pino'` | `'winston'` | `'console'`)
+### `SPFN_LOG_LEVEL`
+- **Type**: `string` (`'debug'` | `'info'` | `'warn'` | `'error'` | `'fatal'`)
 - **Required**: No
-- **Default**: Auto-detected based on environment
-- **Description**: Logger adapter to use
-- **Location**: `packages/core/src/logger/adapter-factory.ts`
+- **Default**: `'info'`
+- **Description**: Minimum log level to output
+- **Location**: `packages/core/src/config/schema.ts:242`, read at `packages/core/src/logger/factory.ts:37`
+- **Note**: Read once at import time. Changing it after startup has no effect.
 
-#### `LOGGER_FILE_ENABLED`
-- **Type**: `string` (`'true'` | `'false'`)
+### `NEXT_PUBLIC_SPFN_LOG_LEVEL`
+- **Type**: same as `SPFN_LOG_LEVEL`
 - **Required**: No
-- **Default**: `'false'`
-- **Description**: Enable file logging
-- **Location**: `packages/core/src/logger/config.ts`
+- **Default**: None (falls back to `SPFN_LOG_LEVEL`, then `'info'`)
+- **Description**: Log level for browser-side code, where a non-`NEXT_PUBLIC_` variable is not visible
+- **Location**: `packages/core/src/logger/factory.ts:38`
 
-#### `LOG_DIR`
-- **Type**: `string`
-- **Required**: No
-- **Default**: `./logs`
-- **Description**: Directory for log files
-- **Location**: `packages/core/src/logger/config.ts`
+`NODE_ENV` also affects the logger: console output is colorized outside production
+(`packages/core/src/logger/config.ts:16`).
 
-### Slack Integration
+---
 
-#### `SLACK_WEBHOOK_URL`
-- **Type**: `string`
-- **Required**: No (optional if Slack not used)
-- **Default**: None
-- **Description**: Slack webhook URL for log notifications
-- **Example**: `https://hooks.slack.com/services/T00/B00/XXX`
-- **Location**: `packages/core/src/logger/config.ts`
+## Package-Specific Variables
 
-#### `SLACK_CHANNEL`
-- **Type**: `string`
-- **Required**: No
-- **Default**: None
-- **Description**: Slack channel name
-- **Example**: `#logs`, `#alerts`
-- **Location**: `packages/core/src/logger/config.ts`
+Each package declares its own schema. Read that file for the authoritative list —
+only the entry points are named here.
 
-#### `SLACK_USERNAME`
-- **Type**: `string`
-- **Required**: No
-- **Default**: `'Logger Bot'`
-- **Description**: Slack bot username for log messages
-- **Location**: `packages/core/src/logger/config.ts`
+| Package | Schema | Prefix |
+|---|---|---|
+| `@spfn/auth` | `packages/auth/src/config/schema.ts` | `SPFN_AUTH_*`, plus OAuth provider keys |
+| `@spfn/cms` | `packages/cms/src/config/schema.ts` | `SPFN_CMS_*` |
+| `@spfn/notification` | `packages/notification/src/config/schema.ts` | `SPFN_NOTIFICATION_*` (e.g. `SPFN_NOTIFICATION_SLACK_WEBHOOK_URL`, `SPFN_NOTIFICATION_EMAIL_FROM`) |
+| `@spfn/monitor` | `packages/monitor/src/config/schema.ts` | `SPFN_MONITOR_*` (e.g. `SPFN_MONITOR_SLACK_WEBHOOK_URL`) |
+| `@spfn/storage` | no schema module — read directly via `process.env` | `STORAGE_PROVIDER`, `S3_*`, `GCS_*`, `LOCAL_STORAGE_*`, `STORAGE_CONTRACT_*` |
 
-### Email Integration
-
-#### `SMTP_HOST`
-- **Type**: `string`
-- **Required**: No (optional if Email not used)
-- **Default**: None
-- **Description**: SMTP server hostname
-- **Example**: `smtp.gmail.com`
-- **Location**: `packages/core/src/logger/config.ts`
-
-#### `SMTP_PORT`
-- **Type**: `string` | `number`
-- **Required**: No (optional if Email not used)
-- **Default**: None
-- **Description**: SMTP server port
-- **Example**: `587`, `465`
-- **Location**: `packages/core/src/logger/config.ts`
-
-#### `SMTP_USER`
-- **Type**: `string`
-- **Required**: No
-- **Default**: None
-- **Description**: SMTP authentication username
-- **Location**: `packages/core/src/logger/config.ts`
-
-#### `SMTP_PASSWORD`
-- **Type**: `string`
-- **Required**: No
-- **Default**: None
-- **Description**: SMTP authentication password
-- **Location**: `packages/core/src/logger/config.ts`
-
-#### `EMAIL_FROM`
-- **Type**: `string`
-- **Required**: No (optional if Email not used)
-- **Default**: None
-- **Description**: Email sender address
-- **Example**: `noreply@example.com`
-- **Location**: `packages/core/src/logger/config.ts`
-
-#### `EMAIL_TO`
-- **Type**: `string`
-- **Required**: No (optional if Email not used)
-- **Default**: None
-- **Description**: Email recipient address
-- **Example**: `admin@example.com`
-- **Location**: `packages/core/src/logger/config.ts`
+**Declared but unread:** `@spfn/cms` declares `SPFN_CMS_DETECT_BROWSER_LANGUAGE`
+(`packages/cms/src/config/schema.ts:48`) and `SPFN_CMS_DEFAULT_LOCALE`
+(`packages/cms/src/config/schema.ts:38`), but no code reads either. Setting them
+does nothing.
 
 ---
 
@@ -298,33 +371,52 @@ This document lists all environment variables used in the SPFN framework.
 
 ### API URL Resolution
 ```
-config.baseUrl (explicit)
-  > SERVER_API_URL (server-side only)
-    > NEXT_PUBLIC_API_URL (public/client-side)
-      > 'http://localhost:4000' (fallback)
+explicit apiUrl option
+  > SPFN_API_URL (server-side proxy)
+    > 'http://localhost:8790' (fallback)
+
+Browser (SSE / WebSocket clients):
+NEXT_PUBLIC_SPFN_API_URL
+  > 'http://localhost:8790' (fallback)
 ```
 
-### Server Port Resolution
+### Server Port / Host Resolution
+
+The two paths are independent — `SPFN_PORT` does **not** fall back to `PORT`.
+
 ```
-SPFN_PORT
-  > PORT
-    > 8790 (default)
+Production entry point generated by `spfn build`:
+SPFN_PORT > 8790
+SPFN_HOST > 0.0.0.0
+
+startServer() called directly:
+config.port > spfn.config file > PORT > 4000
+config.host > spfn.config file > HOST > localhost
 ```
 
-### Server Host Resolution
+### Cache Mode Detection
+
+Evaluated in this order in `packages/core/src/cache/cache-factory.ts:127`:
+
 ```
-SPFN_HOST
-  > HOST
-    > 0.0.0.0 (default)
+1. Single Instance:  CACHE_URL set, and no CACHE_WRITE_URL / CACHE_READ_URL / CACHE_CLUSTER_NODES
+2. Read/Write Split: CACHE_WRITE_URL + CACHE_READ_URL both set
+3. Sentinel:         CACHE_SENTINEL_HOSTS + CACHE_MASTER_NAME both set
+4. Cluster:          CACHE_CLUSTER_NODES set
+5. Fallback:         CACHE_URL set alongside other keys
+6. No Cache:         none set — logged, not thrown
 ```
 
-### Redis Mode Detection
+### `.env` File Loading Order
+
+Later files override earlier ones (`packages/core/src/env/loader.ts`):
+
 ```
-1. Cluster Mode: REDIS_CLUSTER_NODES exists
-2. Sentinel Mode: REDIS_SENTINEL_HOSTS + REDIS_MASTER_NAME exist
-3. Read/Write Split: REDIS_WRITE_URL + REDIS_READ_URL exist
-4. Single Instance: REDIS_URL exists
-5. No Cache: None set
+.env
+  > .env.{NODE_ENV}
+    > .env.local            (skipped when NODE_ENV=test)
+      > .env.{NODE_ENV}.local
+        > .env.server       (server-only; Next.js never loads it)
 ```
 
 ---
@@ -336,12 +428,13 @@ SPFN_HOST
 # Database
 DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
 
-# Redis (optional)
-REDIS_URL=redis://localhost:6379
+# Cache (optional)
+CACHE_URL=redis://localhost:6379
 
 # API URLs
-SERVER_API_URL=http://localhost:8790
-NEXT_PUBLIC_API_URL=http://localhost:8790
+SPFN_API_URL=http://localhost:8790
+NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
+SPFN_APP_URL=http://localhost:3790
 
 # Server
 NODE_ENV=development
@@ -352,23 +445,21 @@ NODE_ENV=development
 # Database
 DATABASE_URL=postgresql://user:pass@db-host:5432/production_db
 
-# Redis Cluster
-REDIS_CLUSTER_NODES=node1:6379,node2:6379,node3:6379
-REDIS_PASSWORD=secret
+# Cache Cluster
+CACHE_CLUSTER_NODES=node1:6379,node2:6379,node3:6379
+CACHE_PASSWORD=<set in your secret manager>
 
 # API URLs
-SERVER_API_URL=http://spfn-service:8790  # Internal k8s service
-NEXT_PUBLIC_API_URL=https://api.example.com  # Public domain
+SPFN_API_URL=http://spfn-service:8790          # Internal k8s service
+NEXT_PUBLIC_SPFN_API_URL=https://api.example.com  # Public domain
 
 # Server
 NODE_ENV=production
-PORT=8790
-HOST=0.0.0.0
+SPFN_PORT=8790
+SPFN_HOST=0.0.0.0
 
 # Logging
-LOG_DIR=/var/log/spfn
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-SLACK_CHANNEL=#production-alerts
+SPFN_LOG_LEVEL=info
 ```
 
 ### Production (AWS EC2)
@@ -376,22 +467,17 @@ SLACK_CHANNEL=#production-alerts
 # Database
 DATABASE_URL=postgresql://user:pass@rds-endpoint:5432/db
 
-# Redis Sentinel
-REDIS_SENTINEL_HOSTS=sentinel1:26379,sentinel2:26379
-REDIS_MASTER_NAME=mymaster
-REDIS_PASSWORD=secret
+# Cache Sentinel
+CACHE_SENTINEL_HOSTS=sentinel1:26379,sentinel2:26379
+CACHE_MASTER_NAME=mymaster
+CACHE_PASSWORD=<set in your secret manager>
 
 # API URLs
-SERVER_API_URL=http://172.31.x.x:8790  # Internal VPC IP
-NEXT_PUBLIC_API_URL=https://api.example.com  # Public domain
+SPFN_API_URL=http://172.31.x.x:8790            # Internal VPC IP
+NEXT_PUBLIC_SPFN_API_URL=https://api.example.com  # Public domain
 
-# Email Alerts
-SMTP_HOST=email-smtp.us-east-1.amazonaws.com
-SMTP_PORT=587
-SMTP_USER=AKIAXXXXXXXX
-SMTP_PASSWORD=secret
-EMAIL_FROM=noreply@example.com
-EMAIL_TO=admin@example.com
+# Alerts — see @spfn/notification for the full set
+SPFN_NOTIFICATION_EMAIL_FROM=noreply@example.com
 ```
 
 ---
@@ -399,10 +485,18 @@ EMAIL_TO=admin@example.com
 ## Notes
 
 ### Security
-- **Never commit `.env.local`** to version control
-- Use **`.env.local.example`** for documentation
+- **Never commit `.env.local`, `.env.*.local` or `.env.server`** to version control
+- Only `*.example` env files are committed, with placeholder values
 - Store production secrets in CI/CD secret management
 - Prefix client-accessible vars with `NEXT_PUBLIC_`
+
+### `.env.server`
+- Server-only variables live in **`.env.server`**. Next.js never loads this file, so
+  nothing in it can leak into the browser bundle.
+- `.env.server.local` no longer exists — move anything still in it to `.env.server`.
+- A variable read by both the Next.js process and the SPFN backend (such as
+  `SPFN_PROXY_SECRET`) must go in `.env.local` instead, since `.env.server` is invisible
+  to Next.js.
 
 ### Next.js Behavior
 - `NEXT_PUBLIC_*` vars are embedded in browser bundle
@@ -410,6 +504,6 @@ EMAIL_TO=admin@example.com
 - Changes require rebuild for browser bundle
 
 ### SPFN CLI Behavior
-- `spfn build` sets `NODE_ENV=production`
-- `spfn start` sets `NODE_ENV=production`
+- `spfn build` sets `NODE_ENV=production` **only if it is not already set**
+- `spfn start` sets `NODE_ENV=production` **only if it is not already set**
 - `spfn dev` keeps current `NODE_ENV` or defaults to `development`
