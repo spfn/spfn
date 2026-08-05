@@ -128,7 +128,7 @@
     "@vitest/coverage-v8": "^4.0.6",
     "drizzle-kit": "1.0.0-rc.4",
     "drizzle-orm": "1.0.0-rc.4",
-    "hono": "^4.12.25",
+    "hono": "^4.12.34",
     "madge": "^8.0.0",
     "next": "^16.2.11",
     "spfn": "workspace:*",

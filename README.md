@@ -390,7 +390,7 @@ path. See [the deployment guide](./docs/guides/deployment.md).
 
 ## What do I need installed?
 
-- Node.js >= 18.18.0 — except `@spfn/mcp`, which needs >= 20
+- Node.js >= 20.0.0 — `@spfn/core` runs on `@hono/node-server` 2, which requires it
 - Next.js >= 16.2.11 — only if you use the Next.js integration
 - PostgreSQL 14+
 - Redis — only when the features you enable need it

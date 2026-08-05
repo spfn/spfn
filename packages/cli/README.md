@@ -24,8 +24,8 @@ pnpm dlx spfn@beta <command>
 Or add it as a project dependency (`spfn init`/`spfn create` do this for you), then
 call it via `pnpm spfn <command>` / `npm run spfn:<script>`.
 
-Requirements: Node.js 18.18+ for bare mode, Node.js 20+ for full mode's MCP server,
-Next.js 16.2.11+ (App Router, `src/` dir), PostgreSQL 14+ (Redis optional). Next.js 15
+Requirements: Node.js 20+ in both modes, Next.js 16.2.11+ (App Router, `src/` dir),
+PostgreSQL 14+ (Redis optional). Next.js 15
 is not supported — see [the root README](../../README.md#what-do-i-need-installed).
 
 ## Usage
@@ -516,8 +516,8 @@ and `docker compose up -d` is also the convenient way to get PostgreSQL and Redi
 pointing at your own PostgreSQL works too. PostgreSQL itself is not optional.
 
 **Which Node version do I need?**
-18.18 or later for bare mode, 20 or later for full mode, because full mode includes the
-MCP server.
+20 or later, in both modes. `@spfn/core` runs on `@hono/node-server` 2, which declares
+that floor, and full mode's MCP server needs the same.
 
 **When do I have to run codegen by hand?**
 Whenever routes change outside `spfn dev`, which runs a codegen watcher for you. A stale or
