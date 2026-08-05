@@ -37,6 +37,7 @@ pnpm lint               # eslint — house style (Allman, 4-space, semicolons)
 pnpm lint:fix           # auto-fix style violations
 pnpm audit              # known vulnerabilities in the production dependency graph
 pnpm audit:all          # the same, including build tooling
+pnpm check:versions     # docs and peer ranges name the same Next.js floor
 ```
 
 **A dependency's version range is a security surface.** A published `peerDependencies`
@@ -46,6 +47,16 @@ that couple to Next.js require `^16.2.11` — the floor that clears both CVE-202
 (remote code execution through React Server Components) and the Server Components denial
 of service. Next.js 15 is not supported: its patches landed per minor line
 (15.0.5, 15.1.9, 15.2.6, …), so no single caret range can express "patched".
+
+Prose says the floor too, and prose drifts. `pnpm check:versions` compares every
+`packages/*/package.json` peer range against every README, `docs/` page and the site's
+own requirements — the packages must agree with each other, and the documentation must
+agree with them. `.github/workflows/check-versions.yml` runs it on every pull request.
+
+PostgreSQL's floor has a different reason. The code runs on 13 and later, because
+`gen_random_uuid()` is a column default and moved into the server in 13; the stated
+floor is 14 because 13 stopped receiving fixes in November 2025. `@spfn/monitor` also
+needs `CREATE EXTENSION pg_trgm`, which some managed providers withhold.
 
 Advisories are usually published long after the affected code is written, which is why
 `.github/workflows/security-audit.yml` runs daily rather than only on a pull request. It

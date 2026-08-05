@@ -20,7 +20,8 @@ Or add it as a project dependency (`spfn init`/`spfn create` do this for you), t
 call it via `pnpm spfn <command>` / `npm run spfn:<script>`.
 
 Requirements: Node.js 18.18+ for bare mode, Node.js 20+ for full mode's MCP server,
-Next.js 15+ (App Router, `src/` dir), PostgreSQL (Redis optional).
+Next.js 16.2.11+ (App Router, `src/` dir), PostgreSQL 14+ (Redis optional). Next.js 15
+is not supported — see [the root README](../../README.md#what-do-i-need-installed).
 
 ## Usage
 
