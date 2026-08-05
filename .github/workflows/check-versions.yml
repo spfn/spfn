@@ -1,0 +1,29 @@
+name: Check version floors
+
+# A published peer range is what an adopter resolves against, so a README that still
+# names an older floor invites an install the packages do not support — and for Next.js
+# that older floor carried CVE-2025-66478. Five READMEs drifted that way unnoticed
+# because nothing read them. This does.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      # No install: the check reads package.json manifests and markdown, nothing else.
+      - name: Compare declared peer ranges with the documentation
+        run: node scripts/check-doc-versions.mjs

@@ -22,6 +22,8 @@ database is synchronized from the declarations on server startup.
 pnpm spfn add @spfn/cms
 ```
 
+Peer deps: `next` (`^16.2.11`), `react` (`^19.2.1`), `drizzle-orm` (`>=1.0.0-rc.4 <2`).
+
 ## Quick Start
 
 ### 1. Define Labels & Configuration

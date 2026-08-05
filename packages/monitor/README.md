@@ -22,8 +22,12 @@ plus lifecycle) and a package router mounted with `.packages([...])`.
 pnpm add @spfn/monitor drizzle-orm@1.0.0-rc.4
 ```
 
-Peer dep: `next` (`^15 || ^16`, optional — only needed for the `nextjs/client` components).
+Peer dep: `next` (`^16.2.11`, optional — only needed for the `nextjs/client` components).
 Workspace deps `@spfn/core`, `@spfn/auth`, `@spfn/notification` come transitively.
+
+The migrations run `CREATE EXTENSION IF NOT EXISTS pg_trgm`, which the trigram GIN index
+on the error-group search needs. A managed PostgreSQL that does not allow the extension
+fails the migration rather than degrading, so check the provider before installing.
 
 ## Import paths
 

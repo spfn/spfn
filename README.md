@@ -383,10 +383,19 @@ path. See [the deployment guide](./docs/guides/deployment.md).
 
 ## What do I need installed?
 
-- Node.js >= 18.18.0
-- Next.js >= 15.1.9 or >= 16.0.7 (patched for [CVE-2025-66478](https://nextjs.org/blog/CVE-2025-66478)) — only if you use the Next.js integration
+- Node.js >= 18.18.0 — except `@spfn/mcp`, which needs >= 20
+- Next.js >= 16.2.11 — only if you use the Next.js integration
 - PostgreSQL 14+
 - Redis — only when the features you enable need it
+
+Next.js 15 is not supported. Its fixes for [CVE-2025-66478](https://nextjs.org/blog/CVE-2025-66478)
+and the Server Components denial of service landed separately on each minor line
+(15.0.5, 15.1.9, 15.2.6, …), so no single range can express "patched" — the packages
+require `^16.2.11` instead.
+
+PostgreSQL 13 is the oldest release the code actually runs on: `gen_random_uuid()` is a
+column default and moved into the server in 13. The floor is 14 because 13 stopped
+receiving fixes in November 2025.
 
 ---
 

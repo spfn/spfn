@@ -14,6 +14,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "clean": "turbo run clean",
+    "check:versions": "node scripts/check-doc-versions.mjs",
     "audit": "pnpm audit --prod --audit-level=critical",
     "audit:all": "pnpm audit --audit-level=high",
     "test:init": "node scripts/test-init.mjs",
