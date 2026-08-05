@@ -1,6 +1,6 @@
 ---
 title: Packages
-order: 3
+order: 4
 description: The @spfn/* package family — take what you need, documented right here.
 ---
 
