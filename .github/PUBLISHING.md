@@ -1,7 +1,9 @@
 # Publishing Packages
 
-> **이 프로젝트는 비공개 Gitea 레지스트리에 수동(local) publish 한다.** 공개 npm·아래
-> GitHub Actions 워크플로우는 현재 배포 경로가 아니다 (참고용으로만 남김).
+> **이 프로젝트는 레지스트리 두 곳에 배포한다** (2026-07-22 이후).
+> 비공개 Gitea 레지스트리는 로컬에서 수동으로, 공개 npmjs 는 패키지별 GitHub Actions
+> 워크플로우로 — 둘 다 현재 살아 있는 경로다. 아래 Gitea 절차를 먼저 밟고,
+> 버전 범프 커밋이 `main` 에 올라가면 공개 npmjs 쪽은 자동으로 따라온다.
 
 ## 어디로 — Gitea 비공개 레지스트리
 
@@ -26,10 +28,14 @@ cd packages/auth && npm run publish:beta
 cd packages/cli  && npm run publish:beta
 
 # 4) 버전 범프 커밋을 main 에 push (origin = Gitea)
+#    → GitHub 미러가 받아 공개 npmjs 워크플로우가 같은 버전을 배포한다
 ```
 
-각 패키지에 `publish:alpha` / `publish:beta` / `publish:latest` 스크립트가 있다
-(`npm publish --access public --tag <tag>`).
+각 패키지에 `publish:alpha` / `publish:beta` / `publish:latest` 스크립트가 있다.
+셋 다 `scripts/publish-package.mjs <channel>` 을 돌리는데, 이건
+`npm publish --access public --tag <channel>` 을 실행한 뒤 **`latest` dist-tag 를 방금
+올린 버전으로 옮긴다**. 안정 릴리스가 없는 레지스트리에서 `latest` 가 옛 버전에
+얼어붙어 맨 `npm install` 이 낡은 빌드를 주는 걸 막기 위한 것이다.
 
 ## ⚠️ bare publish 금지
 
@@ -53,13 +59,29 @@ npm view @spfn/auth@<version> version
 
 # unscoped spfn 은 레지스트리를 명시해야 Gitea 를 본다 (아니면 공개 npm 조회)
 npm view spfn@<version> version --registry https://git.superfunction.xyz/api/packages/superfunction/npm/
+
+# 공개 npmjs 쪽은 직접 질의한다 — scoped 패키지는 `--registry` 로 못 바꾼다
+curl -s https://registry.npmjs.org/@spfn%2Fauth
 ```
+
+`~/.npmrc` 의 `@spfn:registry` 스코프 설정이 `--registry` 플래그를 이긴다. 그래서
+`npm view @spfn/...` 이 알려주는 버전·dist-tag 는 언제나 Gitea 쪽 이야기다.
 
 ---
 
-## (참고) 구 GitHub Actions 워크플로우 — 현재 미사용
+## 공개 npmjs — 패키지별 GitHub Actions 워크플로우
 
-`.github/workflows/publish-*.yml` 은 **공개 npm(npmjs.org)** 으로 publish 하도록
-짜여 있고, `packages/<pkg>/package.json` 변경이 `main` 에 push 될 때 트리거된다.
-지금 이 프로젝트의 배포 경로가 아니므로 위 Gitea 절차를 따른다. `RELEASE.md` 의
-태그 기반 설명도 동일하게 구 방식이다.
+`.github/workflows/publish-<pkg>.yml` 이 **공개 npm(npmjs.org)** 배포를 맡는다.
+
+- 트리거: `packages/<pkg>/package.json` 변경이 GitHub 의 `main` 에 push 될 때.
+  origin 은 Gitea 이고 GitHub 은 미러라, Gitea 에 push 하면 미러를 타고 돌아간다.
+- dist-tag 는 버전 문자열에서 뽑는다 — `-alpha` → `alpha`, `-beta` → `beta`,
+  그 외 → `latest`.
+- publish 후 `latest` dist-tag 를 그 버전으로 동기화한다. workflow_dispatch 로
+  다시 돌리면 이미 배포된 버전에 대해서도 `latest` 만 다시 맞춘다 (백필용).
+- unscoped `spfn` CLI 워크플로우는 publish 직전에 `publishConfig.registry` 를 지운다.
+  그래야 npmjs 로 나가고, 배포된 아티팩트에 내부 레지스트리 주소가 박히지 않는다.
+
+`.github/workflows/publish.yml` (`v*` 태그로 전 패키지 일괄 배포) 은 옛 경로다.
+모든 패키지를 `alpha` 태그로 밀어버리므로 쓰지 않는다 — 패키지별 워크플로우가 대체했다.
+`RELEASE.md` 본문의 태그 기반 릴리스 절차도 같은 구 방식이라 더 이상 유효하지 않다.

@@ -5,7 +5,8 @@ The same typed request path, now backed by Postgres through the SPFN building bl
 **Entity → Repository → Route → Router → generated client**.
 
 Diff this against `01-minimal-api` to see exactly what persistence adds: a Drizzle
-entity, a `BaseRepository`, CRUD routes, and a migration.
+entity, a `BaseRepository`, and CRUD routes. No migration is committed here — you
+generate it from the entity on first run (see [Getting started](#getting-started)).
 
 ## What it demonstrates
 
@@ -51,13 +52,20 @@ Then, inside this directory:
 # 1. Start a local Postgres (and optional Valkey/Redis)
 docker compose up -d
 
-# 2. Configure environment
-cp .env.local.example .env.local   # defaults match docker-compose.yml
+# 2. Configure environment — create .env.local with the docker-compose defaults
+cat > .env.local <<'EOF'
+DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
+CACHE_URL=redis://localhost:6379
+EOF
 
 # 3. Generate the route metadata the client imports
 pnpm codegen
 
-# 4. Run the SPFN API server + Next.js together
+# 4. Create the `examples` table from the entity
+pnpm spfn db generate    # writes src/server/drizzle/<timestamp>_*.sql
+pnpm spfn db migrate     # applies it
+
+# 5. Run the SPFN API server + Next.js together
 pnpm spfn:dev
 ```
 
@@ -67,12 +75,15 @@ can also run them separately with `pnpm spfn:server` (backend only) and
 
 ### Environment variables
 
-`.env.local.example` lists every variable the app reads:
+This example ships no `.env` example file — `.gitignore` excludes `.env*`. Write your
+own `.env.local` (step 2 above); these are the variables the app reads:
 
-- `DATABASE_URL` — Postgres connection (defaults match `docker-compose.yml`)
-- `SPFN_API_URL` — where the Next.js proxy forwards requests for SSR
-- `CACHE_URL` — Redis/Valkey, optional
-- `NODE_ENV`, `SPFN_LOG_LEVEL`
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | Postgres connection; the value in step 2 matches `docker-compose.yml` |
+| `CACHE_URL` | No | Redis/Valkey |
+| `SPFN_API_URL` | No | Where the Next.js proxy forwards requests; defaults to `http://localhost:8790`, which is the port in `src/server/server.config.ts` |
+| `SPFN_LOG_LEVEL` | No | `debug`, `info`, … |
 
 ## Project layout
 
@@ -88,6 +99,7 @@ src/
 │   └── api-client.ts                      # type-safe client (createApi<AppRouter>)
 └── server/
     ├── entities/example.entity.ts         # Drizzle table + types
+    ├── entities/config.ts                 # barrel drizzle-kit reads to find every table
     ├── repositories/example.repository.ts # BaseRepository data access
     ├── routes/                            # route definitions (examples, health, root)
     └── router.ts                          # defineRouter — the API contract
@@ -121,4 +133,4 @@ server isn't running yet).
 
 - This example is part of the [SPFN](../../README.md) monorepo and depends on the
   workspace packages (`spfn`, `@spfn/core`) via `workspace:*`.
-- Next step: add authentication and protected routes (`03 · auth`, coming next).
+- Next step: add authentication and protected routes in [03 · Auth](../03-auth).

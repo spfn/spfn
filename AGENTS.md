@@ -83,9 +83,10 @@ A feature is built as a vertical slice, each layer in its own file:
 (`route.get/post/...` with TypeBox validation) → `Router` (`defineRouter`) →
 generated route map (`pnpm codegen`) → typed client (`createApi<AppRouter>()`).
 
-`examples/vertical-integration-demo` is a minimal end-to-end reference for exactly
-this flow. For the full pattern (auth, errors, services, DTOs) read
-`packages/auth/README.md` and `packages/core/README.md`.
+`examples/01-minimal-api` is the smallest end-to-end reference for this flow, and
+`examples/02-database-crud` adds the entity and repository layers. For the full pattern
+(auth, errors, services, DTOs) read `examples/03-auth` plus `packages/auth/README.md`
+and `packages/core/README.md`.
 
 ## Hard rules
 
@@ -172,8 +173,9 @@ Gotchas:
   reported this way describes the private registry. To inspect public npmjs, query it
   directly: `curl -s https://registry.npmjs.org/@spfn%2Fauth`. Issue #52 was filed against
   the wrong registry for exactly this reason.
-- `RELEASE.md` / `.github/PUBLISHING.md` still describe the old public-npm + GitHub
-  Actions flow; the process above supersedes them.
+- `.github/PUBLISHING.md` is the long form of the process above — same two registries,
+  with the exact commands. `RELEASE.md` describes the retired tag-triggered release and
+  is kept for history only; nothing publishes off a git tag any more.
 
 <!-- superself:begin v0.5.1 -->
 ## Project state (superself)

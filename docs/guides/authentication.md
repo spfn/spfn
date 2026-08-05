@@ -15,7 +15,7 @@ available: true
 - **Session Management** - HttpOnly cookie sessions with configurable TTL
 - **Role-Based Access Control** - Roles, permissions, and middleware guards
 - **One-Time Tokens** - Direct API access for file uploads, SSE, streaming
-- **OAuth** - Google OAuth 2.0 (extensible to other providers)
+- **OAuth** - Google, Kakao, Naver, GitHub built in; extensible via a provider registry
 - **User Management** - Email/phone identity, profiles, invitations
 - **Next.js Integration** - Server components, session guards, OAuth callbacks
 
@@ -46,26 +46,42 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev
 # Verification token secret (email verification, password reset)
 SPFN_AUTH_VERIFICATION_TOKEN_SECRET="generate-a-random-32-char-string"
 
+# Same value as .env.local — the API server unseals the OAuth state the Next.js
+# side sealed with it, and encrypts stored provider tokens with it
+SPFN_AUTH_SESSION_SECRET="my-super-secret-session-key-at-least-32-chars-long"
+
 # ── Admin Account (at least one method required) ─────────────────────
 # JSON format (recommended for multiple accounts)
 SPFN_AUTH_ADMIN_ACCOUNTS='[{"email":"admin@example.com","password":"Admin!@34","role":"superadmin"}]'
 
 # ── Optional ─────────────────────────────────────────────────────────
-SPFN_AUTH_JWT_SECRET=your-jwt-secret        # Default: dev-secret (change in production!)
+# JWT_SECRET/JWT_EXPIRES_IN apply to the legacy server-signed JWT mode only
+SPFN_AUTH_JWT_SECRET=your-jwt-secret        # Default: dev-secret-key-change-in-production
 SPFN_AUTH_JWT_EXPIRES_IN=7d                 # Default: 7d
 SPFN_AUTH_BCRYPT_SALT_ROUNDS=12             # Default: 12 (native bcrypt, off the event loop)
 SPFN_AUTH_SESSION_TTL=7d                    # Default: 7d
 
-# ── Email Service (AWS SES) ──────────────────────────────────────────
-SPFN_AUTH_AWS_REGION="us-east-1"
-SPFN_AUTH_AWS_SES_ACCESS_KEY_ID=AKIA...
-SPFN_AUTH_AWS_SES_SECRET_ACCESS_KEY=...
-SPFN_AUTH_AWS_SES_FROM_EMAIL="noreply@example.com"
+# ── Email Delivery (via @spfn/notification) ──────────────────────────
+# @spfn/auth has no mail settings of its own — verification codes and
+# invitations go out through @spfn/notification, which owns these names
+SPFN_NOTIFICATION_EMAIL_PROVIDER=aws-ses    # Default: aws-ses (also sendgrid, smtp)
+SPFN_NOTIFICATION_EMAIL_FROM="noreply@example.com"
+AWS_REGION="us-east-1"                      # Default: ap-northeast-2
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
 
 # ── Google OAuth (optional) ──────────────────────────────────────────
 SPFN_AUTH_GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
 SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-...
+
+# OAuth token keyring — required once web OAuth is enabled.
+# Comma-separated <keyId>:<base64 32-byte key>; the first key encrypts, the rest decrypt.
+SPFN_AUTH_TOKEN_ENCRYPTION_KEYS=v1:<base64-encoded-32-byte-key>
 ```
+
+Kakao, Naver and GitHub follow the same `SPFN_AUTH_<PROVIDER>_CLIENT_ID` /
+`_CLIENT_SECRET` shape; see the [`@spfn/auth` README env table](../../packages/auth/README.md#which-environment-variables-do-i-need)
+for the full list including native (mobile `id_token`) sign-in.
 
 #### `.env.local` (Next.js Frontend)
 
@@ -87,7 +103,7 @@ SPFN_AUTH_COOKIE_SECURE=false   # Override cookie Secure flag (default: true in 
 
 > **Why two files?**
 >
-> SPFN runs as a separate backend process (`.env.server`), while Next.js is the frontend (``.env.local``). `SPFN_AUTH_SESSION_SECRET` is needed on both sides — the backend creates sessions, and Next.js validates them for Server Components.
+> SPFN runs as a separate backend process (`.env.server`), while Next.js is the frontend (`.env.local`). `SPFN_AUTH_SESSION_SECRET` must hold **the same value in both** — Next.js seals and reads the encrypted session cookie with it, and the API server unseals the OAuth `state` that Next.js sealed (and encrypts stored provider tokens) with it. Different values on the two sides break the OAuth callback.
 
 ### 3. Run Migrations
 
@@ -99,7 +115,7 @@ pnpm spfn db generate
 pnpm spfn db migrate
 ```
 
-This creates the `spfn_auth` schema with tables: `users`, `user_profiles`, `user_public_keys`, `user_social_accounts`, `verification_codes`, `user_invitations`, `roles`, `permissions`.
+This creates the `spfn_auth` schema with tables: `users`, `user_profiles`, `user_public_keys`, `user_social_accounts`, `verification_codes`, `user_invitations`, `roles`, `permissions`, `role_permissions`, `user_permissions`, `account_deletion_requests`, `auth_metadata`.
 
 ### 4. Register Lifecycle in `server.config.ts`
 
@@ -112,14 +128,18 @@ import { appRouter } from './router';
 export default defineServerConfig()
     .port(8790)
     .routes(appRouter)
-    .lifecycle(createAuthLifecycle())  // Validates env, creates admin accounts, initializes RBAC
+    .lifecycle(createAuthLifecycle())  // Creates admin accounts, initializes RBAC + one-time tokens
     .build();
 ```
 
-`createAuthLifecycle()` runs on server startup and:
-- Validates all required environment variables
-- Creates admin accounts from `SPFN_AUTH_ADMIN_ACCOUNTS`
-- Initializes built-in roles and permissions
+`createAuthLifecycle()` resolves the account-deletion config immediately, then on the
+server's `afterInfrastructure` step (once the database is ready):
+- Initializes built-in roles and permissions, plus any you passed in
+- Creates admin accounts from `SPFN_AUTH_ADMIN_ACCOUNTS` (or the CSV/single-account variants)
+- Initializes the one-time token manager
+
+Environment variables are not checked here. Each `SPFN_AUTH_*` value is validated the
+first time it is read, against the schema in `@spfn/auth/config`.
 
 ### 5. Register Router and Middleware in `router.ts`
 
@@ -425,7 +445,9 @@ When a request passes through `authenticate` middleware (or `oneTimeTokenAuth`),
 
 ### getAuth
 
-Returns the `AuthContext` for the current request. Throws if not authenticated.
+Returns the `AuthContext` that `authenticate` (or `oneTimeTokenAuth`) put on the request.
+It does not authenticate anything itself — on a route that skipped auth it returns
+`undefined`, so only call it where an auth middleware ran.
 
 ```typescript
 import { getAuth } from '@spfn/auth/server';
@@ -464,7 +486,8 @@ export const getProducts = route.get('/products')
 
 ### getUser
 
-Shortcut to get the full User entity. Throws if not authenticated.
+Shortcut for `getAuth(c).user` — the full User entity. Same rule as `getAuth`: only use it
+on a route an auth middleware guards.
 
 ```typescript
 import { getUser } from '@spfn/auth/server';
@@ -487,9 +510,9 @@ Auth creates three built-in roles on startup:
 
 | Role | Priority | Description |
 |------|----------|-------------|
-| `superadmin` | 100 | Full system access |
-| `admin` | 50 | Administrative access |
-| `user` | 10 | Standard user access |
+| `superadmin` | 100 | Full system access and RBAC management |
+| `admin` | 80 | User management and organization administration |
+| `user` | 10 | Default role with basic permissions |
 
 ### Custom Roles and Permissions
 
@@ -549,15 +572,16 @@ export const updatePost = route.put('/posts/:id')
 
 ### Admin Routes
 
-Admin endpoints for managing roles are available at `/_auth/admin/*` (requires `superadmin` role):
+Admin endpoints for managing roles are available at `/_auth/admin/*`. Writes to the role
+catalogue are `superadmin`-only; reading roles and reassigning a user's role also accept `admin`:
 
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/_auth/admin/roles` | GET | List all roles |
-| `/_auth/admin/roles` | POST | Create role |
-| `/_auth/admin/roles/:id` | PATCH | Update role |
-| `/_auth/admin/roles/:id` | DELETE | Delete role |
-| `/_auth/admin/users/:userId/role` | PATCH | Change user role |
+| Route | Method | Role | Purpose |
+|-------|--------|------|---------|
+| `/_auth/admin/roles` | GET | `admin` or `superadmin` | List all roles |
+| `/_auth/admin/roles` | POST | `superadmin` | Create role |
+| `/_auth/admin/roles/:id` | PATCH | `superadmin` | Update role |
+| `/_auth/admin/roles/:id` | DELETE | `superadmin` | Delete role |
+| `/_auth/admin/users/:userId/role` | PATCH | `admin` or `superadmin` | Change user role |
 
 ---
 
@@ -650,15 +674,21 @@ to the API host callback instead — that flow sets its CSRF cookie on the API h
 ### OAuth Flow
 
 ```
-1. Browser → /_auth/oauth/google         → Redirect to Google consent screen
+1. Browser → /_auth/oauth/google?state=…  → Redirect to Google consent screen
 2. Google  → /_auth/oauth/google/callback → Server validates, creates/links account
-3. Server  → /auth/callback?session=...  → Redirect to Next.js callback page
-4. Next.js → OAuthCallback component     → Finalizes session, redirects to app
+3. Server  → /auth/callback?userId=…&keyId=…&returnUrl=…&isNewUser=…
+4. Next.js → OAuthCallback component      → Finalizes session, redirects to returnUrl
 ```
+
+The `state` in step 1 is produced by the Next.js interceptor (it generates the key pair and
+seals it into the state), so start the flow through `authApi.getGoogleOAuthUrl` rather than
+linking to `/_auth/oauth/google` directly.
 
 ### Callback Page
 
-Create a callback page using the `OAuthCallback` component:
+Create a callback page using the `OAuthCallback` component. It reads `userId`, `keyId` and
+`returnUrl` from the query string the server redirected with — there is no `provider` or
+`redirectTo` prop:
 
 ```typescript
 // app/auth/callback/page.tsx
@@ -668,9 +698,12 @@ import { OAuthCallback } from '@spfn/auth/nextjs/client';
 
 export default function OAuthCallbackPage()
 {
-    return <OAuthCallback provider="google" redirectTo="/dashboard" />;
+    return <OAuthCallback />;
 }
 ```
+
+`OAuthCallback` accepts `apiBasePath` (default `/api/rpc`), `loadingComponent`,
+`errorComponent`, `onSuccess` and `onError`.
 
 ### Available Endpoints
 
@@ -678,14 +711,22 @@ export default function OAuthCallbackPage()
 |-------|--------|---------|
 | `/_auth/oauth/google` | GET | Start Google OAuth flow |
 | `/_auth/oauth/google/callback` | GET | Google OAuth callback |
+| `/_auth/oauth/google/url` | POST | Get the Google authorization URL (interceptor path) |
+| `/_auth/oauth/:provider` | GET | Start the flow for any registered provider |
+| `/_auth/oauth/:provider/callback` | GET | Callback for any registered provider |
+| `/_auth/oauth/:provider/url` | POST | Get the authorization URL for any registered provider |
+| `/_auth/oauth/:provider/native` | POST | Native sign-in — verify a provider `id_token` from a mobile/web SDK |
 | `/_auth/oauth/start` | POST | Get OAuth URL (API mode) |
 | `/_auth/oauth/providers` | GET | List enabled providers |
 | `/_auth/oauth/finalize` | POST | Finalize OAuth session |
 | `/_auth/oauth/:provider/unlink-notify` | GET/POST | Provider발 연동 해제 웹훅 수신 (카카오 연결 해제 웹훅 · 네이버 연결끊기 Callback URL 등록용, 서명 검증 후 소셜 연결·저장 토큰 삭제) |
 
+Hono matches literal segments before `:provider`, so `/google` and `/providers` are taken by
+their own routes and every other provider id falls through to the generic handlers.
+
 ### Custom Providers (Pluggable)
 
-OAuth provider 분기는 registry 기반이라 Google 외 provider를 런타임에 끼울 수 있습니다. 내장 `google`은 자기 등록되고, 외부 패키지는 `registerOAuthProvider()`로 등록합니다.
+OAuth provider 분기는 registry 기반이라 내장 provider 외의 provider를 런타임에 끼울 수 있습니다. 내장 `google`·`kakao`·`naver`·`github`·`apple`은 자기 등록되고, 외부 패키지는 `registerOAuthProvider()`로 등록합니다.
 
 ```typescript
 import { registerOAuthProvider, type OAuthProvider } from '@spfn/auth/server';
@@ -701,7 +742,7 @@ const myProvider: OAuthProvider = {
 registerOAuthProvider(myProvider);
 ```
 
-등록 후 `POST /_auth/oauth/start`가 해당 provider를 자동 처리합니다. 단, **콜백 route는 소비 측에서** 직접 만들어 `oauthCallbackService({ provider, code, state })`를 호출해야 합니다 (이 패키지는 google 콜백 route만 내장). 이 콜백 route는 `.use([Transactional()])`로 감싸 중간 실패 시 orphan user를 방지하세요. provider id는 `SOCIAL_PROVIDERS` enum에 포함되어야 합니다.
+등록 후 `POST /_auth/oauth/start`, `GET /_auth/oauth/:provider`, `GET /_auth/oauth/:provider/callback`이 해당 provider를 자동 처리합니다 — 콜백 route를 따로 만들 필요는 없습니다 (제네릭 콜백이 이미 `Transactional()`로 감싸여 있어 중간 실패 시 orphan user가 남지 않습니다). provider id는 `SOCIAL_PROVIDERS` enum(`google`·`apple`·`github`·`kakao`·`naver`·`superself`)에 포함되어야 합니다.
 
 > 인터페이스(`OAuthProvider` / `NormalizedIdentity` / `OAuthTokens`) 전체 명세는 [`@spfn/auth` README의 Custom OAuth Providers](../../packages/auth/README.md#custom-oauth-providers-pluggable) 참고.
 
@@ -725,7 +766,7 @@ import { redirect } from 'next/navigation';
 
 export default async function HomePage()
 {
-    const session = getSession();
+    const session = await getSession();
 
     if (!session)
     {
@@ -754,13 +795,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 }
 ```
 
-Available guard components:
+Available guard components. All three are async Server Components, and all three take an
+optional `fallback` — render that instead of redirecting when the check fails.
 
 | Component | Props | Purpose |
 |-----------|-------|---------|
-| `RequireAuth` | — | Redirects to login if not authenticated |
-| `RequireRole` | `roles: string[]` | Requires one of the specified roles |
-| `RequirePermission` | `permissions: string[]` | Requires all specified permissions |
+| `RequireAuth` | `redirectTo?` (default `/auth/login`), `fallback?` | Redirects to login if not authenticated |
+| `RequireRole` | `roles: string \| string[]`, `redirectTo?` (default `/unauthorized`), `fallback?` | Requires **at least one** of the roles |
+| `RequirePermission` | `permissions: string \| string[]`, `redirectTo?` (default `/unauthorized`), `fallback?` | Requires **at least one** of the permissions |
+
+> Note the difference from the route middleware: `requirePermissions` on a route is an AND
+> check, while the `RequirePermission` component is an OR check.
 
 ### Logout
 
@@ -808,16 +853,22 @@ SPFN_AUTH_COOKIE_SECURE=false
 
 | Route | Method | Auth | Purpose |
 |-------|--------|------|---------|
-| `/_auth/exists` | POST | — | Check if account exists |
 | `/_auth/codes` | POST | — | Send verification code |
 | `/_auth/codes/verify` | POST | — | Verify code, get temp token |
 | `/_auth/register` | POST | — | Register new account |
 | `/_auth/login` | POST | — | Login with email/phone |
 | `/_auth/logout` | POST | Required | Revoke current key |
 | `/_auth/keys/rotate` | POST | Required | Rotate public key |
+| `/_auth/keys/list` | POST | Required | List the caller's registered devices |
+| `/_auth/keys/revoke` | POST | Required | Sign one device out |
+| `/_auth/keys/revoke-all` | POST | Required | Sign every device out |
 | `/_auth/password` | PUT | Required | Change password |
 | `/_auth/session` | GET | Required | Get session info |
 | `/_auth/tokens` | POST | Required | Issue one-time token |
+
+> There is no account-existence endpoint. `POST /_auth/exists` was removed on purpose — it
+> let anyone enumerate registered users — and the login path is timing-equalized so existence
+> cannot be inferred from it either.
 
 ### User Profile
 
@@ -884,8 +935,9 @@ catch (error)
 | `InsufficientRoleError` | 403 | Missing required role |
 | `InsufficientPermissionsError` | 403 | Missing required permission |
 | `InvalidVerificationCodeError` | 400 | Wrong verification code |
-| `InvalidVerificationTokenError` | 401 | Invalid verification token |
-| `ReservedUsernameError` | 409 | Username is reserved |
+| `InvalidVerificationTokenError` | 400 | Invalid verification token |
+| `RegistrationRejectedError` | 403 | A `beforeRegister` hook rejected the signup |
+| `ReservedUsernameError` | 400 | Username is reserved |
 | `UsernameAlreadyTakenError` | 409 | Username already in use |
 
 ---
@@ -897,18 +949,21 @@ Subscribe to auth events for side effects like analytics, notifications, or audi
 ```typescript
 import { authLoginEvent, authRegisterEvent } from '@spfn/auth/server';
 
-authLoginEvent.on((payload) =>
+authLoginEvent.subscribe((payload) =>
 {
-    // payload: { userId, provider: 'email'|'phone'|'google', email?, phone? }
+    // payload: { userId, provider: 'email'|'phone'|'google'|… , email?, phone? }
     console.log(`User ${payload.userId} logged in via ${payload.provider}`);
 });
 
-authRegisterEvent.on((payload) =>
+authRegisterEvent.subscribe(async (payload) =>
 {
     // payload: { userId, provider, email?, phone?, metadata? }
-    await sendWelcomeEmail(payload.email);
+    if (payload.email) await sendWelcomeEmail(payload.email);
 });
 ```
+
+`subscribe()` returns an unsubscribe function. To handle an event in a background job
+instead, bind it with `.on(event)` from `@spfn/core/job`.
 
 ### Available Events
 
@@ -918,6 +973,9 @@ authRegisterEvent.on((payload) =>
 | `authRegisterEvent` | `{ userId, provider, email?, phone?, metadata? }` |
 | `invitationCreatedEvent` | `{ invitationId, email, token, roleId, invitedBy, expiresAt, isResend, metadata? }` |
 | `invitationAcceptedEvent` | `{ invitationId, email, userId, roleId, invitedBy, metadata? }` |
+| `authDeletionRequestedEvent` | `{ userId, userPublicId, purgeScheduledAt, requestedBy }` |
+| `authDeletionCancelledEvent` | `{ userId, userPublicId }` |
+| `authDeletionCompletedEvent` | `{ userPublicId, purgeStrategy }` — carries no PII, not even `userId` |
 | `oauthUnlinkedEvent` | `{ userId, provider, providerUserId, reason? }` — provider 쪽에서 연동을 끊어 소셜 연결이 삭제된 직후. 계정 탈퇴 연계 등 후속 정책은 이 이벤트를 구독해 처리 |
 
 ### Rejecting a Registration (`beforeRegister`)
@@ -929,7 +987,8 @@ registration channel (`credentials`, `oauth`, `invitation`) and throwing rejects
 registration:
 
 ```typescript
-import { configureAuth, RegistrationRejectedError } from '@spfn/auth/server';
+import { configureAuth } from '@spfn/auth/server';
+import { RegistrationRejectedError } from '@spfn/auth/errors';
 
 configureAuth({
     beforeRegister: async ({ channel, provider, email, phone, metadata }) =>
@@ -977,7 +1036,7 @@ mobile). A production enrollment/rotation flow is tracked separately (phase 2).
 
 ## Troubleshooting
 
-### "relation \"auth.users\" does not exist" (missing auth tables)
+### "relation \"spfn_auth.users\" does not exist" (missing auth tables)
 
 Auth tables are **not** created by `spfn db push`'s schema diff — package schemas are excluded
 from push on purpose. They are created by the migration files bundled inside `@spfn/auth`,
@@ -1060,10 +1119,15 @@ See [Cookie Secure Flag](#cookie-secure-flag) for details.
 
 ### OAuth redirects to wrong URL
 
-Set `SPFN_APP_URL` and `NEXT_PUBLIC_SPFN_API_URL` in your environment:
+Both the provider callback URL and the post-login redirect are built from the **app** URL:
+`NEXT_PUBLIC_SPFN_APP_URL` if set, otherwise `SPFN_APP_URL` (default `http://localhost:3000`).
+Set them on the API server:
 
 ```bash
 # .env.server
 SPFN_APP_URL=http://localhost:3000
-NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
+NEXT_PUBLIC_SPFN_APP_URL=http://localhost:3000
 ```
+
+The landing path is `SPFN_AUTH_OAUTH_SUCCESS_URL` (default `/auth/callback`); errors go to
+`SPFN_AUTH_OAUTH_ERROR_URL` (default `/auth/error?error={error}`).

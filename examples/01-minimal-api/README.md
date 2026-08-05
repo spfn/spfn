@@ -27,13 +27,16 @@ No entities, no repositories, no Postgres — just the typed edge from UI to han
 From the repo root, `pnpm install`. Then in this directory:
 
 ```bash
-cp .env.local.example .env.local   # sets SPFN_API_URL
-pnpm codegen                       # generates src/generated/route-map.ts
-pnpm spfn:dev                      # runs the API server + Next.js together
+pnpm codegen     # generates src/generated/route-map.ts
+pnpm spfn:dev    # runs the API server (:8790) + Next.js (:3790) together
 ```
 
-Open the app and you'll see the live JSON returned by the `greeting` route. Try the
-API directly too: `GET /greeting?name=You`.
+No `.env` file is needed: the API server listens on `8790` (`src/server/server.config.ts`)
+and the `/api/rpc` proxy falls back to `http://localhost:8790` when `SPFN_API_URL` is
+unset. Set `SPFN_API_URL` in a `.env.local` only if you move the API server.
+
+Open `http://localhost:3790` and you'll see the live JSON returned by the `greeting`
+route. Try the API directly too: `curl 'http://localhost:8790/greeting?name=You'`.
 
 ## Next step
 

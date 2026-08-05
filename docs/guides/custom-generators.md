@@ -21,13 +21,16 @@ Generators are automated tools that scan your codebase and generate code based o
 
 ## Basic Generator Structure
 
-A generator is a simple object that implements the `Generator` interface:
+A generator is a simple object that implements the `Generator` interface. The file must
+**default-export a zero-argument factory** that returns it — the loader calls the default
+export with no arguments (a named `createGenerator` export is the only accepted
+alternative), so a factory that requires parameters will not load:
 
 ```typescript
 // src/generators/my-generator.ts
 import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
 
-export function createMyGenerator(): Generator {
+export default function createMyGenerator(): Generator {
   return {
     // Unique name for this generator
     name: 'my-generator',
@@ -36,8 +39,8 @@ export function createMyGenerator(): Generator {
     watchPatterns: ['src/features/**/*.config.ts'],
 
     // When to run: 'watch' | 'manual' | 'build' | 'start'
-    // Default: ['watch', 'manual', 'build']
-    runOn: ['watch', 'build'],
+    // Default: ['watch', 'manual', 'build'] — omit it unless you mean to narrow it
+    runOn: ['watch', 'manual', 'build'],
 
     // Main generation function
     async generate(options: GeneratorOptions): Promise<void> {
@@ -59,27 +62,29 @@ export function createMyGenerator(): Generator {
 
 The `runOn` option controls when your generator executes:
 
-| Trigger | When | Use Case |
-|---------|------|----------|
-| `watch` | During `spfn dev` file watching | Development-time updates |
-| `manual` | When running `spfn codegen` command | On-demand generation |
-| `build` | During `spfn build` | Build-time generation |
-| `start` | On server startup | Runtime initialization |
+| Trigger | Fired by | Use Case |
+|---------|----------|----------|
+| `watch` | `spfn dev` — the initial pass and every file change | Development-time updates |
+| `manual` | `spfn codegen run` and `spfn contract` | On-demand generation |
+| `build` | `spfn build` | Build-time generation |
+| `start` | nothing in the shipped CLI | reserved for a programmatic caller |
+
+> **Include `build` if the generator has to run during `spfn build`.** This is the trap:
+> `runOn: ['watch', 'manual']` looks like "development and on demand", but it silently skips
+> the build. Both built-in generators list `build` for exactly this reason — a route map or a
+> contract that is not regenerated during the build is a stale artifact shipped to production.
 
 **Examples:**
 
 ```typescript
-// Run during development and build (skip manual CLI and server start)
+// The default when `runOn` is omitted — every trigger the CLI actually fires
+runOn: ['watch', 'manual', 'build']
+
+// Development and builds, but not `spfn codegen run`
 runOn: ['watch', 'build']
 
-// Run only during build process
-runOn: ['build']
-
-// Run only on server start (e.g., runtime config)
-runOn: ['start']
-
-// Run on everything (default)
-runOn: ['watch', 'manual', 'build', 'start']
+// Only on an explicit run — for something too slow to sit in the watcher
+runOn: ['manual']
 ```
 
 ## Example: Admin Navigation Generator
@@ -104,8 +109,9 @@ export const navConfig = {
 // src/generators/admin-nav-generator.ts
 import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
 import { glob } from 'glob';
-import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { createJiti } from 'jiti';
+import { mkdirSync, writeFileSync } from 'fs';
+import { dirname, join } from 'path';
 
 interface NavItem {
   title: string;
@@ -114,11 +120,11 @@ interface NavItem {
   order: number;
 }
 
-export function createAdminNavGenerator(): Generator {
+export default function createAdminNavGenerator(): Generator {
   return {
     name: 'admin-nav',
     watchPatterns: ['src/app/admin/**/nav.config.tsx'],
-    runOn: ['watch', 'build'],
+    runOn: ['watch', 'manual', 'build'],
 
     async generate(options: GeneratorOptions): Promise<void> {
       const { cwd, debug } = options;
@@ -136,9 +142,12 @@ export function createAdminNavGenerator(): Generator {
       // 2. Extract nav items
       const navItems: NavItem[] = [];
 
+      // Note: plain `await import()` cannot load .ts/.tsx in Node. Load through jiti —
+      // the same loader the codegen system uses to load this generator file.
+      const jiti = createJiti(cwd, { interopDefault: true, moduleCache: false });
+
       for (const file of configFiles) {
-        // Dynamic import for TypeScript files
-        const module = await import(file);
+        const module = jiti(file);
         if (module.navConfig) {
           navItems.push(module.navConfig);
         }
@@ -151,6 +160,7 @@ export function createAdminNavGenerator(): Generator {
       const outputPath = join(cwd, 'src/lib/admin/nav-data.generated.ts');
       const code = generateNavCode(navItems);
 
+      mkdirSync(dirname(outputPath), { recursive: true });
       writeFileSync(outputPath, code, 'utf-8');
 
       if (debug) {
@@ -175,6 +185,23 @@ export type AdminNavItem = typeof adminNavItems[number];
 
 ### Step 3: Register the Generator
 
+`.spfnrc.ts` is the primary config file — it is what `spfn codegen init` and `spfn init`
+scaffold, and its default export *is* the config:
+
+```typescript
+// .spfnrc.ts
+import { defineConfig } from '@spfn/core/codegen';
+
+export default defineConfig({
+  generators: [
+    { path: './src/generators/admin-nav-generator.ts' },
+  ],
+});
+```
+
+`.spfnrc.json` also works, but the config must sit under a top-level `codegen` key
+(a bare top-level `generators` array is ignored):
+
 ```json
 // .spfnrc.json
 {
@@ -187,6 +214,9 @@ export type AdminNavItem = typeof adminNavItems[number];
   }
 }
 ```
+
+Resolution order is `.spfnrc.ts` → `.spfnrc.json` → `package.json` (`spfn.codegen`), and
+the **first file found wins** — configs are not merged.
 
 ### Step 4: Use Generated Code
 
@@ -253,54 +283,58 @@ async generate(options: GeneratorOptions): Promise<void> {
 
 ## Generator Configuration
 
-Generators can accept configuration options:
+A `{ path: ... }` entry gets **no configuration**. The loader calls the file's default
+export with zero arguments and ignores every other key on the entry — an `"options"` key
+next to `"path"` is silently dropped. So a file-based generator holds its settings itself:
 
 ```typescript
 // src/generators/feature-generator.ts
-interface FeatureGeneratorConfig {
-  outputDir?: string;
-  includeTests?: boolean;
-  templatePath?: string;
-}
+import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
+import { join } from 'path';
 
-export function createFeatureGenerator(
-  config: FeatureGeneratorConfig = {}
-): Generator {
-  const {
-    outputDir = 'src/generated',
-    includeTests = true,
-    templatePath
-  } = config;
+const OUTPUT_DIR = 'src/lib/features';
 
+export default function createFeatureGenerator(): Generator {
   return {
     name: 'feature-generator',
     watchPatterns: ['src/features/**/*.feature.ts'],
 
     async generate(options: GeneratorOptions): Promise<void> {
-      // Use config options
-      const output = join(options.cwd, outputDir);
+      const output = join(options.cwd, OUTPUT_DIR);
       // ...
     }
   };
 }
 ```
 
-```json
-// .spfnrc.json
+To make a generator configurable, publish it as a **package generator** instead. Those are
+named `package:generator` and the loader imports `${package}/codegen`, looks up
+`generators[generatorName]`, and calls it with the config entry minus `name` and `enabled`:
+
+```typescript
+// my-package/src/codegen/index.ts
+export const generators = {
+  'feature': (config: FeatureGeneratorConfig) => createFeatureGenerator(config),
+};
+```
+
+```jsonc
+// .spfnrc.json — extra keys sit on the entry itself, not under "options"
 {
   "codegen": {
     "generators": [
       {
-        "path": "./src/generators/feature-generator.ts",
-        "options": {
-          "outputDir": "src/lib/features",
-          "includeTests": true
-        }
+        "name": "my-package:feature",
+        "outputDir": "src/lib/features",
+        "includeTests": true
       }
     ]
   }
 }
 ```
+
+The `name` **must** contain a `:` — a colon-less name is rejected as invalid. Set
+`"enabled": false` to skip an entry without deleting it.
 
 ## Testing Your Generator
 
@@ -311,7 +345,7 @@ Create tests to ensure your generator works correctly:
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { createAdminNavGenerator } from '../admin-nav-generator';
+import createAdminNavGenerator from '../admin-nav-generator';
 
 const TEST_DIR = join(process.cwd(), '.test-tmp');
 
@@ -439,6 +473,11 @@ async generate(options: GeneratorOptions): Promise<void> {
 }
 ```
 
+The orchestrator catches per generator, so one failure is logged and the remaining
+generators still run. Don't throw to mean "nothing to do" — it is recorded as a failure.
+Return early instead, the way the built-in route-map generator does when its router file
+is absent.
+
 ### 5. Provide Debug Information
 
 ```typescript
@@ -465,14 +504,15 @@ A more complex generator that creates TypeScript types from database schemas:
 ```typescript
 // src/generators/db-schema-generator.ts
 import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
 import { Client } from 'pg';
 
-export function createDbSchemaGenerator(): Generator {
+export default function createDbSchemaGenerator(): Generator {
   return {
     name: 'db-schema',
     watchPatterns: ['src/db/schema/**/*.ts'],
-    runOn: ['manual', 'build'], // Not watch (DB changes are less frequent)
+    runOn: ['manual'], // Not watch (DB changes are less frequent)
 
     async generate(options: GeneratorOptions): Promise<void> {
       const { cwd, debug } = options;
@@ -498,6 +538,7 @@ export function createDbSchemaGenerator(): Generator {
 
         // Write to file
         const outputPath = join(cwd, 'src/types/db.generated.ts');
+        mkdirSync(dirname(outputPath), { recursive: true });
         writeFileSync(outputPath, types);
 
         if (debug) {
@@ -517,11 +558,14 @@ export function createDbSchemaGenerator(): Generator {
 
 **Check `runOn` configuration:**
 ```typescript
-// If generator isn't running during dev
-runOn: ['watch', 'build']  // Include 'watch'
+// If the generator isn't running during `spfn dev`
+runOn: ['watch', ...]   // include 'watch'
 
-// If not running on spfn codegen command
-runOn: ['manual', 'watch']  // Include 'manual'
+// If it isn't running on `spfn codegen run`
+runOn: ['manual', ...]  // include 'manual'
+
+// If it isn't running during `spfn build`
+runOn: ['build', ...]   // include 'build' — this one is easy to miss
 ```
 
 **Verify registration:**
@@ -537,6 +581,14 @@ runOn: ['manual', 'watch']  // Include 'manual'
   }
 }
 ```
+
+Remember that `.spfnrc.ts` **fully shadows** `.spfnrc.json`. If both exist, only the
+TypeScript one is read — the JSON registration is never seen.
+
+**Check the loader's expectations:** a `{ path }` generator file must default-export a
+zero-argument function. Exporting the `Generator` object itself, or a factory that needs
+arguments, logs `Invalid generator at <path>: expected function` (or throws) and the
+generator is skipped. A failed load never stops the other generators.
 
 ### Files Not Being Watched
 

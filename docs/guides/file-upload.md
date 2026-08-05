@@ -7,7 +7,14 @@ available: true
 
 # File Upload
 
-SPFN provides `FileSchema` and `FileArraySchema` for type-safe file uploads within [route definitions](/docs/packages/core/route). Files are received as standard `File` objects through `formData` input.
+SPFN provides `FileSchema()` and `FileArraySchema()` for type-safe file uploads within [route definitions](/docs/packages/core/route). Files are received as standard `File` objects through `formData` input.
+
+> **They are functions — always call them.** `file: FileSchema()` is correct;
+> `file: FileSchema` passes the function reference and produces an invalid schema. The
+> same goes for `FileArraySchema()` and `OptionalFileSchema()`.
+>
+> `body` and `formData` are also mutually exclusive at runtime: the request's
+> `Content-Type` decides which one is parsed. A multipart request never populates `body`.
 
 ## Basic Usage
 
@@ -152,6 +159,7 @@ Validation errors are thrown automatically with a 400 status:
 
 ```json
 {
+    "__type": "ValidationError",
     "message": "Invalid form data",
     "fields": [
         {
@@ -159,9 +167,24 @@ Validation errors are thrown automatically with a 400 status:
             "message": "File size 15.0MB exceeds maximum 5.0MB",
             "value": 15728640
         }
-    ]
+    ],
+    "error": {
+        "code": "ValidationError",
+        "message": "Invalid form data",
+        "requestId": "req_1754380000000_9f2c1ab4e7d0"
+    }
 }
 ```
+
+Every error body carries `__type` (what the web client restores an error class from) and
+an `error` envelope with `code` / `message` / `requestId` (what a client in another
+language classifies on). For a file-array field the `path` includes the index —
+`/files/2` for the third file, `/files` for a count violation (`maxFiles` / `minFiles`).
+
+> **A missing file field is not a validation error.** Validation walks the fields the
+> request actually sent, so a `FileSchema()` field the client omitted produces no error —
+> the handler just receives `undefined`. `formData.avatar as File` is a cast, not a
+> guarantee. Check for the file yourself before using it.
 
 ### Validation Options
 
@@ -210,6 +233,74 @@ export const uploadImage = route.post('/images')
 ```
 
 ## Storage Patterns
+
+### `@spfn/storage` (recommended)
+
+SPFN ships provider-agnostic object storage — S3-compatible services (S3, R2, MinIO,
+Wasabi), Google Cloud Storage, and the local filesystem behind one interface. Prefer it
+over calling a provider SDK directly: every object operation validates its key before it
+reaches the provider (rejecting `..` segments, leading `/`, backslashes, control
+characters and URLs), so a key built from user input cannot escape its prefix.
+
+```typescript
+import { getStorageService, randomKey } from '@spfn/storage/server';
+
+async function saveUpload(file: File): Promise<string>
+{
+    const storage = await getStorageService();
+    const key = randomKey('public/uploads', file.name.split('.').pop() || 'bin');
+
+    await storage.upload(key, Buffer.from(await file.arrayBuffer()), file.type);
+
+    return storage.getPublicUrl(key);
+}
+```
+
+The provider comes from `STORAGE_PROVIDER` (`local` / `s3` / `gcs`), defaulting to `local`
+in development and `s3` in production. Private objects are read back with
+`storage.getDownloadUrl(key)` (a presigned GET) or `storage.getStream(key)`.
+
+A `public/` key prefix is meaningful **on GCS only**, where it routes the object to the
+public bucket instead of the private one. On S3-compatible providers and local there is a
+single bucket, and `getPublicUrl()` just prepends the configured public base URL to any
+key — the prefix is a convention you must back with your own bucket policy.
+
+### Presigned upload (large files)
+
+For large files, don't route the bytes through your API process at all — sign an upload,
+let the browser `PUT` straight to the returned `uploadUrl`, then confirm it:
+
+```typescript
+const { uploadUrl, requiredHeaders } = await storage.getUploadUrl({
+    key,
+    contentType: 'image/webp',
+    contentLength: exactSize,   // signed on both S3 and GCS
+    temp: true,                 // unconfirmed until finalized
+});
+
+// browser PUTs to uploadUrl, sending every requiredHeaders entry verbatim
+
+await storage.finalizeObject(key);
+```
+
+Three constraints decide whether this is safe:
+
+| Constraint | Behaviour |
+|---|---|
+| `contentLength` (exact size) | Signed on **both** S3-compatible and GCS. A mismatched size fails. |
+| `maxBytes` (upper bound) | Enforced on **GCS only**. A presigned PUT cannot sign a size range, so S3, R2, MinIO and Wasabi **ignore it silently**. |
+| Local filesystem provider | Presigned upload is **not supported** — `getUploadUrl()` throws. Use the direct `upload()` path in local dev. |
+
+A client can declare one size and send another, so a server-side check of a
+client-declared size binds nothing. If you only know an upper bound and must enforce it on
+S3, verify the size after upload.
+
+`temp: true` marks the upload unconfirmed so abandoned uploads don't accumulate, and
+`finalizeObject(key)` confirms it (idempotent; it rejects if neither the temp nor the final
+object exists). The package does **not** delete orphans itself — it tags them
+(`lifecycle=temp` on S3) or stages them under `tmp/<key>` (GCS), and you configure the
+bucket lifecycle rule that expires them. On GCS a temp object is not readable at its final
+key until finalized; on S3 it is.
 
 ### Local File System
 
@@ -461,6 +552,10 @@ export const getFile = route.get('/files/:id')
     });
 ```
 
+A handler that returns a raw `Response` has it passed through as-is, but the typed client
+then infers the response as `Response` rather than a concrete shape. That trade-off is
+fine for a file download and wrong for a JSON endpoint.
+
 ## Schema Reference
 
 | Schema | Description |
@@ -485,6 +580,7 @@ export const getFile = route.get('/files/:id')
 
 ## Related
 
+- `@spfn/storage` - object storage (S3 / GCS / local), presigned uploads, key validation
 - [Route Definition](/docs/packages/core/route) - `formData` input type
 - [Next.js Integration](/docs/packages/core/nextjs) - Upload files through RPC proxy
 - [Error Handling](/docs/packages/core/errors) - `ValidationError` for file errors
