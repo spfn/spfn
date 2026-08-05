@@ -35,7 +35,21 @@ pnpm build              # build every package (turbo; runs a circular-dep check 
 pnpm test               # run all tests (vitest)
 pnpm lint               # eslint — house style (Allman, 4-space, semicolons)
 pnpm lint:fix           # auto-fix style violations
+pnpm audit              # known vulnerabilities in the production dependency graph
+pnpm audit:all          # the same, including build tooling
 ```
+
+**A dependency's version range is a security surface.** A published `peerDependencies`
+range is what an adopter resolves against, so a range that still admits a vulnerable
+release ships that vulnerability to every app installing the package. `@spfn/*` packages
+that couple to Next.js require `^16.2.11` — the floor that clears both CVE-2025-66478
+(remote code execution through React Server Components) and the Server Components denial
+of service. Next.js 15 is not supported: its patches landed per minor line
+(15.0.5, 15.1.9, 15.2.6, …), so no single caret range can express "patched".
+
+Advisories are usually published long after the affected code is written, which is why
+`.github/workflows/security-audit.yml` runs daily rather than only on a pull request. It
+fails on a critical finding in the production graph and reports everything else.
 
 Per package (run inside `packages/<name>/`):
 
