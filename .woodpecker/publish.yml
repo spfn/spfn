@@ -22,7 +22,7 @@ steps:
     publish-gitea:
         image: node:22
         environment:
-            GITEA_NPM_TOKEN: { from_secret: GITEA_NPM_TOKEN }
+            GITEA_NPM_TOKEN: { from_secret: gitea_npm_token }
         commands:
             - printf '%s\n' '@spfn:registry=https://git.superfunction.xyz/api/packages/superfunction/npm/' "//git.superfunction.xyz/api/packages/superfunction/npm/:_authToken=$GITEA_NPM_TOKEN" > ~/.npmrc
             - corepack enable
