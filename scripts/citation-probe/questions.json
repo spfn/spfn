@@ -1,0 +1,59 @@
+{
+  "note": "The question set is the measurement. Changing a question makes the run incomparable to earlier ones — add a new question instead of editing an existing one, and retire rather than delete.",
+  "questions": [
+    {
+      "id": "backend-for-react",
+      "class": "problem",
+      "text": "I built a React frontend with an AI coding agent and now I need a backend. What should I use?",
+      "watch": "Does any full-stack framework appear, or only Express, Next.js API routes and BaaS?"
+    },
+    {
+      "id": "non-developer-server",
+      "class": "problem",
+      "text": "I am not a developer. I built an app with an AI coding agent and I need a server with a database and user accounts. What should I use?",
+      "watch": "Measured 2026-08-05 as routing entirely to managed platforms. A framework appearing here is a change of state."
+    },
+    {
+      "id": "ts-backend-framework",
+      "class": "category",
+      "text": "What lightweight TypeScript backend framework should I use in 2026 for an app built with an AI coding agent?",
+      "watch": "Encore held first place with every citation on its own domain. Track whether SPFN enters and who is cited."
+    },
+    {
+      "id": "casual-vite-login",
+      "class": "problem",
+      "text": "i built a vite react app with cursor and i need a simple api backend with login, what should i use",
+      "watch": "Casual phrasing of the same problem. Tests whether register changes the answer."
+    },
+    {
+      "id": "ops-without-admin",
+      "class": "operations",
+      "text": "I launched my web app. How do I handle customer refunds, look up users and retry failed jobs without building an admin dashboard?",
+      "watch": "Measured as naming no product at all. Watch for a vendor entering the slot."
+    },
+    {
+      "id": "admin-panel-alternative",
+      "class": "operations",
+      "text": "Do I have to build an admin panel for my SaaS or is there a better alternative in 2026?",
+      "watch": "Low-code admin builders hold this. Watch whether the answer shifts toward agent-run operations."
+    },
+    {
+      "id": "agent-runs-backend",
+      "class": "operations",
+      "text": "How can I let Claude or an AI agent safely run operations against my own app backend and database?",
+      "watch": "Answered entirely from Anthropic's own docs as a security-configuration question. No product occupies it."
+    },
+    {
+      "id": "drift-definition",
+      "class": "drift",
+      "text": "What is architecture drift in AI-assisted coding and how do you prevent it?",
+      "watch": "THE DECISIVE ONE. Measured with no inline citation on any claim, meaning no page owns the answer. The question this project's content work is trying to move."
+    },
+    {
+      "id": "drift-naming",
+      "class": "drift",
+      "text": "What is it called when an AI coding agent implements the same kind of feature in a different structure every time, so the codebase ends up with many inconsistent shapes?",
+      "watch": "Competing names, no settled one. Tracks whether 'architecture drift' consolidates and who is cited for it."
+    }
+  ]
+}

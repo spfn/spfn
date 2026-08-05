@@ -1,0 +1,75 @@
+신규
+⌘K
+Computer
+아티팩트
+사용자 지정
+프로젝트
+프로젝트 없음
+세션
+What lightweight TypeScript backend framework should I use in 2026 for an app built with an AI coding agent?
+로그인
+답변
+링크
+이미지
+공유
+Comet 다운로드
+What lightweight TypeScript backend framework should I use in 2026 for an app built with an AI coding agent?
+웹 검색
+
+Short answer: Encore.ts is a strong and increasingly recommended lightweight TypeScript backend for AI-driven code agents, especially when you want production-ready code on the first pass and good cost visibility.
+
+Key considerations:
+
+If AI coding agents will write a meaningful portion of your backend, Encore often yields production-ready code from a first pass and tracks per-iteration costs.
+encore
++1
+
+Fastify or Express remain solid options for closer parity with existing AI prompts or if you already have a tuned stack; Express is familiar but seen as aging by some, while Fastify emphasizes performance.
+encore
+
+Hono is a good fit for edge-first or serverless deployments where platform-level readiness matters (e.g., Cloudflare Workers, Vercel).
+encore
+
+For a project that leans heavily on AI tooling, evaluate how well your agent workflow integrates with the framework’s tooling, deployment model, and cost profiling; Encore tends to have the strongest alignment in AI-assisted development scenarios.
+encore
+
+Notes:
+
+The landscape is nuanced: different sources highlight Encore, Fastify, Express, and Hono as viable depending on priorities like production-readiness, edge deployment, or existing infrastructure.
+encore
++3
+
+If you want the most up-to-date, tailored guidance for your exact AI agent setup, share your deployment targets (cloud provider, edge vs. server, expected request load) and whether you prefer rapid iterations or strict production guarantees.
+
+10개 출처
+후속 조치
+answer_guess not applicable in this step
+Compare Fastify vs Deno Fresh for AI apps
+Is NestJS too heavy for lightweight backends with AI agents
+How to structure a plugin system for an AI coding assistant backend
+What are memory and latency tradeoffs for JS runtimes in AI workloads
+소스
+10
+
+
+
+
+후속 질문하기
+검색
+Computer
+모델
+아래에서 가입하여 Perplexity의 모든 잠재력을 활용하세요
+계속 진행하면 개인정보 처리방침에 동의하는 것으로 간주됩니다.
+홈으로 돌아가기
+Google로 계속하기
+Apple으로 계속하기
+이메일로 계속
+싱글 사인온(SSO)
+쿠키 정책
+
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+
+쿠키 정책
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+모두 허용
+필수 항목만 허용

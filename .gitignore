@@ -63,3 +63,6 @@ packages/*/LICENSE
 website/public/
 website/out/
 website/next-env.d.ts
+
+# citation probe throwaway browser profiles
+scripts/citation-probe/results/**/.chrome-throwaway/
