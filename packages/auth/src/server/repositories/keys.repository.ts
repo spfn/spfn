@@ -6,8 +6,9 @@
  */
 
 import { NewUserPublicKey, userPublicKeys } from '../entities/user-public-keys';
+import type { ClientIdentity } from '../client-proof/wire-version';
 import { BaseRepository } from '@spfn/core/db';
-import { eq, and, or, isNull, lt, ne, desc } from 'drizzle-orm';
+import { eq, and, or, isNull, lt, ne, desc, sql } from 'drizzle-orm';
 
 /**
  * Throttle window for lastUsedAt writes. The column is for audit / inactive-key
@@ -327,22 +328,62 @@ export class KeysRepository extends BaseRepository
      * LAST_USED_THROTTLE_MS), so a busy key isn't UPDATEd on every request. The
      * throttle lives in the WHERE clause — atomic, no read-then-write race. No
      * RETURNING (callers fire-and-forget and discard the row).
+     *
+     * `identity` is what the client said about itself on this request. It is
+     * recorded on the same row, and the throttle does not apply to it: a version
+     * that changed is written immediately, because an app update is the event this
+     * column exists to catch and waiting a minute to notice it serves nobody. A
+     * version that did not change writes nothing extra — the UPDATE the throttle
+     * was already going to do carries it.
+     *
+     * `clientSeenAt` moves only when one of the three values differs from what is
+     * stored, so it answers "since when has this device been on this release"
+     * rather than "when was it last seen", which lastUsedAt already answers.
      */
-    async updateLastUsedById(id: number): Promise<void>
+    async updateLastUsedById(id: number, identity?: ClientIdentity | null): Promise<void>
     {
         const staleBefore = new Date(Date.now() - LAST_USED_THROTTLE_MS);
+        const lastUsedIsStale = or(
+            isNull(userPublicKeys.lastUsedAt),
+            lt(userPublicKeys.lastUsedAt, staleBefore),
+        );
+
+        if (!identity)
+        {
+            await this.db
+                .update(userPublicKeys)
+                .set({ lastUsedAt: new Date() })
+                .where(and(eq(userPublicKeys.id, id), lastUsedIsStale));
+
+            return;
+        }
+
+        // IS DISTINCT FROM rather than <>: every one of these columns is nullable
+        // for a key registered before they existed, and <> against NULL is NULL,
+        // which would make the first sighting look unchanged and never record it.
+        const identityChanged = sql`(
+            ${userPublicKeys.clientKind} IS DISTINCT FROM ${identity.kind}
+            OR ${userPublicKeys.clientVersion} IS DISTINCT FROM ${identity.version}
+            OR ${userPublicKeys.clientContractVersion} IS DISTINCT FROM ${identity.contractVersion}
+        )`;
+        const now = new Date();
+        // Sent as an ISO string with an explicit cast rather than as a Date: a
+        // value bound inside a raw `sql` fragment skips the column's own mapper,
+        // and postgres-js refuses a Date it was handed without one.
+        const nowParam = sql`${now.toISOString()}::timestamptz`;
 
         await this.db
             .update(userPublicKeys)
             .set({
-                lastUsedAt: new Date(),
+                lastUsedAt: now,
+                clientKind: identity.kind,
+                clientVersion: identity.version,
+                clientContractVersion: identity.contractVersion,
+                clientSeenAt: sql`CASE WHEN ${identityChanged} THEN ${nowParam} ELSE ${userPublicKeys.clientSeenAt} END`,
             })
             .where(and(
                 eq(userPublicKeys.id, id),
-                or(
-                    isNull(userPublicKeys.lastUsedAt),
-                    lt(userPublicKeys.lastUsedAt, staleBefore),
-                ),
+                or(lastUsedIsStale, identityChanged),
             ));
     }
 }

@@ -74,6 +74,11 @@ describe('Authenticate Middleware', () =>
             req: { header: vi.fn() } as never,
             json: vi.fn((data, status) => ({ data, status })) as never,
             set: vi.fn(),
+            // A Hono context that has set() has get(); the double needs both,
+            // because authenticate reads the client identity the version
+            // middleware leaves on the context. Undefined is the honest answer
+            // here: these cases mount no version middleware.
+            get: vi.fn(() => undefined),
         } as never;
     });
 

@@ -21,6 +21,18 @@ import { applyServerContractHeaders, judgeClientIdentity, readClientIdentity, ty
 export const CLIENT_IDENTITY_CONTEXT_KEY = 'clientIdentity';
 
 /**
+ * What the client said about itself on this request, or null.
+ *
+ * Null covers two cases that behave the same downstream: this middleware is not
+ * mounted, and it is mounted but the request named no client kind. Neither is an
+ * error — an app that predates the headers is still a working app.
+ */
+export function readContextClientIdentity(c: Context): ClientIdentity | null
+{
+    return (c.get(CLIENT_IDENTITY_CONTEXT_KEY) as ClientIdentity | undefined) ?? null;
+}
+
+/**
  * Announces the server's contract version on every response and refuses a
  * client whose own contract version this server does not serve.
  *

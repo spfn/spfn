@@ -31,6 +31,7 @@ import {
     KeyExpiredError,
 } from '@spfn/auth/errors';
 
+import { readContextClientIdentity } from '../client-proof/version-middleware';
 import { resolveAuthenticatedUser, selectAuthProfile, type AuthContext } from './auth-profiles';
 
 // Auth context type — one principal shape for every scheme (see auth-profiles).
@@ -180,7 +181,7 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
     // - Security audits
     // - Detecting inactive keys
     // - Key rotation reminders
-    keysRepository.updateLastUsedById(keyRecord.id)
+    keysRepository.updateLastUsedById(keyRecord.id, readContextClientIdentity(c))
         .catch((err: unknown) => authLogger.middleware.error('Failed to update lastUsedAt', err));
 
     // 8. Attach auth data to context
@@ -313,7 +314,7 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
 
         const { user, role } = result;
 
-        keysRepository.updateLastUsedById(keyRecord.id)
+        keysRepository.updateLastUsedById(keyRecord.id, readContextClientIdentity(c))
             .catch((err: unknown) => authLogger.middleware.error('Failed to update lastUsedAt', err));
 
         c.set('auth', {
