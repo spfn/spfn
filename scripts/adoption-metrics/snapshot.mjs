@@ -19,6 +19,7 @@
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createSign } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -115,6 +116,77 @@ async function fetchPosthogLlmReferrals()
     return data.results?.[0]?.[0] ?? null;
 }
 
+// Search Console: a service account (spfn-metrics@superselfs, added as a
+// restricted user on the property) authenticates via a self-signed JWT. The
+// key JSON sits base64-encoded in the keychain; like PostHog, a missing entry
+// degrades to null and the value never reaches stdout.
+const GSC_SITE = 'https://superfunction.xyz/';
+
+function gscKeychainJson()
+{
+    try
+    {
+        const b64 = execFileSync('security', ['find-generic-password', '-s', 'gsc', '-a', 'service-account', '-w'],
+            { encoding: 'utf8' }).trim();
+        return JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+    }
+    catch
+    {
+        return null;
+    }
+}
+
+async function gscAccessToken(sa)
+{
+    const b64url = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+    const now = Math.floor(Date.now() / 1000);
+    const unsigned = `${b64url({ alg: 'RS256', typ: 'JWT' })}.${b64url({
+        iss: sa.client_email,
+        scope: 'https://www.googleapis.com/auth/webmasters.readonly',
+        aud: sa.token_uri,
+        iat: now,
+        exp: now + 600,
+    })}`;
+    const signature = createSign('RSA-SHA256').update(unsigned).sign(sa.private_key, 'base64url');
+    const res = await fetch(sa.token_uri, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer')}&assertion=${unsigned}.${signature}`,
+    });
+    if (!res.ok) return null;
+    return (await res.json()).access_token ?? null;
+}
+
+async function fetchGsc()
+{
+    const sa = gscKeychainJson();
+    if (!sa) return { impressions: null, clicks: null, sitemapLastRead: null };
+    const token = await gscAccessToken(sa);
+    if (!token) return { impressions: null, clicks: null, sitemapLastRead: null };
+    const site = encodeURIComponent(GSC_SITE);
+    const auth = { Authorization: `Bearer ${token}` };
+
+    // Search analytics lags about two days, so the window ends the day before
+    // yesterday and covers the seven days up to it.
+    const day = (offset) => new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10);
+    const query = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${site}/searchAnalytics/query`, {
+        method: 'POST',
+        headers: { ...auth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startDate: day(8), endDate: day(2) }),
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+    const sitemap = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${site}/sitemaps/${encodeURIComponent(GSC_SITE + 'sitemap.xml')}`, { headers: auth })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+    // A failed call (no permission yet, network) is null; a successful call
+    // with no rows is a real measured zero.
+    return {
+        impressions: query === null ? null : (query.rows?.[0]?.impressions ?? 0),
+        clicks: query === null ? null : (query.rows?.[0]?.clicks ?? 0),
+        sitemapLastRead: sitemap?.lastDownloaded?.slice(0, 10) ?? null,
+    };
+}
+
 function manualFields()
 {
     const num = (name) => (argOf(name) === null ? null : Number(argOf(name)));
@@ -171,6 +243,7 @@ function printView(rows)
     line('GSC impressions', curr.manual.gscImpressions, prev?.manual.gscImpressions);
     line('GSC clicks', curr.manual.gscClicks, prev?.manual.gscClicks);
     line('citation probe', curr.manual.probe ?? 'not-run');
+    line('sitemap last read', curr.sitemapLastRead ?? '—');
     console.log('');
 }
 
@@ -185,12 +258,21 @@ if (manual.posthogLlmReferrals === null)
 {
     manual.posthogLlmReferrals = await fetchPosthogLlmReferrals();
 }
+let sitemapLastRead = null;
+if (manual.gscImpressions === null || manual.gscClicks === null)
+{
+    const gsc = await fetchGsc();
+    manual.gscImpressions = manual.gscImpressions ?? gsc.impressions;
+    manual.gscClicks = manual.gscClicks ?? gsc.clicks;
+    sitemapLastRead = gsc.sitemapLastRead;
+}
 
 const row = {
     date: new Date().toISOString().slice(0, 10),
     github: await fetchGithub(),
     npm: await fetchNpm(packageNames()),
     manual,
+    sitemapLastRead,
 };
 
 if (has('--dry'))
