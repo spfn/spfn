@@ -398,7 +398,8 @@ async function initializeWebSocket(
             store,
         });
 
-        // Register POST /ws/token endpoint on Hono app
+        // Register the WS token endpoint on the Hono app. The path replaces the WS
+        // path's last segment with `token`, so the default '/ws' becomes '/token'.
         const tokenPath = wsPath.replace(/\/[^/]+$/, '/token');
         const mwHandlers = (config.middlewares ?? []).map(mw => mw.handler);
         const getSubject = authConfig.getSubject
