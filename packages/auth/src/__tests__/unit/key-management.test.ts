@@ -106,6 +106,27 @@ describe('the key list', () =>
         expect(entry.platform).toBeUndefined();
     });
 
+    it('returns every moment as epoch milliseconds, never an ISO string', async () =>
+    {
+        // Contract 0.5.0 moved these four off ISO strings. A single representation
+        // is what keeps a generated Swift client from needing a date formatter —
+        // ISO8601DateFormatter rejects fractional seconds unless asked not to.
+        keysRepository.listForUser.mockResolvedValue([
+            row({ keyId: 'gone', isActive: false, revokedAt: new Date('2026-08-02T00:00:00Z') }),
+        ]);
+
+        const [entry] = await listKeysService({ userId: 1, includeRevoked: true });
+
+        expect(entry.createdAtMillis).toBe(Date.parse('2026-07-01T00:00:00Z'));
+        expect(entry.lastUsedAtMillis).toBe(Date.parse('2026-08-01T00:00:00Z'));
+        expect(entry.revokedAtMillis).toBe(Date.parse('2026-08-02T00:00:00Z'));
+
+        for (const value of [entry.createdAtMillis, entry.lastUsedAtMillis, entry.revokedAtMillis])
+        {
+            expect(typeof value).toBe('number');
+        }
+    });
+
     it('marks an expired key — it still reads as active, but authenticate refuses it', async () =>
     {
         keysRepository.listForUser.mockResolvedValue([
@@ -138,17 +159,17 @@ describe('the key list', () =>
 
         expect(keysRepository.listForUser).toHaveBeenCalledWith(1, true);
         expect(entry.isActive).toBe(false);
-        expect(entry.revokedAt).toBe('2026-08-01T00:00:00.000Z');
+        expect(entry.revokedAtMillis).toBe(Date.parse('2026-08-01T00:00:00Z'));
     });
 
-    it('leaves revokedAt undefined for a key still in use', async () =>
+    it('leaves revokedAtMillis undefined for a key still in use', async () =>
     {
         keysRepository.listForUser.mockResolvedValue([row()]);
 
         const [entry] = await listKeysService({ userId: 1 });
 
         expect(entry.isActive).toBe(true);
-        expect(entry.revokedAt).toBeUndefined();
+        expect(entry.revokedAtMillis).toBeUndefined();
     });
 
     it('treats a key with no expiry as not expired', async () =>
@@ -158,7 +179,7 @@ describe('the key list', () =>
         const [entry] = await listKeysService({ userId: 1 });
 
         expect(entry.isExpired).toBe(false);
-        expect(entry.expiresAt).toBeUndefined();
+        expect(entry.expiresAtMillis).toBeUndefined();
     });
 });
 

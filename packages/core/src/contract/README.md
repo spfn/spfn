@@ -223,6 +223,25 @@ Named here rather than left to be discovered:
   feature from generating a contract, and integration tests already cover it for contracted routes.
 - **WebSocket and SSE.** The contract covers REST operations only.
 - **How a client produces its usage file.** That belongs to the client's toolchain.
+- **Multipart routes are refused, not checked.** See below.
+
+## Multipart is outside a contract
+
+A contracted route that declares `formData` — on its `.input()` or its `.interceptor()` — is
+refused at collection:
+
+```
+Contracted route "uploadAvatar" declares input.formData, which a contract cannot describe.
+```
+
+Multipart is a transport-format problem rather than a type problem: the contract describes JSON
+values, and a file part has no spelling among them. The refusal is loud on purpose. Quietly
+leaving the section out would produce a contract that still claimed to describe the operation,
+and a client generated from it would look right until the request reached the server.
+
+An uncontracted multipart route is untouched — `formData` is a normal part of `.input()` and only
+`.contract()` on the same route is refused. Either drop `.contract()`, or move the operation to a
+JSON body and upload the file through its own uncontracted route.
 
 ## Pitfalls
 

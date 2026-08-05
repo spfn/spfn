@@ -213,11 +213,18 @@ cut off anything they no longer recognise.
 
 ```typescript
 const { keys } = await authApi.listKeys.call({ body: {} });
-// → [{ keyId, deviceName?, platform?, algorithm, fingerprintPrefix, createdAt,
-//      lastUsedAt?, expiresAt?, isExpired, isActive, revokedAt? }]
+// → [{ keyId, deviceName?, platform?, algorithm, fingerprintPrefix, createdAtMillis,
+//      lastUsedAtMillis?, expiresAtMillis?, isExpired, isActive, revokedAtMillis? }]
 
 await authApi.listKeys.call({ body: { includeRevoked: true } });   // also what was cut off
+```
 
+Every moment is epoch milliseconds, not an ISO string — one representation across the whole
+surface, so a generated Swift or Kotlin client reads an integer instead of choosing a date
+formatter. This changed in mobile contract 0.5.0; an app still reading `createdAt` moves to
+`createdAtMillis`.
+
+```typescript
 await authApi.revokeKey.call({ body: { keyId } });            // → { keyId, selfRevoked }
 await authApi.revokeAllKeys.call({ body: {} });               // other devices only
 await authApi.revokeAllKeys.call({ body: { includeCurrent: true } });   // everything

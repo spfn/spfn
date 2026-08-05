@@ -73,15 +73,23 @@ export interface KeySummary
     algorithm: KeyAlgorithmType;
     /** First bytes of the fingerprint — enough to tell two entries apart. */
     fingerprintPrefix: string;
-    createdAt: string;
-    lastUsedAt?: string;
-    expiresAt?: string;
+    /**
+     * Milliseconds since the Unix epoch, not an ISO string.
+     *
+     * One representation of a moment across the whole surface: a generated Swift
+     * or Kotlin client reads an integer with no date formatter, and
+     * `ISO8601DateFormatter` rejecting fractional seconds by default stops being
+     * a way for the two SDKs to disagree about the same value.
+     */
+    createdAtMillis: number;
+    lastUsedAtMillis?: number;
+    expiresAtMillis?: number;
     /** The TTL has run out. The key still reads as active; authenticate refuses it. */
     isExpired: boolean;
     /** False once revoked. Only ever false when the caller asked for revoked keys. */
     isActive: boolean;
     /** When it was revoked, for the "what did I cut off, and when" reading. */
-    revokedAt?: string;
+    revokedAtMillis?: number;
 }
 
 export interface ListKeysParams
@@ -266,12 +274,12 @@ export async function listKeysService(params: ListKeysParams): Promise<KeySummar
         platform: row.platform ?? undefined,
         algorithm: row.algorithm,
         fingerprintPrefix: row.fingerprint.slice(0, KEY_FINGERPRINT_PREFIX_LENGTH),
-        createdAt: row.createdAt.toISOString(),
-        lastUsedAt: row.lastUsedAt?.toISOString(),
-        expiresAt: row.expiresAt?.toISOString(),
+        createdAtMillis: row.createdAt.getTime(),
+        lastUsedAtMillis: row.lastUsedAt?.getTime(),
+        expiresAtMillis: row.expiresAt?.getTime(),
         isExpired: isExpired(row.expiresAt),
         isActive: row.isActive,
-        revokedAt: row.revokedAt?.toISOString(),
+        revokedAtMillis: row.revokedAt?.getTime(),
     }));
 }
 

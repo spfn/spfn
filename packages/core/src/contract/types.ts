@@ -22,6 +22,11 @@ export interface ContractRequest
     params?: JsonSchema;
     query?: JsonSchema;
     body?: JsonSchema;
+    /**
+     * Never produced: a contracted route carrying multipart is refused at
+     * collection. Kept because a snapshot released before that rule may still
+     * have one, and the compatibility comparison has to read it.
+     */
     formData?: JsonSchema;
     headers?: JsonSchema;
     cookies?: JsonSchema;

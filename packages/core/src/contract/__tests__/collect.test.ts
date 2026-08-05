@@ -124,4 +124,35 @@ describe('collecting a contract from a router', () =>
 
         expect(() => collectContractDocument(defineRouter({ bad }))).toThrow(/since/);
     });
+
+    it('refuses a contracted route that takes multipart form data', () =>
+    {
+        const upload = route.post('/avatar')
+            .input({ formData: Type.Object({ file: Type.Any() }) })
+            .contract({ since: '1.0.0', response: Type.Null() })
+            .handler(async () => null);
+
+        expect(() => collectContractDocument(defineRouter({ upload }))).toThrow(ContractCollectionError);
+        expect(() => collectContractDocument(defineRouter({ upload }))).toThrow(/formData/);
+    });
+
+    it('refuses multipart declared on the interceptor rather than the input', () =>
+    {
+        const upload = route.post('/avatar')
+            .interceptor({ formData: Type.Object({ file: Type.Any() }) })
+            .contract({ since: '1.0.0', response: Type.Null() })
+            .handler(async () => null);
+
+        expect(() => collectContractDocument(defineRouter({ upload }))).toThrow(/interceptor\.formData/);
+    });
+
+    it('leaves an uncontracted multipart route alone', () =>
+    {
+        const upload = route.post('/avatar')
+            .input({ formData: Type.Object({ file: Type.Any() }) })
+            .handler(async () => null);
+
+        expect(collectContractDocument(defineRouter({ getUser, upload })).operations.map(o => o.name))
+            .toEqual(['getUser']);
+    });
 });
