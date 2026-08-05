@@ -1,25 +1,29 @@
 {
     "name": "@spfn/mcp",
-    "version": "0.2.0-beta.2",
+    "version": "0.2.0-beta.3",
     "description": "Official-SDK-based Model Context Protocol adapter for SPFN applications.",
     "type": "module",
     "sideEffects": false,
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
-            "import": "./dist/index.js"
+            "import": "./dist/index.js",
+            "require": "./dist/index.js"
         },
         "./dispatcher": {
             "types": "./dist/dispatcher.d.ts",
-            "import": "./dist/dispatcher.js"
+            "import": "./dist/dispatcher.js",
+            "require": "./dist/dispatcher.js"
         },
         "./server": {
             "types": "./dist/server.d.ts",
-            "import": "./dist/server.js"
+            "import": "./dist/server.js",
+            "require": "./dist/server.js"
         },
         "./stdio": {
             "types": "./dist/stdio.d.ts",
-            "import": "./dist/stdio.js"
+            "import": "./dist/stdio.js",
+            "require": "./dist/stdio.js"
         }
     },
     "files": [
