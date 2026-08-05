@@ -7,6 +7,12 @@ feature — an entity, a repository, a route, a router registration — so that 
 nor your coding agent has to invent one per feature. Everything else in SPFN
 (`@spfn/auth`, `@spfn/mcp`, `@spfn/storage`, …) plugs into it.
 
+Fixing the shape is an answer to [architecture drift](https://superfunction.xyz/architecture-drift)
+— a codebase acquiring several structures because each feature was arranged freshly. The
+usual answers detect it after the fact; this one leaves nothing to decide. It removes
+drift that comes from structural choice, and nothing else: two services can still
+implement the same rule differently inside a correct shape.
+
 📖 **[superfunction.xyz](https://superfunction.xyz)** — docs and the full-stack tutorial ·
 [repository README](https://github.com/fxylabs/spfn) for the whole framework.
 
