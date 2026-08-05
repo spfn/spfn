@@ -23,6 +23,9 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          # Both check scripts run on node builtins alone — no install, so there is no
+          # pnpm on PATH and the default package-manager cache lookup would fail the job.
+          package-manager-cache: false
 
       # No install: the check reads package.json manifests and markdown, nothing else.
       - name: Compare declared peer ranges with the documentation
