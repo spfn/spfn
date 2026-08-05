@@ -62,6 +62,35 @@ describe('setupPackageJson', () =>
         });
     });
 
+    it('sets the Node 20 floor in bare mode too', async () =>
+    {
+        // @spfn/core runs on @hono/node-server 2, which declares engines.node >= 20,
+        // so the floor is not something only full mode's @spfn/mcp brings.
+        testDirectory = await mkdtemp(join(tmpdir(), 'spfn-init-package-bare-node-'));
+        const packageJsonPath = join(testDirectory, 'package.json');
+        const packageJson: PackageJson = {
+            name: 'bare-app',
+            dependencies: {},
+            devDependencies: {},
+            scripts: {},
+            engines: { node: '>=18.18.0' },
+        };
+
+        await setupPackageJson(
+            testDirectory,
+            packageJsonPath,
+            packageJson,
+            'pnpm',
+            'bare',
+        );
+
+        const generated = JSON.parse(
+            await readFile(packageJsonPath, 'utf8'),
+        ) as PackageJson;
+        expect(generated.engines?.node).toBe('>=20.0.0');
+        expect(generated.dependencies?.['@spfn/mcp']).toBeUndefined();
+    });
+
     it('adds the Prototype-to-Production dependency set in full mode', async () =>
     {
         testDirectory = await mkdtemp(join(tmpdir(), 'spfn-init-package-full-'));

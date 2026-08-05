@@ -46,7 +46,7 @@ pnpm add @spfn/core@beta drizzle-orm@1.0.0-rc.4 postgres pg
 # optional peer: next ^16.2.11   (only for the Next.js bridge)
 ```
 
-Node `>=18.18.0`. ESM only.
+Node `>=20.0.0`. ESM only.
 
 > **Declare Drizzle and the Postgres drivers in your own app, not just in SPFN.**
 > `@spfn/core` takes `drizzle-orm` as a peer dependency, and Drizzle changes how it
@@ -379,7 +379,7 @@ There is no `.` entry in `exports` — by design. Subpaths keep server-only code
 client bundles, which a single barrel file cannot do.
 
 **Which Node version?**
-`>=18.18.0`. The package is ESM only.
+`>=20.0.0`. The package is ESM only.
 
 **Where do my business rules go?**
 In services and repositories, not in route handlers. A handler validates, calls, and

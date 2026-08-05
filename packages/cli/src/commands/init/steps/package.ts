@@ -47,6 +47,19 @@ export async function setupPackageJson(
     packageJson.dependencies['spfn'] = spfnTag;
     packageJson.dependencies['concurrently'] = '^9.2.1';
 
+    // Node 20 is the floor in both modes: @spfn/core runs on @hono/node-server 2,
+    // which declares engines.node >= 20. Full mode's @spfn/mcp needs the same.
+    packageJson.engines = packageJson.engines || {};
+    const existingNodeRange = packageJson.engines.node;
+    if (!existingNodeRange || !requiresNode20OrNewer(existingNodeRange))
+    {
+        packageJson.engines.node = '>=20.0.0';
+        if (existingNodeRange)
+        {
+            logger.warn(`Updated engines.node from "${existingNodeRange}" to ">=20.0.0" because @spfn/core requires Node 20`);
+        }
+    }
+
     // The full profile is the Prototype-to-Production baseline. Auth's
     // notification peer is installed explicitly so a fresh pnpm scaffold has a
     // single, compatible SPFN dependency graph.
@@ -56,16 +69,6 @@ export async function setupPackageJson(
         packageJson.dependencies['@spfn/i18n'] = spfnTag;
         packageJson.dependencies['@spfn/mcp'] = spfnTag;
         packageJson.dependencies['@spfn/notification'] = spfnTag;
-        packageJson.engines = packageJson.engines || {};
-        const existingNodeRange = packageJson.engines.node;
-        if (!existingNodeRange || !requiresNode20OrNewer(existingNodeRange))
-        {
-            packageJson.engines.node = '>=20.0.0';
-            if (existingNodeRange)
-            {
-                logger.warn(`Updated engines.node from "${existingNodeRange}" to ">=20.0.0" because full mode includes @spfn/mcp`);
-            }
-        }
     }
 
     // Add SPFN dev dependencies (fixes Issue #2)

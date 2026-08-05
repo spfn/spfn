@@ -9,7 +9,7 @@ By participating you agree to our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Quick start
 
-Requires Node ≥ 18.18 and pnpm (the pinned version is in `package.json` →
+Requires Node ≥ 20 and pnpm (the pinned version is in `package.json` →
 `packageManager`).
 
 ```bash

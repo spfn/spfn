@@ -53,7 +53,7 @@ Minimum versions the framework requires:
 
 | | Minimum | Note |
 |---|---|---|
-| Node.js | 18.18+ | 20+ if you use `--mode full`, which includes the MCP server |
+| Node.js | 20+ | `@spfn/core` runs on `@hono/node-server` 2, which requires it |
 | PostgreSQL | 14+ | required; not optional |
 | Redis | — | optional, only for features that use it |
 

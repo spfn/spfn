@@ -15,7 +15,7 @@
     "lint:fix": "eslint . --fix",
     "clean": "turbo run clean",
     "check:versions": "node scripts/check-doc-versions.mjs",
-    "audit": "pnpm audit --prod --audit-level=critical",
+    "audit": "pnpm audit --prod --audit-level=high",
     "audit:all": "pnpm audit --audit-level=high",
     "test:init": "node scripts/test-init.mjs",
     "publish:packages": "pnpm build --filter=\"!./apps/*\" && pnpm --filter \"./packages/*\" publish --tag alpha --access public",
@@ -36,7 +36,7 @@
   },
   "packageManager": "pnpm@9.1.2",
   "engines": {
-    "node": ">=18.18.0",
+    "node": ">=20.0.0",
     "pnpm": ">=8.0.0"
   },
   "dependencies": {
@@ -52,11 +52,16 @@
       "drizzle-kit": "1.0.0-rc.4",
       "drizzle-orm": "1.0.0-rc.4",
       "next": "^16.2.11",
-      "fast-xml-parser": "^5.3.5",
+      "fast-xml-parser": "^5.10.1",
       "picomatch": "^2.3.2",
       "shell-quote": "^1.8.4",
       "jws": "^3.2.3",
-      "lodash-es": "^4.18.1"
+      "lodash-es": "^4.18.1",
+      "glob": "^10.5.0",
+      "minimatch": "^9.0.7",
+      "brace-expansion": "^2.1.4",
+      "rollup": "^4.59.0",
+      "yaml": "^2.8.3"
     }
   }
 }

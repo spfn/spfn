@@ -22,7 +22,7 @@ No entities, no repositories, no Postgres — just the typed edge from UI to han
 
 ## Run it
 
-> Prerequisites: Node ≥ 18.18, pnpm. No database needed.
+> Prerequisites: Node ≥ 20, pnpm. No database needed.
 
 From the repo root, `pnpm install`. Then in this directory:
 

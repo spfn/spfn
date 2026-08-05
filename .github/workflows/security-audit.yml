@@ -38,11 +38,17 @@ jobs:
 
       # Fails the run. Only the production dependency graph counts here: a build-tool
       # advisory does not reach an app that installs @spfn/*.
+      #
+      # The level is `high` because the graph has no high finding left to forgive. Two
+      # moderate ones remain and are settled rather than fixed: @hono/node-server's
+      # patched line requires Node 20, which is a decision about the framework's
+      # supported range, and gaxios reaches uuid only through v4 while the advisory is
+      # about v3/v5/v6. Setting `moderate` today would fail every run on those two.
       - name: Audit production dependencies
-        run: pnpm audit --prod --audit-level=critical
+        run: pnpm audit --prod --audit-level=high
 
-      # Reports without failing. High and moderate findings are tracked as work rather
-      # than blocking every run — raise the level above once that backlog is clear.
+      # Reports without failing. The moderate and low findings above are recorded rather
+      # than blocking every run.
       - name: Report every finding
         if: always()
         run: |

@@ -27,7 +27,7 @@ their contents here.
 
 ## Setup & commands
 
-Requires Node ≥ 18.18 and pnpm (see `packageManager` in `package.json`). From the repo root:
+Requires Node ≥ 20 and pnpm (see `packageManager` in `package.json`). From the repo root:
 
 ```bash
 pnpm install            # install all workspace deps
