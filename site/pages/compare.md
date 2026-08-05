@@ -12,7 +12,9 @@ against, and states where each of them is the better choice. A page that never c
 anything is not worth reading and we would rather not write one.
 
 If you want to know how SPFN works rather than whether to use it, the
-[documentation](./docs.md) is the place for that.
+[documentation](./docs.md) is the place for that. If you are here because a codebase an
+agent wrote has stopped holding together, that problem has its own page:
+[architecture drift](./architecture-drift.md).
 
 ## Pages
 
