@@ -175,7 +175,6 @@ routes use `.skip(['auth'])`; the rest require `Authorization: Bearer <client-si
 
 | `authApi` method | HTTP | Auth | Purpose |
 |------------------|------|------|---------|
-| `checkAccountExists` | POST `/_auth/exists` | public | email/phone existence check |
 | `sendVerificationCode` | POST `/_auth/codes` | public | send 6-digit OTP |
 | `verifyCode` | POST `/_auth/codes/verify` | public | verify OTP → verification token |
 | `register` | POST `/_auth/register` | public | create user + register public key |
@@ -195,6 +194,11 @@ routes use `.skip(['auth'])`; the rest require `Authorization: Bearer <client-si
 | `cancelAccountDeletion` | POST `/_auth/deletion/cancel` | public | cancel a pending deletion (credential-based recovery) |
 | `listRoles` / `createAdminRole` / `updateAdminRole` / `deleteAdminRole` / `updateUserRole` | — | superadmin | admin RBAC management |
 | OAuth routes | — | — | see OAuth section |
+
+There is deliberately **no account-existence endpoint**. `POST /_auth/exists` was removed
+because it answered "does this account exist" directly, which is user enumeration; the
+login path is timing-equalized for the same reason. Do not reintroduce one without
+revisiting that decision.
 
 Auth uses **asymmetric, client-signed JWTs**: the client generates an ES256/RS256 keypair,
 sends the public key on register/login, signs request JWTs locally, and the server verifies
@@ -779,7 +783,8 @@ is the recommended error. The hook receives the same `metadata` the app supplied
 `register` / OAuth start / the invitation — never credentials.
 
 ```typescript
-import { configureAuth, RegistrationRejectedError } from '@spfn/auth/server';
+import { configureAuth } from '@spfn/auth/server';
+import { RegistrationRejectedError } from '@spfn/auth/errors';
 
 configureAuth({
     beforeRegister: async ({ channel, provider, email, phone, metadata }) =>
