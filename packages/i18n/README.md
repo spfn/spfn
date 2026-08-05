@@ -1,6 +1,12 @@
 # @spfn/i18n
 
-`@spfn/i18n` is a small, content-agnostic internationalization runtime for SPFN and React applications. Your application owns its translation catalogs and locale resolution; the package provides interpolation, fallback lookup, server helpers, and a React context.
+> **One set of translations, used the same way on the server and in the browser**
+
+Text lives in two places at once — in server responses and emails, and in React components. Keeping one catalog for both, without shipping every language to the browser and without a loading flash on first paint, is the part that is annoying to write twice.
+
+`@spfn/i18n` is a small, content-agnostic internationalization runtime for SPFN and React applications. It supplies interpolation, fallback lookup, server helpers and a React context. Your application keeps what is genuinely yours: the translation catalogs, and how a locale is decided.
+
+It is part of the default `spfn create --mode full` setup, so a scaffolded app already has it wired. If your product will only ever speak one language, nothing forces you to use it.
 
 ## Installation
 
@@ -38,7 +44,7 @@ export const catalogs: LocaleCatalogs = {
 
 Messages support named string and number placeholders. A missing variable remains visible as its original placeholder, and an unknown message key is returned unchanged.
 
-## Server usage
+## How do I translate on the server?
 
 Configure the server registry once during application startup:
 
@@ -54,7 +60,7 @@ console.log(t('greeting', { name: user.name }));
 
 Locale selection stays with the application. It can come from an authenticated SPFN profile, a route parameter, a request header, or any other application policy.
 
-## React and Next.js usage
+## How do I use it in a Next.js app?
 
 Resolve only the namespaces needed by the client subtree and pass them across the server/client boundary:
 
@@ -99,9 +105,9 @@ export function Greeting({ name }: { name: string })
 
 `getClientMessages` merges fallback messages first and locale-specific messages second, so the client receives a complete, serializable dictionary without a loading flash.
 
-## Core API
+## Can I use it without React or SPFN?
 
-The package root can also be used independently of React or SPFN:
+Yes. The package root is a standalone translator:
 
 ```ts
 import { createTranslator } from '@spfn/i18n';
@@ -115,6 +121,20 @@ t('greeting', { name: 'Ada' }); // "Bonjour, Ada"
 t('farewell'); // "Goodbye"
 t('missing'); // "missing"
 ```
+
+## FAQ
+
+**Where does the locale come from?**
+From your application, always. This package never guesses. Common sources are the authenticated SPFN profile (`@spfn/auth` stores a per-user locale and exposes `updateLocale`), a route segment such as `/ko/...`, or an `Accept-Language` header. Pass whichever you use into `getT` and `getClientMessages`.
+
+**Does the browser download every language?**
+No, and that is what `getClientMessages(locale, ['common'])` is for: it resolves the one locale and only the namespaces that subtree needs, merges the fallback underneath, and hands the result to `I18nProvider` as a complete dictionary. Nothing loads after paint, so there is no flash of untranslated text.
+
+**What happens to a key I forgot to translate?**
+The fallback locale answers first. If it has no entry either, the key itself is returned unchanged, so a missed string shows up as `checkout.submit` rather than as an empty page. A missing interpolation variable stays visible as `{name}` for the same reason.
+
+**Can it format dates, currency or plurals?**
+No — use the platform's `Intl` APIs. See Scope below for what else the package deliberately leaves to you.
 
 ## Scope
 

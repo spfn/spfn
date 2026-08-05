@@ -1,9 +1,20 @@
-# @spfn/monitor — DB-backed error tracking, logging, and admin dashboard
+# @spfn/monitor — error tracking, logging, and a dashboard you don't build
 
-DB-persisted error tracking with fingerprint deduplication and state-based Slack
-notifications, a pluggable developer-log store, superadmin admin routes, and ready-made
-React dashboard components. Integrates into an SPFN server via `defineServerConfig()`
-(`onError` middleware + lifecycle) and a package router mounted with `.packages([...])`.
+> **Find out something broke without sending your errors to someone else's server**
+
+A deployed product fails in ways local development never shows, and the usual answer is a
+third-party service: another account, another bill, and your users' data leaving your
+infrastructure. `@spfn/monitor` keeps it in your own PostgreSQL instead.
+
+Errors are captured from the server's error handler, deduplicated by fingerprint so one
+broken route is one entry rather than ten thousand, and pushed to Slack when a state
+changes. A pluggable developer-log store, superadmin-only admin routes and ready-made React
+dashboard components come with it — this is the one dashboard you don't have to build,
+because it is generic. Operating on your own data is a different job; that is
+[`@spfn/mcp`](../mcp/README.md).
+
+It integrates into an SPFN server through `defineServerConfig()` (an `onError` middleware
+plus lifecycle) and a package router mounted with `.packages([...])`.
 
 ## Install
 

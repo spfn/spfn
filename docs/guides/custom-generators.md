@@ -565,8 +565,7 @@ await processAllFiles();
 
 ## Next Steps
 
-- Review the [built-in contract generator](../api-reference/codegen) for a complete example
-- Explore [testing patterns](./testing#generator-testing) for generators
-- Learn about [error handling](./error-handling) in generators
+- Review the [built-in route-map generator](/docs/packages/core/codegen) for a complete example
+- See [`@spfn/core/errors`](/docs/packages/core/errors) for the error classes a generator should throw
 
 > **Tip:** Start simple! Create a basic generator first, then add features like incremental updates and configuration options as needed.
