@@ -6,6 +6,13 @@
 
 /**
  * Generator execution trigger types
+ *
+ * Who fires each one:
+ * - `watch`  — `spfn dev`, on the initial pass and every file change
+ * - `manual` — `spfn codegen run` and `spfn contract`
+ * - `build`  — `spfn build`
+ * - `start`  — nothing in the shipped CLI; reserved for a programmatic caller that
+ *              dispatches it through `orchestrator.generateAll('start')`
  */
 export type GeneratorTrigger = 'watch' | 'manual' | 'build' | 'start';
 
@@ -44,13 +51,14 @@ export interface Generator
     /**
      * When this generator should run
      *
-     * @default ['watch', 'manual', 'build']
+     * @default ['watch', 'manual', 'build'] — every trigger the CLI fires
+     *
+     * Narrowing this is the easy mistake: drop `build` and the generator is silently
+     * skipped during `spfn build`, so whatever it produces ships stale.
      *
      * Examples:
-     * - ['watch', 'build']: Run during development and build (e.g., admin-nav-generator)
-     * - ['build', 'start']: Run during build and server start (e.g., db-migration)
-     * - ['watch', 'manual']: Run during development and manual CLI (e.g., contract-generator)
-     * - ['start']: Run only on server start (e.g., runtime config generator)
+     * - ['watch']: only while `spfn dev` is watching, never from `spfn codegen run`
+     * - ['manual']: only on an explicit run, never mid-edit — for something slow
      */
     runOn?: GeneratorTrigger[];
 

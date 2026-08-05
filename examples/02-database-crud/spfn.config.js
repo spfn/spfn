@@ -23,11 +23,11 @@ export default {
      * - {subdomain}.{region}.spfn.app → Next.js frontend (port 3790)
      * - api-{subdomain}.{region}.spfn.app → SPFN backend (port 8790)
      *
-     * Example: subdomain: 'vertical-integration-demo', region: 'us' creates:
-     * - vertical-integration-demo.us.spfn.app
-     * - api-vertical-integration-demo.us.spfn.app
+     * Example: subdomain: 'database-crud-example', region: 'us' creates:
+     * - database-crud-example.us.spfn.app
+     * - api-database-crud-example.us.spfn.app
      */
-    subdomain: 'vertical-integration-demo',
+    subdomain: 'database-crud-example',
 
     /**
      * Deployment region (optional, defaults to 'us')
