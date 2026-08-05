@@ -323,5 +323,5 @@ defineWSRouter({
 
 ## Related
 
-- [Events](/docs/api-reference/events) — pub/sub event system and SSE streaming
+- [Events](/docs/packages/core/event) — pub/sub event system and SSE streaming
 - [Authentication](/docs/guides/authentication) — JWT auth and one-time tokens

@@ -203,6 +203,7 @@ loaded `.env` chain.
 | `db generate` (`g`) | Generate migrations from schema changes (timestamp-prefixed) |
 | `db push` | Diff with Drizzle Kit's current PostgreSQL engine and apply the selected DDL atomically. Destructive changes need confirmation; `--force` applies them, `--dry-run` previews |
 | `db migrate` (`m`) | Run pending migrations. `--with-backup` snapshots first |
+| `db status` | Show which migrations are applied and which are pending, for the project and for each installed function package |
 | `db studio` | Open Drizzle Studio. `-p, --port` (auto-finds a free port) |
 | `db check` | Verify the database connection |
 | `db drop` | Drop all tables — **destructive**, double-prompts (see [Pitfalls](#pitfalls)) |

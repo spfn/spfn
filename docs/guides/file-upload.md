@@ -7,7 +7,7 @@ available: true
 
 # File Upload
 
-SPFN provides `FileSchema` and `FileArraySchema` for type-safe file uploads within [route definitions](/docs/core-concepts/contracts). Files are received as standard `File` objects through `formData` input.
+SPFN provides `FileSchema` and `FileArraySchema` for type-safe file uploads within [route definitions](/docs/packages/core/route). Files are received as standard `File` objects through `formData` input.
 
 ## Basic Usage
 
@@ -485,6 +485,6 @@ export const getFile = route.get('/files/:id')
 
 ## Related
 
-- [Route Definition](/docs/core-concepts/contracts) - `formData` input type
-- [Next.js Integration](/docs/guides/nextjs) - Upload files through RPC proxy
-- [Error Handling](/docs/guides/error-handling) - `ValidationError` for file errors
+- [Route Definition](/docs/packages/core/route) - `formData` input type
+- [Next.js Integration](/docs/packages/core/nextjs) - Upload files through RPC proxy
+- [Error Handling](/docs/packages/core/errors) - `ValidationError` for file errors

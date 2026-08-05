@@ -237,7 +237,7 @@ LOG_LEVEL=info
 For a managed workflow, `spfn secret` stores deployed secrets in encrypted SOPS files
 (`secrets/<env>.enc.json`, backend chosen by `.sops.yaml` — age / GCP KMS / AWS KMS)
 that are safe to commit; your GitOps step decrypts them into env at deploy time. Local
-secrets go to the OS keychain instead. See [CLI → spfn secret](../api-reference/cli.md#spfn-secret).
+secrets go to the OS keychain instead. See [CLI → spfn secret](/docs/packages/cli#spfn-secret).
 
 ## Building for Production
 
