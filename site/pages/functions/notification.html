@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>@spfn/notification</title>
+<title>@spfn/notification — email, SMS, Slack and push behind one send() · Superfunction</title>
 <meta name="description" content="Multi-channel notifications for SPFN — email, SMS, and Slack with pluggable providers, templates with filters, scheduled and bulk delivery via pg-boss, history, and email tracking.">
 <meta property="og:title" content="@spfn/notification — one send(), every channel">
 <meta property="og:description" content="Email, SMS, and Slack behind the same call shape — pluggable providers, template system, pg-boss scheduling and distributed bulk, notification history, open and click tracking.">
@@ -143,7 +143,8 @@
             <p class="sub">Email, SMS, Slack — <code>@spfn/notification</code> gives each channel the
                same call shape: recipient, template, data in; a <code>SendResult</code> back, never a
                throw. Providers plug in, templates render with filters, and pg-boss carries the
-               scheduled and the bulk.</p>
+               scheduled and the bulk.
+               Deliverability, retries and templates are the same work in every product — they belong to the framework, not to your feature backlog.</p>
             <div class="cta-row">
                 <a class="btn btn-cobalt" href="/docs/packages/notification">Read the reference</a>
                 <a class="btn btn-outline" href="/docs">Get started</a>

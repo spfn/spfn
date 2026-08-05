@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>@spfn/workflow</title>
+<title>@spfn/workflow — pipeline orchestration on SPFN background jobs · Superfunction</title>
 <meta name="description" content="Lightweight workflow engine for SPFN — chain @spfn/core Jobs into pipelines with persisted executions, resume from failure, and compensation rollback.">
 <meta property="og:title" content="@spfn/workflow — work, in steps">
 <meta property="og:description" content="Pipeline orchestration on @spfn/core Jobs — sequential and parallel steps, type-inferred results, resumable executions, compensation rollback.">
@@ -144,7 +144,8 @@
                pipelines — sequential with <code>.pipe()</code>, parallel with <code>.parallel()</code>,
                results type-inferred between steps. Every execution is persisted to PostgreSQL, so a
                failed run can resume from the failure point or roll back through each step's
-               <code>compensate</code> function.</p>
+               <code>compensate</code> function.
+               Multi-step work that has to survive a restart — the point where a prototype quietly loses data and a production app cannot.</p>
             <div class="cta-row">
                 <a class="btn btn-cobalt" href="/docs/packages/workflow">Read the reference</a>
                 <a class="btn btn-outline" href="/docs">Get started</a>

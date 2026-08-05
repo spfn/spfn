@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>@spfn/storage</title>
+<title>@spfn/storage — object storage over GCS, S3-compatible services and local disk · Superfunction</title>
 <meta name="description" content="Provider-agnostic object storage for SPFN — presigned uploads with signed size limits, temp uploads with finalize, idempotent deletion across GCS, S3-compatible services, and local disk.">
 <meta property="og:title" content="@spfn/storage — files, handled">
 <meta property="og:description" content="One interface over GCS, S3, R2, MinIO, Wasabi, and local disk — size-signed presigned uploads, temp uploads with finalize, idempotent single and batch deletion.">
@@ -143,7 +143,8 @@
             <p class="sub">One interface over Google Cloud Storage, S3-compatible services, and the local
                filesystem. <code>@spfn/storage</code> ships presigned upload, direct and streaming download,
                server-side copy, prefix listing and cleanup, public URLs, finalization, and deletion — and
-               owns no database. It speaks in object keys, never arbitrary URLs.</p>
+               owns no database. It speaks in object keys, never arbitrary URLs.
+               Uploads have a known correct shape, so your tokens go to the part only you can write.</p>
             <div class="cta-row">
                 <a class="btn btn-cobalt" href="/docs/packages/storage">Read the reference</a>
                 <a class="btn btn-outline" href="/docs">Get started</a>
