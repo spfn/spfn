@@ -127,6 +127,8 @@ function contextFor(options: {
         },
         set: (key: string, value: unknown) => vars.set(key, value),
         get: (key: string) => vars.get(key),
+        newResponse: (responseBody: BodyInit, status: number, responseHeaders: Record<string, string>) =>
+            new Response(responseBody, { status, headers: responseHeaders }),
     } as unknown as Context;
 
     return { c, next, authOf: () => vars.get('auth') as Record<string, unknown> | undefined };
@@ -185,19 +187,51 @@ function proofHeaders(options: {
 
 type Middleware = typeof authenticate | typeof optionalAuth;
 
+/**
+ * What the middleware answered with: null when it passed the request on, the
+ * contract refusal response, or the error it threw.
+ *
+ * A contract refusal is a response rather than a throw — a proven call is
+ * answered with the contract's own envelope, never with an error classified by
+ * its wrapper class name (#106). Everything else still leaves as a throw.
+ */
 async function run(middleware: Middleware, driven: DrivenContext): Promise<unknown>
 {
-    return middleware.handler(driven.c, driven.next).then(() => null, (error: unknown) => error);
+    return middleware.handler(driven.c, driven.next).then((res) => res ?? null, (error: unknown) => error);
 }
 
-function expectRefusal(error: unknown, statusCode: number, code?: string): void
+/** The contract code the answer carries, whichever way it came back. */
+async function refusalCodeOf(answer: unknown): Promise<string | undefined>
 {
-    const httpError = error as { statusCode?: number; details?: { code?: string } } | null;
-    expect(httpError, 'expected the middleware to throw').not.toBeNull();
-    expect(httpError!.statusCode).toBe(statusCode);
+    if (answer instanceof Response)
+    {
+        const body = await answer.clone().json() as { error?: { code?: string } };
+
+        return body.error?.code;
+    }
+
+    return (answer as { details?: { code?: string } } | null)?.details?.code;
+}
+
+/** The refusal body with the one field that differs per request removed. */
+async function envelopeWithoutRequestId(response: Response): Promise<unknown>
+{
+    const body = await response.clone().json() as { error: Record<string, unknown> };
+    const { requestId: _requestId, ...error } = body.error;
+
+    return { ...body, error };
+}
+
+async function expectRefusal(answer: unknown, statusCode: number, code?: string): Promise<void>
+{
+    expect(answer, 'expected the middleware to refuse').not.toBeNull();
+    const status = answer instanceof Response
+        ? answer.status
+        : (answer as { statusCode?: number }).statusCode;
+    expect(status).toBe(statusCode);
     if (code !== undefined)
     {
-        expect(httpError!.details?.code).toBe(code);
+        expect(await refusalCodeOf(answer)).toBe(code);
     }
 }
 
@@ -275,7 +309,7 @@ describe('auth profile branch (case table G)', () =>
         it('refuses a tampered proof with PROOF_INVALID', async () =>
         {
             const driven = contextFor({ headers: proofHeaders({ tamper: true }) });
-            expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
+            await expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
             expect(driven.next).not.toHaveBeenCalled();
             expect(driven.authOf()).toBeUndefined();
         });
@@ -285,7 +319,7 @@ describe('auth profile branch (case table G)', () =>
             const signedBody = encodeCanonicalJson(new Map<string, CanonicalValue>([['a', 1n]]));
             const sentBody = encodeCanonicalJson(new Map<string, CanonicalValue>([['a', 2n]]));
             const driven = contextFor({ body: sentBody, headers: proofHeaders({ body: signedBody }) });
-            expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
+            await expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
             expect(driven.next).not.toHaveBeenCalled();
         });
     });
@@ -295,7 +329,7 @@ describe('auth profile branch (case table G)', () =>
         it('rejects immediately with PROFILE_REJECTED (unknownProfilePolicy: reject)', async () =>
         {
             const driven = contextFor({ headers: proofHeaders({ profile: 'someFutureProfile' }) });
-            expectRefusal(await run(middleware, driven), 400, 'PROFILE_REJECTED');
+            await expectRefusal(await run(middleware, driven), 400, 'PROFILE_REJECTED');
             expect(driven.next).not.toHaveBeenCalled();
             expect(keysRepository.findByKeyId).not.toHaveBeenCalled();
         });
@@ -308,7 +342,7 @@ describe('auth profile branch (case table G)', () =>
             const driven = contextFor({
                 headers: { ...proofHeaders(), Authorization: 'Bearer also-present' },
             });
-            expectRefusal(await run(middleware, driven), 400, 'PROFILE_REJECTED');
+            await expectRefusal(await run(middleware, driven), 400, 'PROFILE_REJECTED');
             expect(driven.next).not.toHaveBeenCalled();
             expect(keysRepository.findByKeyId).not.toHaveBeenCalled();
             expect(keysRepository.findActiveByKeyId).not.toHaveBeenCalled();
@@ -320,7 +354,7 @@ describe('auth profile branch (case table G)', () =>
         it('G6 authenticate: 401', async () =>
         {
             const driven = contextFor();
-            expectRefusal(await run(authenticate, driven), 401);
+            await expectRefusal(await run(authenticate, driven), 401);
             expect(driven.next).not.toHaveBeenCalled();
         });
 
@@ -337,7 +371,7 @@ describe('auth profile branch (case table G)', () =>
         it('I3: an unproven call to a proof-requiring surface is refused', async () =>
         {
             const driven = contextFor({ path: '/_auth/keys/rotate' });
-            expectRefusal(await run(authenticate, driven), 401);
+            await expectRefusal(await run(authenticate, driven), 401);
             expect(driven.next).not.toHaveBeenCalled();
         });
     });
@@ -350,7 +384,7 @@ describe('auth profile branch (case table G)', () =>
                 validKeyRecord({ isActive: false }) as never,
             );
             const driven = contextFor({ headers: proofHeaders() });
-            expectRefusal(await run(middleware, driven), 401, 'SESSION_REVOKED');
+            await expectRefusal(await run(middleware, driven), 401, 'SESSION_REVOKED');
             expect(driven.next).not.toHaveBeenCalled();
         });
 
@@ -362,14 +396,14 @@ describe('auth profile branch (case table G)', () =>
                 validKeyRecord({ expiresAt: past }) as never,
             );
             const driven = contextFor({ headers: proofHeaders() });
-            expectRefusal(await run(middleware, driven), 401, 'SESSION_REVOKED');
+            await expectRefusal(await run(middleware, driven), 401, 'SESSION_REVOKED');
         });
 
         it('an unregistered keyId shares PROOF_INVALID with a bad signature (non-disclosure)', async () =>
         {
             vi.mocked(keysRepository.findByKeyId).mockResolvedValue(null as never);
             const driven = contextFor({ headers: proofHeaders({ keyId: 'key-never-registered' }) });
-            expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
+            await expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
         });
     });
 
@@ -383,7 +417,7 @@ describe('auth profile branch (case table G)', () =>
                 validKeyRecord({ userId: 8 }) as never,
             );
             const driven = contextFor({ headers: proofHeaders({ clientId: OWNER_CLIENT_ID }) });
-            expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
+            await expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
             expect(driven.next).not.toHaveBeenCalled();
             expect(driven.authOf()).toBeUndefined();
         });
@@ -393,23 +427,22 @@ describe('auth profile branch (case table G)', () =>
             vi.mocked(keysRepository.findByKeyId).mockResolvedValue(
                 validKeyRecord({ userId: 8 }) as never,
             );
-            const mismatch = await run(middleware, contextFor({ headers: proofHeaders() })) as
-                { statusCode: number; message: string; details: { code: string } };
+            const mismatch = await run(middleware, contextFor({ headers: proofHeaders() })) as Response;
 
             vi.mocked(keysRepository.findByKeyId).mockResolvedValue(null as never);
-            const unregistered = await run(middleware, contextFor({ headers: proofHeaders() })) as
-                { statusCode: number; message: string; details: { code: string } };
+            const unregistered = await run(middleware, contextFor({ headers: proofHeaders() })) as Response;
 
-            expect(mismatch.statusCode).toBe(unregistered.statusCode);
-            expect(mismatch.message).toBe(unregistered.message);
-            expect(mismatch.details.code).toBe(unregistered.details.code);
+            expect(mismatch.status).toBe(unregistered.status);
+            // The envelopes differ in requestId alone — nothing else in either
+            // body can be read back as whether the key exists.
+            expect(await envelopeWithoutRequestId(mismatch)).toEqual(await envelopeWithoutRequestId(unregistered));
         });
 
         it('exact string match only: no normalization of the owner id', async () =>
         {
             // ' 7' (padded) is not '7' — the comparison must not trim or coerce.
             const driven = contextFor({ headers: proofHeaders({ clientId: ` ${OWNER_CLIENT_ID}` }) });
-            expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
+            await expectRefusal(await run(middleware, driven), 401, 'PROOF_INVALID');
         });
     });
 
@@ -504,7 +537,7 @@ describe('replay ledger through the middleware (case table H)', () =>
         expect(await run(authenticate, first)).toBeNull();
 
         const replayed = contextFor({ headers: proofHeaders({ nonce }) });
-        expectRefusal(await run(authenticate, replayed), 401, 'PROOF_REPLAYED');
+        await expectRefusal(await run(authenticate, replayed), 401, 'PROOF_REPLAYED');
         expect(replayed.next).not.toHaveBeenCalled();
     });
 
@@ -523,7 +556,7 @@ describe('replay ledger through the middleware (case table H)', () =>
         configureClientProofReplayStore(downStore);
 
         const driven = contextFor({ headers: proofHeaders() });
-        expectRefusal(await run(authenticate, driven), 503);
+        await expectRefusal(await run(authenticate, driven), 503);
         expect(driven.next).not.toHaveBeenCalled();
     });
 
@@ -538,7 +571,7 @@ describe('replay ledger through the middleware (case table H)', () =>
         });
 
         const driven = contextFor({ headers: proofHeaders() });
-        expectRefusal(await run(authenticate, driven), 401, 'PROOF_REPLAYED');
+        await expectRefusal(await run(authenticate, driven), 401, 'PROOF_REPLAYED');
         expect(driven.next).not.toHaveBeenCalled();
     });
 
@@ -546,7 +579,7 @@ describe('replay ledger through the middleware (case table H)', () =>
     {
         const nonce = 'nonce-h4';
         const refused = contextFor({ headers: proofHeaders({ nonce, tamper: true }) });
-        expectRefusal(await run(authenticate, refused), 401, 'PROOF_INVALID');
+        await expectRefusal(await run(authenticate, refused), 401, 'PROOF_INVALID');
 
         const retried = contextFor({ headers: proofHeaders({ nonce }) });
         expect(await run(authenticate, retried)).toBeNull();
@@ -559,7 +592,7 @@ describe('replay ledger through the middleware (case table H)', () =>
         const stale = contextFor({
             headers: proofHeaders({ nonce, issuedAtMillis: BigInt(Date.now()) - 300_001n }),
         });
-        expectRefusal(await run(authenticate, stale), 401, 'PROOF_EXPIRED');
+        await expectRefusal(await run(authenticate, stale), 401, 'PROOF_EXPIRED');
 
         // The expired refusal spent nothing: the nonce is admissible when fresh.
         const fresh = contextFor({ headers: proofHeaders({ nonce }) });

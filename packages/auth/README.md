@@ -856,6 +856,13 @@ HTTP status).
 - `createClientProofGuard(state)` — Hono middleware for mounting `requiresSession` operations
   on an SPFN server; tags admitted requests `clientType: 'mobile'` (the attestation slot
   proxy-guard reserved). hono is a type-only import here.
+- A refusal is **answered**, never thrown: `authenticate` / `optionalAuth` answer a request that
+  named this profile with the canonical envelope (`error.code` is one of the six codes, and the
+  body carries nothing else), and the guard and dev handler do the same. Handing the refusal to
+  the generic error handler instead would put the carrying error class's name in `error.code`
+  (`UnauthorizedError`) — a code no generated SDK can classify (#106). Errors raised **after**
+  admission (account status, application errors) are ordinary SPFN errors and keep the REST
+  envelope.
 - Replay ledger is module-local, NOT core's `NonceStore` — `checkAndSet` records on check,
   which would spend a nonce on a refused request; the contract requires spending only on
   admission.

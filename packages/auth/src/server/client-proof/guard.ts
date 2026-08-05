@@ -16,9 +16,8 @@ import type { Context, MiddlewareHandler, Next } from 'hono';
 
 import { admitClientProofRequest, type ClientProofCredentials } from './admission';
 import type { CanonicalValue } from './canonical-json';
-import { newHexId } from './refusal';
+import { clientProofRefusalResponse } from './refusal-response';
 import type { ClientProofState } from './state';
-import { serverContractHeaders } from './wire-version';
 
 /** What the guard leaves in the context for the route handler. */
 export interface ClientProofContext
@@ -63,13 +62,8 @@ export function createClientProofGuard(
         if (!admission.admitted)
         {
             state.recordRefusal();
-            const bytes = admission.refusal.envelopeBytes(newHexId());
-            const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 
-            return c.newResponse(buffer, admission.refusal.httpStatus as 401, {
-                'content-type': 'application/json',
-                ...serverContractHeaders(),
-            });
+            return clientProofRefusalResponse(c, admission.refusal);
         }
         c.set('clientType', 'mobile');
         c.set('clientProof', {

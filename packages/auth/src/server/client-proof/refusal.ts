@@ -160,6 +160,20 @@ export class ClientProofRefusal
         return new ClientProofRefusal('PROFILE_REJECTED', "the named auth profile is not on this contract's allowlist");
     }
 
+    /**
+     * A request that names a profile and presents Bearer credentials as well.
+     * The profile named is a real one, so this is not a shape the two ends
+     * disagree about: the request asked to be authenticated two ways at once
+     * and the profile it named is the one refused.
+     */
+    static credentialsMixed(): ClientProofRefusal
+    {
+        return new ClientProofRefusal(
+            'PROFILE_REJECTED',
+            'an auth profile and Bearer credentials must not be mixed in one request',
+        );
+    }
+
     // ---- auth: a new session might clear it (rule 1) -------------------------
 
     static sessionRevoked(): ClientProofRefusal

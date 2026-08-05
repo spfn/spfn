@@ -111,6 +111,8 @@ export {
     type ClientProofGuardOptions,
 } from './guard';
 
+export { clientProofRefusalResponse } from './refusal-response';
+
 export {
     CLIENT_IDENTITY_HEADERS,
     SERVER_CONTRACT_HEADERS,
