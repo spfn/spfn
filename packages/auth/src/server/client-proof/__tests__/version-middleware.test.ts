@@ -11,11 +11,13 @@ import { describe, expect, it } from 'vitest';
 
 import { CONTRACT_SUPPORTED_RANGE, CONTRACT_VERSION } from '../contract-bundle';
 import { CLIENT_IDENTITY_CONTEXT_KEY, createClientVersionMiddleware } from '../version-middleware';
-import { CLIENT_IDENTITY_HEADERS, SERVER_CONTRACT_HEADERS } from '../wire-version';
+import { CLIENT_IDENTITY_HEADERS, SERVER_CONTRACT_HEADERS, type ClientIdentity } from '../wire-version';
 
-function app(): Hono
+type TestEnv = { Variables: { [CLIENT_IDENTITY_CONTEXT_KEY]?: ClientIdentity } };
+
+function app(): Hono<TestEnv>
 {
-    const instance = new Hono();
+    const instance = new Hono<TestEnv>();
     instance.use('*', createClientVersionMiddleware());
     instance.post('/_auth/login', (c) => c.json({ ok: true }));
     instance.get('/whoami', (c) => c.json({ identity: c.get(CLIENT_IDENTITY_CONTEXT_KEY) ?? null }));
@@ -23,7 +25,7 @@ function app(): Hono
     return instance;
 }
 
-function call(headers: Record<string, string> = {}, path = '/_auth/login'): Promise<Response>
+async function call(headers: Record<string, string> = {}, path = '/_auth/login'): Promise<Response>
 {
     return app().request(path, { method: path === '/whoami' ? 'GET' : 'POST', headers });
 }
