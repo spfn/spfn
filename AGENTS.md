@@ -164,8 +164,9 @@ Gotchas:
   reported this way describes the private registry. To inspect public npmjs, query it
   directly: `curl -s https://registry.npmjs.org/@spfn%2Fauth`. Issue #52 was filed against
   the wrong registry for exactly this reason.
-- `RELEASE.md` / `.github/PUBLISHING.md` still describe the old public-npm + GitHub
-  Actions flow; the process above supersedes them.
+- `.github/PUBLISHING.md` is the long form of the process above — same two registries,
+  with the exact commands. `RELEASE.md` describes the retired tag-triggered release and
+  is kept for history only; nothing publishes off a git tag any more.
 
 <!-- superself:begin -->
 ## Project state (superself)
