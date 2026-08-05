@@ -91,7 +91,22 @@ describe('whether the server serves a stated contract version', () =>
     {
         // The comparison is the rule the range spells out; a change to one
         // without the other would let the server refuse what it advertises.
-        expect(CONTRACT_SUPPORTED_RANGE).toBe(`>=${CONTRACT_VERSION} <0.7.0`);
+        //
+        // 0.x에서 breaking을 나르는 건 minor다. 그래서 범위의 바닥은 지금 버전이
+        // 아니라 그 minor의 .0 이다 — 0.6.0 -> 0.6.1 같은 patch는 0.6.0으로 생성된
+        // 소비자가 새로 알아야 할 게 없으므로 바닥을 그 위로 밀면 안 된다.
+        const [major, minor] = CONTRACT_VERSION.split('.').map(Number);
+
+        expect(CONTRACT_SUPPORTED_RANGE).toBe(`>=${major}.${minor}.0 <${major}.${minor + 1}.0`);
+    });
+
+    it('serves the floor of the range it publishes, and nothing at its ceiling', () =>
+    {
+        const match = /^>=(\d+\.\d+\.\d+) <(\d+\.\d+\.\d+)$/.exec(CONTRACT_SUPPORTED_RANGE);
+
+        expect(match).not.toBeNull();
+        expect(isContractVersionSupported((match as RegExpExecArray)[1])).toBe(true);
+        expect(isContractVersionSupported((match as RegExpExecArray)[2])).toBe(false);
     });
 });
 

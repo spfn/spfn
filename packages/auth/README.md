@@ -904,6 +904,26 @@ app.use('*', createClientVersionMiddleware());
 Response header names are deliberately distinct from the request ones: a proxy that echoes a request
 header into the response would otherwise make the client's own version look like the server's.
 
+### When each operation became available (contract 0.6.1)
+
+Every operation in the exported bundle carries `since` — the contract version it first appeared in.
+`deprecatedIn` and `removedIn` are optional and absent today, because nothing has been deprecated.
+
+| Operation | `since` |
+|-----------|---------|
+| `auth.clientProof.handshake`, `echo.send`, `items.list` | 0.1.0 |
+| `auth.enroll.register`, `auth.enroll.login`, `auth.enroll.oauthNative`, `auth.keys.rotate` | 0.3.0 |
+| `auth.keys.list`, `auth.keys.revoke`, `auth.keys.revokeAll` | 0.4.1 |
+
+- **This is history, not policy.** The mobile contract's compatibility policy is `allOrNothing`: one
+  contract version passes or refuses the whole surface, so these three fields change no verdict here.
+  An app contract generated from SPFN routes decides `perOperation` and reads the same fields as an
+  input — the shape is shared so the two never diverge.
+- **A removal is mark, then wait, then remove.** `deprecatedIn` in one version with the operation
+  still served, `removedIn` in a later one. Nothing is removed in the version that deprecates it.
+- **A removed operation leaves the operations list**, so no entry carries `removedIn` today. It is
+  where the fact gets recorded when the first removal happens.
+
 ### Usage — dev surface (mobile integration target)
 
 The fastest path: run the packaged dev handler, which already serves the three contract

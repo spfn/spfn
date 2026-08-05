@@ -17,6 +17,17 @@ survived a full consume cycle. Under 0.x the **minor** carries breaking changes
 The filename carries no major while the line is 0.x, because under 0.x the
 major would name nothing useful. Pin the digest, not the path shape.
 
+## Operation availability
+
+Since 0.6.1 every operation carries `since`, the contract version it first
+appeared in, with optional `deprecatedIn` and `removedIn` — both absent today.
+`operationAvailability` in the bundle states what they mean.
+
+This contract's `compatibilityPolicy` is `allOrNothing`, so those fields decide
+nothing here: one version passes or refuses the whole surface. They record
+history, give a deprecation somewhere to be announced, and are the same shape a
+`perOperation` contract reads as a verdict input.
+
 ## Regenerating
 
 ```bash
