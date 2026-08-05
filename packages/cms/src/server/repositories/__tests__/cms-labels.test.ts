@@ -250,6 +250,13 @@ describe('CmsLabelsRepository', () =>
                 defaultValue: 'Old Title',
             });
 
+            // create() lets PostgreSQL fill updated_at from its own clock; updateById()
+            // writes new Date() from this process. Comparing the two compares two clocks
+            // at two precisions, and when both land in the same millisecond they read
+            // equal — which is why this assertion used to fail on a warm run and pass on
+            // a cold one. Compare against an instant this process took instead.
+            const beforeUpdate = Date.now();
+
             const updated = await cmsLabelsRepository.updateById(created.id, {
                 defaultValue: 'New Title',
                 description: 'Updated description',
@@ -257,7 +264,7 @@ describe('CmsLabelsRepository', () =>
 
             expect(updated.defaultValue).toBe('New Title');
             expect(updated.description).toBe('Updated description');
-            expect(updated.updatedAt.getTime()).toBeGreaterThan(created.updatedAt.getTime());
+            expect(updated.updatedAt.getTime()).toBeGreaterThanOrEqual(beforeUpdate);
         });
 
         it('should return null for non-existent id', async () =>
