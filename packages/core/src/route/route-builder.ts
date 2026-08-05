@@ -8,6 +8,7 @@ import type { MiddlewareHandler } from 'hono';
 import type { NamedMiddleware } from './define-middleware';
 import type { RouteInput } from './route-input';
 import type { RouteBuilderContext } from './context';
+import type { RouteContract } from './contract';
 import type { HttpMethod } from './types';
 
 /**
@@ -35,6 +36,15 @@ export type RouteDef<
     interceptor?: TInterceptor;
     middlewares?: (MiddlewareHandler | NamedMiddleware<string>)[];
     skipMiddlewares?: string[] | '*';
+
+    /**
+     * Public promise this route makes to separately deployed clients.
+     *
+     * Present as a runtime value, unlike `_response`: the contract generator and
+     * the compatibility gate read it.
+     */
+    contract?: RouteContract;
+
     handler: RouteHandlerFn<TInput, TInterceptor, TResponse>;
 
     // Type inference helpers
@@ -58,6 +68,7 @@ export class RouteBuilder<
     public _interceptor?: TInterceptor;
     public _middlewares?: (MiddlewareHandler | NamedMiddleware<string>)[];
     public _skipMiddlewares?: string[] | '*';
+    public _contract?: RouteContract;
 
     /**
      * Create a new RouteBuilder with copied properties and optional overrides
@@ -71,6 +82,7 @@ export class RouteBuilder<
             interceptor: TNewInterceptor;
             middlewares: (MiddlewareHandler | NamedMiddleware<string>)[];
             skipMiddlewares: string[] | '*';
+            contract: RouteContract;
         }>,
     ): RouteBuilder<TNewInput, TNewInterceptor, TResponse>
     {
@@ -81,6 +93,7 @@ export class RouteBuilder<
         builder._interceptor = (overrides?.interceptor ?? this._interceptor) as TNewInterceptor | undefined;
         builder._middlewares = overrides?.middlewares ?? this._middlewares;
         builder._skipMiddlewares = overrides?.skipMiddlewares ?? this._skipMiddlewares;
+        builder._contract = overrides?.contract ?? this._contract;
 
         return builder;
     }
@@ -233,6 +246,41 @@ export class RouteBuilder<
     }
 
     /**
+     * Publish this route as a versioned contract operation
+     *
+     * Marks the route as a promise to clients that are compiled and deployed
+     * separately from the server — a mobile app, an external API consumer.
+     * The `@spfn/core:contract` generator writes every contracted route into
+     * `contracts/current.json`, and the build refuses a change that would break
+     * an already-released client.
+     *
+     * Routes without `.contract()` are unaffected: they simply do not appear in
+     * the contract. A web client needs nothing here — it derives its types from
+     * the router in the same build.
+     *
+     * @example
+     * ```ts
+     * export const getUser = route.get('/users/:id')
+     *   .input({ params: Type.Object({ id: Type.String() }) })
+     *   .contract({
+     *     since: '1.2.0',
+     *     auth: 'clientProofV1',
+     *     requiresSession: true,
+     *     response: Type.Object({
+     *       id: Type.String(),
+     *       name: Type.String(),
+     *       email: Type.Optional(Type.String()),
+     *     }),
+     *   })
+     *   .handler(async (c) => { ... });
+     * ```
+     */
+    contract(contract: RouteContract): RouteBuilder<TInput, TInterceptor, TResponse>
+    {
+        return this.clone({ contract });
+    }
+
+    /**
      * Define handler function
      *
      * Response type is automatically inferred from the return value.
@@ -289,6 +337,7 @@ export class RouteBuilder<
             interceptor: this._interceptor,
             middlewares: this._middlewares,
             skipMiddlewares: this._skipMiddlewares,
+            contract: this._contract,
             handler: fn,
             _input: {} as TInput,
             _interceptor: {} as TInterceptor,

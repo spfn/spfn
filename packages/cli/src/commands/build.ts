@@ -70,15 +70,21 @@ async function buildProject(options: BuildOptions): Promise<void>
                 generators,
                 cwd,
                 debug: true,
+
+                // A generator that refuses at build time — a broken route contract,
+                // a router that will not load — must reach the exit code rather
+                // than scroll past while the build ships anyway.
+                throwOnError: true,
             });
 
-            await orchestrator.generateAll();
+            await orchestrator.generateAll('build');
             spinner.succeed('API client generated');
         }
         catch (error)
         {
-            spinner.warn('API client generation failed (non-critical)');
-            logger.warn(String(error));
+            spinner.fail('Code generation failed');
+            logger.error(error instanceof Error ? error.message : String(error));
+            process.exit(1);
         }
     }
 

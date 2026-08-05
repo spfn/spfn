@@ -62,7 +62,8 @@ purpose → canonical README.
 | `@spfn/core/event/sse/client` | Browser SSE (`EventSource`) client. | [src/event/README.md](./src/event/README.md) |
 | `@spfn/core/event/ws` | Server WebSocket handler (SERVER ONLY; `ws` optional dep). | [src/event/README.md](./src/event/README.md) |
 | `@spfn/core/event/ws/client` | Browser WebSocket client. | [src/event/README.md](./src/event/README.md) |
-| `@spfn/core/codegen` | Pluggable codegen orchestrator + the built-in `@spfn/core:route-map` generator that produces the proxy's `routeMap`. | [src/codegen/README.md](./src/codegen/README.md) |
+| `@spfn/core/codegen` | Pluggable codegen orchestrator + the built-in `@spfn/core:route-map` and `@spfn/core:contract` generators. | [src/codegen/README.md](./src/codegen/README.md) |
+| `@spfn/core/contract` | Route contracts for separately deployed clients: collect, snapshot, and the build gate that refuses breaking changes. | [src/contract/README.md](./src/contract/README.md) |
 
 `db/manager`, `db/schema`, `db/transaction` have **no package subpath** of their own — they are
 internal modules re-exported by `@spfn/core/db`. Import them from `@spfn/core/db`. (See Pitfalls
@@ -194,6 +195,10 @@ const made = await api.createUser.call({ body: { name: 'A' } });
   driven by the `AppRouter` *type*. The generated `routeMap` is consumed by `createRpcProxy`. A
   `routeName` missing from the merged `routeMap` is a **proxy 404**, not a backend 404 — re-run
   codegen after adding routes.
+- **Contracts are for clients TypeScript cannot reach.** `.contract()` and the build gate exist for
+  a mobile app or external consumer compiled and shipped separately. A web client derives its types
+  from `AppRouter` in the same build, so a removed response field already breaks the compile — do
+  not add `.contract()` to a route only the web app calls.
 - **The proxy decides the real HTTP method.** The client only sends GET/POST to `/api/rpc/...`; a
   PUT/PATCH/DELETE route still works because the backend method comes from `routeMap[routeName]`.
 - **Cache/event/job degrade or depend on optional deps.** `@spfn/core/cache` runs disabled (getters
