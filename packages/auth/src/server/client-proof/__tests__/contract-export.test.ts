@@ -23,6 +23,7 @@ import type { CanonicalValue } from '../canonical-json';
 import {
     BUNDLE_FILENAME,
     buildMobileContractBundle,
+    CONTRACT_VERSION,
     PROVENANCE_FILENAME,
     renderMobileContractExport,
 } from '../contract-bundle';
@@ -225,6 +226,157 @@ describe('operations describe the routes the server answers', () =>
         {
             expect(operation.authProfile).toBe('clientProofV1');
         }
+    });
+});
+
+describe('every operation records when it became available', () =>
+{
+    interface AvailabilityShape
+    {
+        id: string;
+        since: string;
+        deprecatedIn?: string;
+        removedIn?: string;
+    }
+
+    const operations = bundle.operations as AvailabilityShape[];
+
+    /**
+     * The first version of the surviving line. 1.0.0 and 1.0.1 were withdrawn and
+     * renumbered into 0.1.0 (commit 50013456), so nothing predates it.
+     */
+    const EARLIEST_VERSION = '0.1.0';
+
+    const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
+
+    function ordinal(version: string): number
+    {
+        const match = SEMVER.exec(version);
+        if (match === null)
+        {
+            throw new Error(`"${version}" is not a three-part version`);
+        }
+
+        return (Number(match[1]) * 1_000_000) + (Number(match[2]) * 1_000) + Number(match[3]);
+    }
+
+    /**
+     * The version each operation first shipped in, read off this repository's own
+     * history. Pinned here so a later edit cannot quietly move one: a `since` that
+     * says a later version than the operation actually shipped in is a falsified
+     * history nothing else in the suite would catch.
+     *
+     * | operation | first commit | version there |
+     * | auth.clientProof.handshake, echo.send, items.list | 50013456 | 0.1.0 |
+     * | auth.enroll.{register,login,oauthNative}, auth.keys.rotate | c041ef48 | 0.3.0 |
+     * | auth.keys.{list,revoke,revokeAll} | ee286775 | 0.4.1 |
+     */
+    const RECORDED_HISTORY: Record<string, string> = {
+        'auth.clientProof.handshake': '0.1.0',
+        'echo.send': '0.1.0',
+        'items.list': '0.1.0',
+        'auth.enroll.register': '0.3.0',
+        'auth.enroll.login': '0.3.0',
+        'auth.enroll.oauthNative': '0.3.0',
+        'auth.keys.rotate': '0.3.0',
+        'auth.keys.list': '0.4.1',
+        'auth.keys.revoke': '0.4.1',
+        'auth.keys.revokeAll': '0.4.1',
+    };
+
+    it('every exported operation carries a since', () =>
+    {
+        for (const operation of operations)
+        {
+            expect(typeof operation.since, operation.id).toBe('string');
+            expect(operation.since, operation.id).toMatch(SEMVER);
+        }
+    });
+
+    it('no since is later than the version being published, or earlier than the line starts', () =>
+    {
+        for (const operation of operations)
+        {
+            expect(ordinal(operation.since), `${operation.id} is from the future`)
+                .toBeLessThanOrEqual(ordinal(CONTRACT_VERSION));
+            expect(ordinal(operation.since), `${operation.id} predates the line`)
+                .toBeGreaterThanOrEqual(ordinal(EARLIEST_VERSION));
+        }
+    });
+
+    it('the backfill is the history git records, operation by operation', () =>
+    {
+        expect(Object.fromEntries(operations.map((operation) => [operation.id, operation.since])))
+            .toEqual(RECORDED_HISTORY);
+    });
+
+    it('nothing is deprecated or removed yet', () =>
+    {
+        for (const operation of operations)
+        {
+            expect(operation.deprecatedIn, operation.id).toBeUndefined();
+            expect(operation.removedIn, operation.id).toBeUndefined();
+        }
+    });
+
+    // 오늘은 비어 있는 필드지만, 검사는 지금 심어 둔다. 첫 deprecation이 들어오는
+    // 커밋에서 순서를 확인할 사람이 없어도 이 케이스들이 대신 확인한다.
+    it('a removal is never recorded without the deprecation that precedes it', () =>
+    {
+        for (const operation of operations)
+        {
+            if (operation.removedIn === undefined)
+            {
+                continue;
+            }
+            expect(operation.deprecatedIn, `${operation.id} is removed but never deprecated`).toBeDefined();
+        }
+    });
+
+    it('since, deprecatedIn and removedIn run in that order', () =>
+    {
+        for (const operation of operations)
+        {
+            const since = ordinal(operation.since);
+
+            if (operation.deprecatedIn !== undefined)
+            {
+                expect(operation.deprecatedIn, operation.id).toMatch(SEMVER);
+                expect(ordinal(operation.deprecatedIn), `${operation.id} deprecated before it existed`)
+                    .toBeGreaterThanOrEqual(since);
+            }
+            if (operation.removedIn !== undefined)
+            {
+                expect(operation.removedIn, operation.id).toMatch(SEMVER);
+                expect(ordinal(operation.removedIn), `${operation.id} removed before it existed`)
+                    .toBeGreaterThanOrEqual(since);
+            }
+            if (operation.deprecatedIn !== undefined && operation.removedIn !== undefined)
+            {
+                expect(ordinal(operation.removedIn), `${operation.id} removed before it was deprecated`)
+                    .toBeGreaterThan(ordinal(operation.deprecatedIn));
+            }
+        }
+    });
+
+    it('the bundle says what the three fields mean and how a removal is announced', () =>
+    {
+        const availability = bundle.operationAvailability as Record<string, string>;
+
+        expect(availability.since).toContain('first appeared in');
+        expect(availability.deprecatedIn).toContain('still served');
+        expect(availability.removedIn).toContain('leaves this list');
+        expect(availability.procedure).toContain('mark then wait then remove');
+    });
+
+    it('the bundle states that under allOrNothing these fields decide nothing', () =>
+    {
+        const availability = bundle.operationAvailability as Record<string, string>;
+        const policy = bundle.compatibilityPolicy as Record<string, string>;
+
+        expect(availability.verdictRule).toContain('decide nothing');
+        expect(availability.verdictRule).toContain('perOperation');
+        expect(policy.availability).toContain('descriptive');
     });
 });
 
@@ -650,16 +802,17 @@ describe('declared proof rules match the implementation', () =>
         replayWindowMillis: number;
     };
 
-    it('the contract line is the revision that puts the version on the wire', () =>
+    it('the contract line is the revision that records per-operation availability', () =>
     {
-        expect(bundle.contractVersion).toBe('0.6.0');
+        expect(bundle.contractVersion).toBe('0.6.1');
     });
 
-    it('the supported range moves with the breaking header and enum changes', () =>
+    it('the supported range stays where the breaking header and enum changes put it', () =>
     {
         // 0.6.0은 클라이언트 신원 헤더를 요구하고 algorithm을 enum으로 바꾼다. 둘 다
         // 소비자의 생성 코드를 바꾸므로 breaking이고, 0.x에서 minor가 breaking을
-        // 나르므로 범위도 같이 올라간다 — 0.5.x 소비자가 남아 있으면 안 된다.
+        // 나르므로 범위도 같이 올라갔다 — 0.5.x 소비자가 남아 있으면 안 된다.
+        // 0.6.1은 metadata만 더하는 patch라 범위를 움직이지 않는다.
         expect(bundle.supportedRange).toBe('>=0.6.0 <0.7.0');
     });
 

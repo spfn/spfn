@@ -120,19 +120,38 @@ import { CLIENT_IDENTITY_HEADERS, CLIENT_KINDS, SERVER_CONTRACT_HEADERS } from '
  * decision to make. No list here is promised to be closed: an algorithm can be
  * withdrawn for a weakness found after this was written, and a contract that
  * promised otherwise would be promising something it cannot keep.
+ *
+ * 0.6.1 records when each operation became available: every operation now carries
+ * `since`, the contract version it first appeared in, backfilled from this
+ * repository's own history, and the optional `deprecatedIn` / `removedIn` that a
+ * later version will fill in. Nothing is deprecated today, so both are absent
+ * everywhere.
+ *
+ * A patch: no request or response type moves, no operation is added or taken
+ * away, and this contract's policy is `allOrNothing`, so the new fields change no
+ * verdict — a client is still admitted or refused by one version for the whole
+ * surface. They are here so a deprecation has somewhere to be recorded when the
+ * first one happens, and so an app contract, which decides per operation, reads
+ * availability in the same shape rather than inventing a second one.
  */
-export const CONTRACT_VERSION = '0.6.0';
+export const CONTRACT_VERSION = '0.6.1';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
-/** Under 0.x the minor carries breaking changes, so the range stops at 0.7.0. */
+/**
+ * Under 0.x the minor carries breaking changes, so the range stops at 0.7.0.
+ *
+ * 0.6.1 leaves it where 0.6.0 put it: a patch adds nothing a 0.6.0-generated
+ * consumer has to know, so a client pinned at 0.6.0 stays inside a range it is
+ * in fact still compatible with.
+ */
 export const CONTRACT_SUPPORTED_RANGE = '>=0.6.0 <0.7.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
 
 /** Bumped whenever the assembled shape changes, independent of the contract. */
-export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@4.0.0';
+export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@4.1.0';
 
 /**
  * The scalars the grammar admits.
@@ -596,6 +615,28 @@ export function buildMobileContractBundle(): MobileContractBundle
                 'an operation whose authProfile is not none refuses an unproven call exactly as it refuses any '
                 + 'failed admission; nothing is downgraded to anonymous handling',
         },
+        operationAvailability: {
+            since:
+                'the contract version the operation first appeared in. Every operation carries one, and it is '
+                + 'never rewritten: it is a fact about this contract\'s history',
+            deprecatedIn:
+                'the contract version that marked the operation deprecated, absent until one does. A deprecated '
+                + 'operation is still served — the mark opens the grace period, it does not end the operation',
+            removedIn:
+                'the contract version that removed the operation. A removed operation leaves this list, so no '
+                + 'entry carries it today; it is the field a removal is recorded in when the first one happens',
+            ordering:
+                'since <= deprecatedIn < removedIn, and removedIn never appears without deprecatedIn: an '
+                + 'operation is marked in one version and taken away in a later one, never both at once',
+            verdictRule:
+                'under this contract\'s allOrNothing policy these three fields decide nothing. One contract '
+                + 'version passes or refuses this whole surface, so availability here is description a reader '
+                + 'and a changelog use, not an input the server compares against. A contract whose policy is '
+                + 'perOperation reads the same fields as a verdict input',
+            procedure:
+                'a removal is mark then wait then remove: deprecatedIn in one version, the operation still '
+                + 'served, removedIn in a later one. Nothing is removed in the version that first deprecates it',
+        },
         keyPolicy: {
             ttlDays: KEY_TTL_DAYS,
             rotationOperation: 'auth.keys.rotate',
@@ -734,6 +775,11 @@ export function buildMobileContractBundle(): MobileContractBundle
                 'an app contract generated from SPFN routes uses perOperation instead, where availability is '
                 + 'recorded per operation and the verdict narrows to the operations a client actually calls. The '
                 + 'two share this bundle format, so the policy is stated rather than inferred',
+            availability:
+                'the since, deprecatedIn and removedIn fields on each operation, described under '
+                + 'operationAvailability, are recorded here as well. Under allOrNothing they are descriptive: '
+                + 'they are history, not a verdict input. Recording them regardless is what lets a deprecation '
+                + 'be announced at all, and is the same shape a perOperation contract decides from',
         },
         typeGrammar: {
             scalars: ['string', 'integer', 'number', 'boolean'],

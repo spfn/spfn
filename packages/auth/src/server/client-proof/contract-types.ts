@@ -39,6 +39,36 @@ export interface ContractOperation
     requestType: string;
     responseType: string;
     summary: string;
+
+    /**
+     * The contract version this operation first appeared in. Required, so an
+     * operation added later cannot ship without one: omitting it is a compile
+     * error rather than a hole a consumer discovers.
+     *
+     * It is history, not policy. This contract's compatibility policy is
+     * `allOrNothing` — one version passes or refuses the whole surface — so
+     * nothing here changes a verdict. It exists so a deprecation has somewhere
+     * to be recorded, and as the precedent an app contract's `perOperation`
+     * policy reads.
+     */
+    since: string;
+
+    /**
+     * The contract version that marked this operation deprecated, if one has.
+     * A deprecated operation is still served: the mark is the notice that opens
+     * the grace period before removal.
+     */
+    deprecatedIn?: string;
+
+    /**
+     * The contract version that removed this operation, if one has.
+     *
+     * A removed operation leaves this list, so nothing here carries the field
+     * today. When the first removal happens, `removedIn` is where the fact is
+     * recorded — how a removed operation stays visible after leaving the list
+     * is decided then, not invented in advance.
+     */
+    removedIn?: string;
 }
 
 export const CONTRACT_OPERATIONS: readonly ContractOperation[] = [
@@ -51,6 +81,7 @@ export const CONTRACT_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'HandshakeRequest',
         responseType: 'HandshakeResponse',
         summary: 'Presents a client proof and opens a session.',
+        since: '0.1.0',
     },
     {
         id: 'echo.send',
@@ -61,6 +92,7 @@ export const CONTRACT_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'EchoRequest',
         responseType: 'EchoResponse',
         summary: 'Authenticated round trip used as the smallest real vertical slice.',
+        since: '0.1.0',
     },
     {
         id: 'items.list',
@@ -71,6 +103,7 @@ export const CONTRACT_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'ListItemsRequest',
         responseType: 'ListItemsResponse',
         summary: 'Authenticated paged read covering optional fields and arrays.',
+        since: '0.1.0',
     },
 ];
 
@@ -96,6 +129,7 @@ export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'RegisterRequest',
         responseType: 'RegisterResponse',
         summary: 'Registers an account with a verification token and enrolls the client-generated public key.',
+        since: '0.3.0',
     },
     {
         id: 'auth.enroll.login',
@@ -106,6 +140,7 @@ export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'LoginRequest',
         responseType: 'LoginResponse',
         summary: 'Authenticates with password credentials and enrolls a fresh client-generated public key.',
+        since: '0.3.0',
     },
     {
         id: 'auth.enroll.oauthNative',
@@ -116,6 +151,7 @@ export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'OauthNativeRequest',
         responseType: 'OauthNativeResponse',
         summary: 'Verifies a native/web social id_token server-side and enrolls the client-generated public key.',
+        since: '0.3.0',
     },
     {
         id: 'auth.keys.rotate',
@@ -126,6 +162,7 @@ export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'RotateKeyRequest',
         responseType: 'RotateKeyResponse',
         summary: 'Replaces the authenticated key with a new client-generated public key before its TTL runs out.',
+        since: '0.3.0',
     },
     {
         id: 'auth.keys.list',
@@ -136,6 +173,7 @@ export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'ListKeysRequest',
         responseType: 'ListKeysResponse',
         summary: 'Lists the keys registered to the caller, one per device that can sign for them.',
+        since: '0.4.1',
     },
     {
         id: 'auth.keys.revoke',
@@ -146,6 +184,7 @@ export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'RevokeKeyRequest',
         responseType: 'RevokeKeyResponse',
         summary: 'Revokes one of the caller\'s keys, signing that device out.',
+        since: '0.4.1',
     },
     {
         id: 'auth.keys.revokeAll',
@@ -156,6 +195,7 @@ export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'RevokeAllKeysRequest',
         responseType: 'RevokeAllKeysResponse',
         summary: 'Revokes every key the caller has, sparing the calling device unless asked otherwise.',
+        since: '0.4.1',
     },
 ];
 

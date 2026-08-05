@@ -4,14 +4,22 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.6.0",
+  "contractVersion": "0.6.1",
   "supportedRange": ">=0.6.0 <0.7.0",
-  "exporterVersion": "@spfn/auth/contract-bundle@4.0.0",
+  "exporterVersion": "@spfn/auth/contract-bundle@4.1.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
   "operationAuthClasses": {
     "none": "the unproven class: the operation is accepted with neither proof headers nor a session header, because it is called before any key exists to sign with (enrollment and login)",
     "clientProofV1": "the operation is admitted by the clientProofV1 admission order; requiresSession states whether the session header travels",
     "rule": "an operation whose authProfile is not none refuses an unproven call exactly as it refuses any failed admission; nothing is downgraded to anonymous handling"
+  },
+  "operationAvailability": {
+    "since": "the contract version the operation first appeared in. Every operation carries one, and it is never rewritten: it is a fact about this contract's history",
+    "deprecatedIn": "the contract version that marked the operation deprecated, absent until one does. A deprecated operation is still served — the mark opens the grace period, it does not end the operation",
+    "removedIn": "the contract version that removed the operation. A removed operation leaves this list, so no entry carries it today; it is the field a removal is recorded in when the first one happens",
+    "ordering": "since <= deprecatedIn < removedIn, and removedIn never appears without deprecatedIn: an operation is marked in one version and taken away in a later one, never both at once",
+    "verdictRule": "under this contract's allOrNothing policy these three fields decide nothing. One contract version passes or refuses this whole surface, so availability here is description a reader and a changelog use, not an input the server compares against. A contract whose policy is perOperation reads the same fields as a verdict input",
+    "procedure": "a removal is mark then wait then remove: deprecatedIn in one version, the operation still served, removedIn in a later one. Nothing is removed in the version that first deprecates it"
   },
   "keyPolicy": {
     "ttlDays": 90,
@@ -104,7 +112,8 @@
   "compatibilityPolicy": {
     "policy": "allOrNothing",
     "rule": "one contract version is this whole surface's pass or refusal. Partial compatibility in an auth primitive would mean admitting a client that agrees about some of the admission sequence and not the rest",
-    "contrast": "an app contract generated from SPFN routes uses perOperation instead, where availability is recorded per operation and the verdict narrows to the operations a client actually calls. The two share this bundle format, so the policy is stated rather than inferred"
+    "contrast": "an app contract generated from SPFN routes uses perOperation instead, where availability is recorded per operation and the verdict narrows to the operations a client actually calls. The two share this bundle format, so the policy is stated rather than inferred",
+    "availability": "the since, deprecatedIn and removedIn fields on each operation, described under operationAvailability, are recorded here as well. Under allOrNothing they are descriptive: they are history, not a verdict input. Recording them regardless is what lets a deprecation be announced at all, and is the same shape a perOperation contract decides from"
   },
   "typeGrammar": {
     "scalars": ["string", "integer", "number", "boolean"],
@@ -303,7 +312,8 @@
       "requiresSession": false,
       "requestType": "HandshakeRequest",
       "responseType": "HandshakeResponse",
-      "summary": "Presents a client proof and opens a session."
+      "summary": "Presents a client proof and opens a session.",
+      "since": "0.1.0"
     },
     {
       "id": "echo.send",
@@ -313,7 +323,8 @@
       "requiresSession": true,
       "requestType": "EchoRequest",
       "responseType": "EchoResponse",
-      "summary": "Authenticated round trip used as the smallest real vertical slice."
+      "summary": "Authenticated round trip used as the smallest real vertical slice.",
+      "since": "0.1.0"
     },
     {
       "id": "items.list",
@@ -323,7 +334,8 @@
       "requiresSession": true,
       "requestType": "ListItemsRequest",
       "responseType": "ListItemsResponse",
-      "summary": "Authenticated paged read covering optional fields and arrays."
+      "summary": "Authenticated paged read covering optional fields and arrays.",
+      "since": "0.1.0"
     },
     {
       "id": "auth.enroll.register",
@@ -333,7 +345,8 @@
       "requiresSession": false,
       "requestType": "RegisterRequest",
       "responseType": "RegisterResponse",
-      "summary": "Registers an account with a verification token and enrolls the client-generated public key."
+      "summary": "Registers an account with a verification token and enrolls the client-generated public key.",
+      "since": "0.3.0"
     },
     {
       "id": "auth.enroll.login",
@@ -343,7 +356,8 @@
       "requiresSession": false,
       "requestType": "LoginRequest",
       "responseType": "LoginResponse",
-      "summary": "Authenticates with password credentials and enrolls a fresh client-generated public key."
+      "summary": "Authenticates with password credentials and enrolls a fresh client-generated public key.",
+      "since": "0.3.0"
     },
     {
       "id": "auth.enroll.oauthNative",
@@ -353,7 +367,8 @@
       "requiresSession": false,
       "requestType": "OauthNativeRequest",
       "responseType": "OauthNativeResponse",
-      "summary": "Verifies a native/web social id_token server-side and enrolls the client-generated public key."
+      "summary": "Verifies a native/web social id_token server-side and enrolls the client-generated public key.",
+      "since": "0.3.0"
     },
     {
       "id": "auth.keys.rotate",
@@ -363,7 +378,8 @@
       "requiresSession": false,
       "requestType": "RotateKeyRequest",
       "responseType": "RotateKeyResponse",
-      "summary": "Replaces the authenticated key with a new client-generated public key before its TTL runs out."
+      "summary": "Replaces the authenticated key with a new client-generated public key before its TTL runs out.",
+      "since": "0.3.0"
     },
     {
       "id": "auth.keys.list",
@@ -373,7 +389,8 @@
       "requiresSession": false,
       "requestType": "ListKeysRequest",
       "responseType": "ListKeysResponse",
-      "summary": "Lists the keys registered to the caller, one per device that can sign for them."
+      "summary": "Lists the keys registered to the caller, one per device that can sign for them.",
+      "since": "0.4.1"
     },
     {
       "id": "auth.keys.revoke",
@@ -383,7 +400,8 @@
       "requiresSession": false,
       "requestType": "RevokeKeyRequest",
       "responseType": "RevokeKeyResponse",
-      "summary": "Revokes one of the caller's keys, signing that device out."
+      "summary": "Revokes one of the caller's keys, signing that device out.",
+      "since": "0.4.1"
     },
     {
       "id": "auth.keys.revokeAll",
@@ -393,7 +411,8 @@
       "requiresSession": false,
       "requestType": "RevokeAllKeysRequest",
       "responseType": "RevokeAllKeysResponse",
-      "summary": "Revokes every key the caller has, sparing the calling device unless asked otherwise."
+      "summary": "Revokes every key the caller has, sparing the calling device unless asked otherwise.",
+      "since": "0.4.1"
     }
   ],
   "errorEnvelope": {
