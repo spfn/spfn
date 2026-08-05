@@ -48,7 +48,7 @@ with `--pm`. In a pnpm workspace, `create` installs from the workspace root.
 ## Commands
 
 Registered top-level commands: `create`, `init`, `add`, `dev`, `build`, `start`,
-`codegen`, `db`, `env`, `key`, `setup`.
+`provision`, `codegen`, `contract`, `key`, `setup`, `db`, `env`, `secret`.
 
 ### `spfn create <name>`
 
@@ -192,6 +192,43 @@ export default defineConfig({
     ],
 });
 ```
+
+### `spfn contract`
+
+Manages the route contract — what a **separately deployed** client (a mobile app, an external
+API consumer) is promised. A web client needs none of this: it derives its types from
+`AppRouter` in the same build, so a broken response already fails the compile.
+
+Requires the `@spfn/core:contract` generator in `.spfnrc.ts`. Every command regenerates the
+contract from the router first, so a stale `contracts/current.json` is never what gets checked
+or released.
+
+```bash
+# Regenerate and compare against the newest released snapshot
+spfn contract check
+
+# Cut a release — writes contracts/released/1.3.0.json. Commit it.
+spfn contract release 1.3.0
+
+# List released snapshots
+spfn contract list
+```
+
+| Subcommand | Description | Exit code |
+|------------|-------------|-----------|
+| `contract check` | Compares the current contract against the newest released snapshot | 1 when a promise is broken |
+| `contract release <version>` | Writes the snapshot every later build is compared against | 1 when the contract is broken, the version already exists, or it is not newer than the newest one |
+| `contract list` (`ls`) | Lists released snapshots | 0 |
+
+`--dir <path>` overrides the contracts directory; by default it comes from the generator's
+`outputDir` in `.spfnrc.ts`.
+
+**`spfn build` runs the same gate.** A broken contract fails the build with a non-zero exit
+code — that is the point of hanging the check off codegen rather than leaving it to a
+separate step.
+
+See [`@spfn/core` contract docs](../core/src/contract/README.md) for the case table and the
+removal rules.
 
 ### `spfn db`
 
