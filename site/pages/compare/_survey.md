@@ -68,18 +68,27 @@ different comparison entirely.
 
 Three chapters, each verified on both sides.
 
-*Chapter one — what happens to every request after login.* Better Auth's answer for
-non-browser clients is the Bearer plugin: the session token travels in an `Authorization`
-header, and its own documentation attaches a caution that improper implementation can
-easily lead to vulnerabilities. It documents no request signing, no per-device keys, no
-nonce and no replay protection. `@spfn/auth` ships a signed-request profile instead —
-ECDSA P-256 over a canonicalised body, a nonce with a replay window, a fixed admission
-order (revoked, session, expired, replayed, signature) and a fixed error envelope clients
-classify by code rather than HTTP status. Every operation in that contract is POST with
-its arguments in the body, deliberately, because a GET has no body to sign and a path
-value has no canonicalisation rule — client and server could disagree over
-percent-encoding or a proxy rewrite and the request would be refused with nothing in the
-logs naming why.
+*Chapter one — what the credential is after login.* Better Auth's answer for non-browser
+clients is the Bearer plugin: the session token travels in an `Authorization` header, and
+its own documentation attaches a caution that improper implementation can easily lead to
+vulnerabilities. It documents no request signing and no per-device keys. `@spfn/auth`
+never issues a bearer credential at all. The client generates an ES256/RS256 keypair,
+sends only the public half at register or login, and signs each request itself; the server
+verifies against the stored public key and holds no private key for any user. Keys are
+per-device and accumulate on purpose, expire after 90 days, and are rotated with
+`rotateKey`, listed with `listKeys` and cut off with `revokeKey` or `revokeAllKeys`.
+
+The consequence is the sentence worth writing: a stolen bearer token is usable by whoever
+stole it, and a stolen public key is not. In a browser both designs are defensible —
+Better Auth's default is an httpOnly cookie and there is nothing wrong with that. The
+difference shows on the API path, which is where a product ends up.
+
+Expiry is computed at request time rather than stored, because a list that showed an
+expired key as active would report something the server does not act on.
+
+*Mobile is deliberately out of scope for this page.* The `clientProofV1` signed-request
+contract in `@spfn/auth/client-proof` is the server side of the spfn-mobile SDK, and it
+gets written about when spfn-mobile ships — not before.
 
 *Chapter two — deletion.* Apple and Google require an app that creates accounts to let a
 user delete one from inside the app. Taking the request and never processing it is the
@@ -92,23 +101,27 @@ through `authJobRouter`, an audit row whose foreign key is deliberately `set nul
 record outlives the user row, and a purge that re-verifies on the write primary inside the
 destructive transaction so a concurrent cancel cannot be raced.
 
-*Chapter three — keys.* Per-device, accumulating on purpose, with list and revoke so the
-owner can cut off a device they no longer recognise. Expiry is computed at request time
-rather than stored, because a list that showed an expired key as active would report
-something the server does not act on.
+*Chapter three — authorization, not just authentication.* Roles and permissions, a global
+`authenticate` middleware that routes opt out of per-route, and `hasPermission` and
+`getUserRole` exported so the app can gate its own surfaces. Sign-in answers who someone
+is; this is the half that answers what they may do, and it is the half a product actually
+runs on.
 
 **The argument that ties them together, and it is the user's phrasing:** every one of
 those is a decision somebody has to design, argue, settle, test and measure. Not having to
 is the product.
 
-**What the page must concede, plainly.** Better Auth is framework-agnostic and works
-anywhere; `@spfn/auth` only works inside an SPFN app, which disqualifies it for most
-readers before any other argument. Better Auth's plugin range is wider — passkeys,
-multi-tenancy, enterprise SSO, 2FA — and it is the recommended default for new
-self-hosted Next.js projects for good reasons. And our own signed-request profile has a
-stated limit: public keys are registered at construction or through a control hook with no
-persistence, and production enrollment and rotation are phase two. A page that hides that
-line deserves to lose the reader it wins.
+**What the page must concede, plainly.**
+
+- Better Auth is framework-agnostic and works anywhere; `@spfn/auth` only works inside an
+  SPFN app. For most readers the comparison ends on that line, and the page should say so
+  early rather than bury it.
+- Better Auth is the recommended default for new self-hosted Next.js projects, and it
+  earned that.
+- Its plugin range is wider today — passkeys, multi-tenancy, enterprise SSO, 2FA. State
+  that as the fact it is. Do not dress it up as a structural weakness, and do not answer it
+  with a roadmap: a plan is not a feature and does not belong on a comparison page. What it
+  actually does is narrow who this page is for.
 
 **2. @spfn/monitor against Sentry and the self-hosted alternatives.**
 
