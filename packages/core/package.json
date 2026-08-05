@@ -1,7 +1,7 @@
 {
     "name": "@spfn/core",
     "version": "0.2.0-beta.69",
-    "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
+    "description": "Full-stack TypeScript backend for Next.js: file-based typed routes, Drizzle entities and repositories, PostgreSQL transactions and a generated end-to-end client, in one fixed vertical slice per feature",
     "type": "module",
     "exports": {
         "./client": {
@@ -165,9 +165,9 @@
         "redis",
         "hono",
         "fullstack",
-        "server",
-        "scalable",
-        "auto-generated",
+        "full-stack-framework",
+        "ai-coding-agent",
+        "claude-code",
         "file-based-routing",
         "transaction",
         "repository-pattern"

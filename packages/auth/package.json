@@ -2,7 +2,7 @@
   "name": "@spfn/auth",
   "version": "0.2.0-beta.89",
   "type": "module",
-  "description": "Authentication, authorization, and RBAC module for SPFN",
+  "description": "Authentication for a Next.js full-stack app: sessions, social login, OAuth, RBAC and admin roles, without assembling an auth stack yourself",
   "author": "Ray Im <rayim@fxy.global>",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -85,7 +85,13 @@
     "authentication",
     "authorization",
     "rbac",
-    "access-control"
+    "access-control",
+    "nextjs",
+    "typescript",
+    "oauth",
+    "social-login",
+    "session",
+    "ai-coding-agent"
   ],
   "license": "MIT",
   "repository": {
