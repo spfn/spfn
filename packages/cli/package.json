@@ -1,7 +1,7 @@
 {
   "name": "spfn",
   "version": "0.2.0-beta.66",
-  "description": "Superfunction CLI - Add SPFN to your Next.js project",
+  "description": "Scaffold a full-stack TypeScript backend onto a Next.js app built with an AI coding agent: auth, database, typed routes and codegen, one fixed vertical slice per feature",
   "type": "module",
   "bin": {
     "spfn": "bin/spfn.js"
@@ -32,10 +32,11 @@
     "scaffolding",
     "boilerplate",
     "dev-tools",
-    "development",
-    "init",
     "typescript",
-    "type-safe"
+    "type-safe",
+    "full-stack-framework",
+    "ai-coding-agent",
+    "claude-code"
   ],
   "author": "Ray Im <rayim@fxy.global>",
   "license": "MIT",
