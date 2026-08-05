@@ -54,7 +54,12 @@ Already have a Next.js app? `pnpm dlx spfn@beta init --mode full` adds the same 
 to it.
 
 Requirements: Node.js 18.18+, PostgreSQL 14+, and — if you use the Next.js integration —
-Next.js 15.1.9+ or 16.0.7+. Redis only when the functions you enable need it.
+Next.js 16.2.11 or later. Redis only when the functions you enable need it.
+
+Next.js 15 is not supported. Its fixes for the React Server Components vulnerability
+(CVE-2025-66478) shipped separately on each minor line — 15.0.5, 15.1.9, 15.2.6 and so on
+— so no single version range can say "patched", and 15.2.0 would satisfy "15.1.9 or
+later" while still carrying the vulnerability.
 
 ## Never built a backend?
 
