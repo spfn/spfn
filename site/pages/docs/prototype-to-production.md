@@ -2,7 +2,7 @@
 title: Prototype to Production
 navTitle: Prototype to Production
 order: 1
-description: Scaffold the full SPFN foundation, build with an agent, deploy it, and operate the product through MCP.
+description: Scaffold the full SPFN foundation, build it with an AI coding agent, deploy it, and operate the product through MCP instead of an admin dashboard.
 ---
 
 ## The whole loop
@@ -13,9 +13,29 @@ Superfunction is designed for one continuous path:
 idea → full scaffold → vertical slices → production build → deploy → MCP operations
 ```
 
+The point is that the first version and the production version are the same application.
+You scaffold something deployable and authenticated on day one and keep changing it,
+rather than building a prototype and rebuilding it once it stops holding.
+
 The framework does not decide what your product is. It gives humans and agents a
 consistent place to put each part, plus the infrastructure and guardrails needed to
 keep going after the prototype works.
+
+## What the loop is actually paying for
+
+Two things stand between a working prototype and a product, and neither is your product.
+
+**Gate 1 — accounts.** Sessions and their expiry, a callback flow per social provider,
+verification, roles on every route, deletion and recovery. Getting it subtly wrong is a
+security incident rather than a bug.
+
+**Gate 2 — operations.** The day after you deploy, someone has to refund an order, look up
+a user, publish a change, retry a failed job. Built the usual way that is a second
+application, with its own auth and screens, growing for as long as the product does.
+
+Building with an agent puts an explicit price on both — every prompt, every regeneration,
+every fix that follows, measured in tokens. Steps 1 and 2 below clear the first gate;
+steps 5 and 6 clear the second without a dashboard.
 
 ## 1. Scaffold the production foundation
 
@@ -87,7 +107,7 @@ new architecture for every feature.
 After changing routes or entities, close the loop with the project commands:
 
 ```bash
-pnpm spfn codegen
+pnpm codegen                # spfn codegen run — regenerates the route map
 pnpm spfn db generate       # when the schema changed
 pnpm spfn build
 pnpm test
@@ -98,20 +118,42 @@ migrations, explicit module boundaries, and repeatable verification.
 
 ## 4. Deploy one product, not a disconnected demo
 
-A production SPFN app has three durable dependencies:
+Two targets. Both ship from the same repository and are versioned together — that is the
+invariant, not the platform.
+
+**Vercel — serverless, one origin, no container**
+
+```bash
+spfn add vercel
+```
+
+That scaffolds `src/app/api/backend/[[...route]]/route.ts` (a `hono/vercel` adapter) and
+`vercel.json`. The SPFN app mounts under `/api/backend`, so the Next.js frontend and the
+backend share a single Vercel origin — point `SPFN_API_URL` at
+`https://<deployment>/api/backend`. It runs on the Node runtime, not edge, because SPFN
+needs `pg` and native `bcrypt`. With the Vercel Supabase integration, the adapter maps the
+injected `POSTGRES_URL` onto `DATABASE_URL` for you.
+
+One caveat: the in-process job worker does not run on serverless. Enqueuing still works,
+but nothing drains the queue — schedule a route that processes a batch (Vercel Cron), or
+run jobs on an always-on target. Seed and RBAC provisioning move to a deploy-time step
+instead of running per cold start.
+
+**Always-on — a long-lived process**
+
+A production SPFN app on this path has three durable dependencies:
 
 1. the Next.js process,
 2. the SPFN server process, and
 3. PostgreSQL, plus Redis when your selected functions require it.
 
 Run `pnpm spfn build` before deployment. Configure the platform to start the generated
-production application with `pnpm spfn start`, provide the same validated env contract
-used locally, and expose the application and API origins over HTTPS. Apply generated
-database migrations as a deliberate release step rather than writing production SQL by
-hand.
+production application with `pnpm spfn start`, provide the same validated env contract used
+locally, and expose the application and API origins over HTTPS. Background jobs, WebSocket
+events, and the periodic database health check all need this path.
 
-The deployment target is your choice. The invariant is that the web app and SPFN server
-ship from the same repository and are versioned together.
+Either way, apply generated database migrations as a deliberate release step rather than
+writing production SQL by hand.
 
 ## 5. Turn domain operations into MCP tools
 

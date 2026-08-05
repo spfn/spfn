@@ -2,8 +2,19 @@
 title: "Tutorial: Full-Stack Auth"
 navTitle: Tutorial
 order: 2
-description: Build a full-stack app with @spfn/core and @spfn/auth — seeded admin, login form, social login, and layout guards — running locally.
+description: Clear the first gate between a prototype and a product — build sign-in with @spfn/core and @spfn/auth, from seeded admin to social login and layout guards.
 ---
+
+## Why start with auth
+
+Nothing ships until people can sign in, and sign-in is the first gate every AI-built
+prototype hits. Sessions and their expiry, a callback flow per social provider, roles on
+every route — none of it is your product, all of it has a known correct shape, and getting
+it subtly wrong is a security incident rather than a bug.
+
+`spfn create --mode full` hands you all of it already wired. This tutorial deliberately
+takes the long way instead: it starts in `bare` mode so you see each wiring point once, and
+recognize what full mode did for you.
 
 ## What you'll build
 
@@ -27,9 +38,9 @@ cd my-app
 docker compose up -d       # Postgres + Redis
 ```
 
-This tutorial deliberately starts in `bare` mode so you can see each auth wiring point.
 For a product baseline with core, auth, i18n, and MCP already connected, use
-`npx spfn@beta create my-app --mode full` instead.
+`npx spfn@beta create my-app --mode full` instead — everything in sections 2 and 3 below
+arrives done.
 
 Bare mode scaffolds a Next.js app with the SPFN backend beside it (`src/server/`),
 env files included. Check the app runs before adding auth:
@@ -41,7 +52,7 @@ pnpm spfn:dev              # Next.js + SPFN API
 ## 2. Add @spfn/auth — the four wiring points
 
 ```bash
-pnpm add @spfn/auth
+pnpm add @spfn/auth@beta
 ```
 
 Auth wires into an SPFN app at exactly four places. Miss one and you get 401s or
@@ -357,6 +368,10 @@ Then walk the same loop this example was verified with:
    `user`-role account in an admin-only area.
 
 ## Where next
+
+The first gate is cleared. The second one — operating the thing after it ships — is what
+[Prototype to Production](./prototype-to-production.md) covers, with MCP tools in place of
+an admin dashboard.
 
 - [The SPFN pattern](./pattern.md) — the entity → route → typed client loop this
   app is built on.
