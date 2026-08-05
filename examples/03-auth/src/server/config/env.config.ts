@@ -8,7 +8,7 @@
  * - Auto-generated documentation
  * - Centralized configuration
  *
- * @see https://spfn.dev/docs/guides/environment for full documentation
+ * @see https://superfunction.xyz/docs/packages/core/env for full documentation
  */
 
 import {
