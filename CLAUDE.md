@@ -19,8 +19,11 @@ command is unavailable.
   stays readable to whoever opens it next. A project that wants it otherwise
   records its own convention.
 - Substantive work attaches to a work unit: `self work add "<required outcome>"`,
-  then `self work start <id>`. Report progress with `self report <id> "<summary>"`
-  after committing — HEAD is attached as evidence automatically.
+  then `self work start <id>` — which is how you read a unit's brief and report
+  history, and records that this session picked it up. If another session holds
+  it, you are told who and since when, and never refused; judge it and proceed.
+  Report progress with `self report <id> "<summary>"` after committing — HEAD is
+  attached as evidence automatically.
 - Done is a judgment, and the claim must carry evidence: `self work done <id>`
   closes the unit only when a report carries a commit or an artifact, or the
   done itself states one — `self work done <id> --report "<what verifiably
