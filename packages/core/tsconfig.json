@@ -22,6 +22,7 @@
             "@spfn/core/authz": ["./src/authz/index.ts"],
             "@spfn/core/cache": ["./src/cache/index.ts"],
             "@spfn/core/codegen": ["./src/codegen/index.ts"],
+            "@spfn/core/contract": ["./src/contract/index.ts"],
             "@spfn/core/env": ["./src/env/index.ts"],
             "@spfn/core/logger": ["./src/logger/index.ts"],
             "@spfn/core/config": ["./src/config/index.ts"],

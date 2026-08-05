@@ -51,14 +51,16 @@ Types:
 - `Generator`, `GeneratorOptions`, `GeneratorTrigger`
 - `OrchestratorOptions`
 - `RouteMapGeneratorConfig` (config shape for the built-in route-map generator)
+- `ContractGeneratorConfig` (config shape for the built-in contract generator)
+- `ContractGeneratorError`, `ConditionalRegistrationError`, `assertUnconditionalRegistration`
 - `RouteContractMapping`, `ResourceRoutes`, `ClientGenerationOptions`, `GenerationStats`
   (legacy client-generation types — exported but not used by any shipped generator)
 
 > **Renamed: `defineCodegenConfig` → `defineConfig`.** The old name does **not** exist.
 > Older docs also show an `api-client` / `createApi`-emitting generator and
-> `codegen.config.ts` — those are **removed**. The only built-in generator today is
-> `@spfn/core:route-map`, configured in `.spfnrc.ts`. Do not import `defineCodegenConfig`
-> or configure a `name: 'api-client'` generator.
+> `codegen.config.ts` — those are **removed**. The built-in generators today are
+> `@spfn/core:route-map` and `@spfn/core:contract`, configured in `.spfnrc.ts`. Do not
+> import `defineCodegenConfig` or configure a `name: 'api-client'` generator.
 
 ---
 
@@ -172,7 +174,54 @@ export type RouteName = keyof RouteMap;
 ```
 
 `watchPatterns` are `[routerPath, 'src/server/routes/**/*.ts', ...additionalRouteDirs]` and
-`runOn` is `['watch', 'manual']` — every trigger there is, so it runs in every mode.
+`runOn` is `['watch', 'manual', 'build']` — every trigger the CLI fires, so it runs in every mode.
+
+---
+
+## Built-in: `@spfn/core:contract`
+
+Writes `contracts/current.json` — every route carrying `.contract()` — and on a **build** compares
+it against the newest released snapshot, refusing changes that would break a client already in the
+field. Full behaviour lives in [`../contract/README.md`](../contract/README.md); this section is the
+generator's own surface.
+
+### `ContractGeneratorConfig`
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | `'@spfn/core:contract'` | yes | — | Generator identifier (literal). |
+| `routerPath` | `string` | yes | — | Router file, relative to project root. Throws at construction if missing. |
+| `routerExport` | `string` | no | `appRouter` → `default` → `router` | Export holding the `defineRouter()` result. |
+| `outputDir` | `string` | no | `'./contracts'` | Holds `current.json`, `released/`, `usage/`. |
+| `additionalRouteDirs` | `string[]` | no | `[]` | Extra route dirs to watch. |
+
+### How it differs from route-map
+
+| | `route-map` | `contract` |
+|---|---|---|
+| Reads the router by | parsing the source | **loading the module** and walking `RouteDef`s |
+| Covers | every registered route | only routes carrying `.contract()` |
+| `runOn` | `watch`, `manual`, `build` | `watch`, `build`, `manual` |
+| Can fail a build | no | **yes**, on the `build` trigger only |
+
+Loading rather than parsing is what makes the contract correct: real routes build schemas from
+imported values (`EmailSchema`, `FileSchema()`, constants) that a source parser cannot resolve. It
+costs a module import and no infrastructure — `@spfn/auth`'s 43 routes load in ~0.6s with neither
+`DATABASE_URL` nor `CACHE_URL` set.
+
+### When it refuses
+
+- The router file is missing, or the module will not load (it names the module and the cause —
+  it never skips quietly).
+- No router export is found under the configured or default names.
+- Two contracted routes share a name, or a contracted route has no method, path, `since` or
+  `response`.
+- `defineRouter({...})` contains a computed spread (`...(flag ? { route } : {})`), which would make
+  the contract describe whichever way the generator happened to run.
+- On the `build` trigger only: the contract breaks the newest released snapshot.
+
+`spfn dev` generates but never refuses — being unable to hold a half-finished route mid-edit would
+make the feature unusable.
 
 ---
 
@@ -185,7 +234,11 @@ spfn codegen init     # scaffold a .spfnrc.ts
 spfn codegen list     # list resolved generators + their watch patterns  (alias: ls)
 spfn codegen run      # run all generators once (CodegenOrchestrator.generateAll, trigger 'manual')
 spfn dev              # dev server + codegen in watch mode
-spfn build            # runs codegen once before building
+spfn build            # runs codegen once before building (trigger 'build'; a failure exits 1)
+
+spfn contract check      # regenerate the contract, compare against the newest released snapshot
+spfn contract release X  # write contracts/released/X.json
+spfn contract list       # released snapshots  (alias: ls)
 ```
 
 `spfn codegen run` has **no** `--name` flag — it always runs every configured generator.
@@ -211,7 +264,7 @@ const orchestrator = new CodegenOrchestrator({ generators, cwd, debug: true });
 
 // Run once. Trigger defaults to 'manual'; only generators whose runOn includes it execute.
 await orchestrator.generateAll();            // 'manual'
-await orchestrator.generateAll('watch');     // as the dev watcher does
+await orchestrator.generateAll('build');     // what `spfn build` dispatches
 
 // Watch mode: runs an initial 'watch' pass, then returns a promise that stays pending
 // (keeping the process alive) until close() is called.
@@ -225,10 +278,16 @@ await orchestrator.watch();
 interface OrchestratorOptions
 {
     generators: Generator[];
-    cwd?: string;       // default: process.cwd()
-    debug?: boolean;    // default: false
+    cwd?: string;          // default: process.cwd()
+    debug?: boolean;       // default: false
+    throwOnError?: boolean; // default: false
 }
 ```
+
+`throwOnError` decides what a generator failure does. Off — the default — it is logged and the
+run continues, which is what keeps watch mode alive through a half-edited file. `spfn build`
+turns it on: a generator that refuses at build time (a broken route contract, a router that will
+not load) has to reach the exit code, or the refusal scrolls past and the build ships anyway.
 
 ---
 
@@ -251,7 +310,7 @@ export default function createAdminNavGenerator(): Generator
     return {
         name: 'admin-nav',
         watchPatterns: ['src/app/admin/**/nav.config.tsx'],
-        runOn: ['watch', 'manual'],
+        runOn: ['watch', 'manual', 'build'],
 
         async generate(options: GeneratorOptions): Promise<void>
         {
@@ -302,13 +361,13 @@ else is passed through as options).
 ### `Generator` interface
 
 ```typescript
-type GeneratorTrigger = 'watch' | 'manual';
+type GeneratorTrigger = 'watch' | 'manual' | 'build' | 'start';
 
 interface Generator
 {
     name: string;
     watchPatterns: string[];                 // globs; orchestrator watches their base dirs
-    runOn?: GeneratorTrigger[];              // default ['watch', 'manual']
+    runOn?: GeneratorTrigger[];              // default ['watch', 'manual', 'build']
     generate(options: GeneratorOptions): Promise<void>;
 }
 
@@ -431,13 +490,13 @@ type GeneratorConfig =
     | { path: string }                                   // file-based
     | ({ name: string; enabled?: boolean } & Record<string, any>); // package-based
 
-type GeneratorTrigger = 'watch' | 'manual';
+type GeneratorTrigger = 'watch' | 'manual' | 'build' | 'start';
 
 interface Generator
 {
     name: string;
     watchPatterns: string[];
-    runOn?: GeneratorTrigger[];        // default ['watch', 'manual']
+    runOn?: GeneratorTrigger[];        // default ['watch', 'manual', 'build']
     generate(options: GeneratorOptions): Promise<void>;
 }
 

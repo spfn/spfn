@@ -218,7 +218,8 @@ entry in `package.json` `exports`. Each module has its own README with the API d
 | `@spfn/core/event/sse/client` | Browser SSE client (`EventSource`). | [src/event](./src/event/README.md) |
 | `@spfn/core/event/ws` | Server-side WebSocket handler. Server only; needs the optional `ws` dependency. | [src/event](./src/event/README.md) |
 | `@spfn/core/event/ws/client` | Browser WebSocket client. | [src/event](./src/event/README.md) |
-| `@spfn/core/codegen` | The codegen orchestrator and the built-in `@spfn/core:route-map` generator that produces the proxy's route map. | [src/codegen](./src/codegen/README.md) |
+| `@spfn/core/codegen` | The codegen orchestrator and the built-in generators: `@spfn/core:route-map` for the proxy's route map, `@spfn/core:contract` for the client contract. | [src/codegen](./src/codegen/README.md) |
+| `@spfn/core/contract` | Route contracts for clients that ship separately: collect, snapshot, and the build gate that refuses a breaking change. | [src/contract](./src/contract/README.md) |
 
 `db/manager`, `db/schema` and `db/transaction` are **not** package subpaths of their own.
 They are internal modules re-exported by `@spfn/core/db` — import their symbols from
@@ -333,6 +334,10 @@ part of a whole backend.
 - **`db/manager`, `db/schema` and `db/transaction` are not subpaths.** Importing
   `@spfn/core/db/transaction` fails to resolve. Import those symbols from `@spfn/core/db`.
 - **The client needs no codegen; the proxy does.** A missing route name is a proxy 404.
+- **Contracts are for clients TypeScript cannot reach.** `.contract()` and the build gate
+  exist for a mobile app or an external consumer, compiled and shipped separately. A web
+  client takes its types from `AppRouter` in the same build, so a removed response field
+  already breaks the compile. Do not put `.contract()` on a route only the web app calls.
 - **The proxy decides the real HTTP method.** The browser only sends GET or POST to
   `/api/rpc/...`; a PUT, PATCH or DELETE route still works because the method comes from
   the route map.

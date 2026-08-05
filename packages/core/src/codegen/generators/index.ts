@@ -5,7 +5,7 @@
  * ```typescript
  * // .spfnrc.ts
  * import { defineConfig, defineGenerator } from '@spfn/core/codegen';
- * import type { RouteMapGeneratorConfig } from '@spfn/core/codegen';
+ * import type { RouteMapGeneratorConfig, ContractGeneratorConfig } from '@spfn/core/codegen';
  *
  * export default defineConfig({
  *   generators: [
@@ -13,14 +13,24 @@
  *       name: '@spfn/core:route-map',
  *       routerPath: './src/server/router.ts',
  *       outputPath: './src/generated/route-map.ts',
- *     })
+ *     }),
+ *     defineGenerator<ContractGeneratorConfig>({
+ *       name: '@spfn/core:contract',
+ *       routerPath: './src/server/router.ts',
+ *       outputDir: './contracts',
+ *     }),
  *   ]
  * });
  * ```
  */
 
 import { createRouteMapGenerator } from './route-map';
+import { createContractGenerator } from './contract';
+
 export type { RouteMapGeneratorConfig } from './route-map';
+export type { ContractGeneratorConfig } from './contract';
+export { ContractGeneratorError } from './contract';
+export { assertUnconditionalRegistration, ConditionalRegistrationError } from './contract-guard';
 
 /**
  * @internal
@@ -29,4 +39,5 @@ export type { RouteMapGeneratorConfig } from './route-map';
  */
 export const generators: Record<string, unknown> = {
     'route-map': createRouteMapGenerator,
+    contract: createContractGenerator,
 };

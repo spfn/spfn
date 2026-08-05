@@ -22,6 +22,16 @@ export interface OrchestratorOptions
 
     /** Enable debug logging */
     debug?: boolean;
+
+    /**
+     * Rethrow a generator failure instead of only logging it
+     *
+     * Off by default, which keeps watch mode alive through a half-edited file.
+     * A build turns it on: a generator that refuses — a broken contract, a
+     * router that will not load — has to reach the exit code, or the refusal
+     * scrolls past and the build ships anyway.
+     */
+    throwOnError?: boolean;
 }
 
 export class CodegenOrchestrator
@@ -29,6 +39,7 @@ export class CodegenOrchestrator
     private readonly generators: Generator[];
     private readonly cwd: string;
     private readonly debug: boolean;
+    private readonly throwOnError: boolean;
     private isGenerating = false;
     private pendingRegenerations = new Set<string>();
     private watcher?: ReturnType<typeof chokidarWatch>;
@@ -39,6 +50,7 @@ export class CodegenOrchestrator
         this.generators = options.generators;
         this.cwd = options.cwd ?? process.cwd();
         this.debug = options.debug ?? false;
+        this.throwOnError = options.throwOnError ?? false;
     }
 
     /**
@@ -69,7 +81,7 @@ export class CodegenOrchestrator
      */
     private shouldRun(generator: Generator, trigger: GeneratorTrigger): boolean
     {
-        const runOn = generator.runOn ?? ['watch', 'manual'];
+        const runOn = generator.runOn ?? ['watch', 'manual', 'build'];
 
         return runOn.includes(trigger);
     }
@@ -130,6 +142,11 @@ export class CodegenOrchestrator
             {
                 const err = error instanceof Error ? error : new Error(String(error));
                 orchestratorLogger.error(`[${generator.name}] ✗ Generation failed`, err);
+
+                if (this.throwOnError)
+                {
+                    throw err;
+                }
             }
         }
     }

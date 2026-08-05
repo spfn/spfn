@@ -255,7 +255,7 @@ export function createRouteMapGenerator(config: RouteMapGeneratorConfig): Genera
             ...additionalRouteDirs.map(dir => `${dir}/**/*.ts`),
         ],
 
-        runOn: ['watch', 'manual'],
+        runOn: ['watch', 'manual', 'build'],
 
         async generate(options: GeneratorOptions): Promise<void>
         {

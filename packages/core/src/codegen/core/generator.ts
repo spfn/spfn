@@ -7,12 +7,14 @@
 /**
  * Generator execution trigger types
  *
- * Only two triggers are ever dispatched: `watch` while `spfn dev` is watching files, and
- * `manual` for everything else — `spfn codegen run` and the codegen step of `spfn build`
- * both arrive as `manual`. Earlier versions also declared `build` and `start`, but nothing
- * ever dispatched them, so a generator that opted into only those never ran.
+ * Who fires each one:
+ * - `watch`  — `spfn dev`, on the initial pass and every file change
+ * - `manual` — `spfn codegen run` and `spfn contract`
+ * - `build`  — `spfn build`
+ * - `start`  — nothing in the shipped CLI; reserved for a programmatic caller that
+ *              dispatches it through `orchestrator.generateAll('start')`
  */
-export type GeneratorTrigger = 'watch' | 'manual';
+export type GeneratorTrigger = 'watch' | 'manual' | 'build' | 'start';
 
 export interface GeneratorOptions
 {
@@ -49,7 +51,10 @@ export interface Generator
     /**
      * When this generator should run
      *
-     * @default ['watch', 'manual'] — both triggers, which is almost always what you want
+     * @default ['watch', 'manual', 'build'] — every trigger the CLI fires
+     *
+     * Narrowing this is the easy mistake: drop `build` and the generator is silently
+     * skipped during `spfn build`, so whatever it produces ships stale.
      *
      * Examples:
      * - ['watch']: only while `spfn dev` is watching, never from `spfn codegen run`

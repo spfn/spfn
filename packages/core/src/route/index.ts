@@ -12,6 +12,9 @@ export type { RouteBuilderContext, MergedInput, PaginatedResult } from './contex
 export { route } from './route-builder';
 export type { RouteDef, RouteHandlerFn } from './route-builder';
 
+// Route contract (public promise to separately deployed clients)
+export type { RouteContract, RouteAuthProfile } from './contract';
+
 // Router
 export { defineRouter } from './router';
 export type { Router } from './router';
