@@ -488,7 +488,7 @@ export abstract class BaseRepository<
      *     value: {...}
      * }, {
      *     target: [cache.key],
-     *     set: { value: data.value, updatedAt: new Date() }
+     *     set: { value: data.value } // updatedAt is stamped by the database
      * });
      * ```
      */

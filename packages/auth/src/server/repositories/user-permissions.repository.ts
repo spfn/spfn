@@ -74,11 +74,7 @@ export class UserPermissionsRepository extends BaseRepository
      */
     async create(data: NewUserPermission)
     {
-        return await this._create(userPermissions, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(userPermissions, data);
     }
 
     /**
@@ -88,7 +84,7 @@ export class UserPermissionsRepository extends BaseRepository
     {
         const result = await this.db
             .update(userPermissions)
-            .set({ ...data, updatedAt: new Date() })
+            .set(data)
             .where(eq(userPermissions.id, id))
             .returning();
 

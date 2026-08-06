@@ -5,6 +5,7 @@
  * Used for storing RBAC config hash and other system-level settings
  */
 
+import { sql } from 'drizzle-orm';
 import { text, timestamp } from 'drizzle-orm/pg-core';
 import { authSchema } from './schema';
 
@@ -16,8 +17,11 @@ export const authMetadata = authSchema.table('auth_metadata',
         // Metadata value
         value: text('value').notNull(),
 
-        // Last updated timestamp
-        updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+        // Last updated timestamp — stamped by the database on insert and on update
+        updatedAt: timestamp('updated_at', { withTimezone: true })
+            .notNull()
+            .defaultNow()
+            .$onUpdate(() => sql`now()`),
     },
 );
 

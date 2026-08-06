@@ -33,7 +33,7 @@ Column helpers (`entity-helper.ts`):
 
 - `id()` — bigserial primary key
 - `uuid()` — uuid primary key (`gen_random_uuid()`)
-- `timestamps()` — `createdAt` + `updatedAt` (timestamptz, default now, not null)
+- `timestamps()` — `createdAt` + `updatedAt` (timestamptz, not null, both written by the database clock)
 - `foreignKey(name, reference, options?)` — required FK (bigint, cascade by default)
 - `optionalForeignKey(name, reference, options?)` — nullable FK (set null by default)
 - `auditFields()` — `createdBy` + `updatedBy` (text, nullable)
@@ -105,17 +105,27 @@ column named `id`.
 ```typescript
 ...timestamps(),
 // createdAt: timestamptz, defaultNow(), notNull()
-// updatedAt: timestamptz, defaultNow(), notNull()
+// updatedAt: timestamptz, defaultNow(), notNull(), $onUpdate(() => sql`now()`)
 ```
 
-DB column names are `created_at` / `updated_at`. `updatedAt` is **not** auto-updated —
-set it explicitly on writes:
+DB column names are `created_at` / `updated_at`. Both come from the database clock —
+`now()` on insert through the column default, and `now()` again on update, which Drizzle
+adds to the SET clause for you. **Do not pass `updatedAt` yourself:**
 
 ```typescript
 await db.update(users)
-    .set({ name: 'new', updatedAt: new Date() })
+    .set({ name: 'new' })   // updated_at = now() is added automatically
     .where(eq(users.id, userId));
 ```
+
+An explicit value wins over the automatic one, so stamping `new Date()` reads a second
+clock. In production the application host and the database host are different machines:
+a row could then record an update earlier than its own creation, and ordering rows by
+`updated_at` would order by whichever host's clock ran ahead.
+
+`now()` is the transaction's start time. It is not a commit-order sequence — a sync
+cursor or anything else that needs true ordering needs a sequence column, not a
+timestamp.
 
 ### `foreignKey(name, reference, options?)` / `optionalForeignKey(...)`
 

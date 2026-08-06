@@ -111,11 +111,7 @@ export class ErrorGroupsRepository extends BaseRepository
 
     async create(data: NewErrorGroup): Promise<ErrorGroup>
     {
-        return await this._create(errorGroups, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(errorGroups, data);
     }
 
     async incrementCount(id: number): Promise<ErrorGroup | null>
@@ -125,7 +121,6 @@ export class ErrorGroupsRepository extends BaseRepository
             .set({
                 count: sql`${errorGroups.count} + 1`,
                 lastSeenAt: new Date(),
-                updatedAt: new Date(),
             })
             .where(eq(errorGroups.id, id))
             .returning();
@@ -149,7 +144,6 @@ export class ErrorGroupsRepository extends BaseRepository
                 resolvedAt: null,
                 count: sql`${errorGroups.count} + 1`,
                 lastSeenAt: now,
-                updatedAt: now,
             })
             .where(eq(errorGroups.id, id))
             .returning();
@@ -165,7 +159,6 @@ export class ErrorGroupsRepository extends BaseRepository
             .set({
                 status,
                 resolvedAt: status === 'resolved' ? now : null,
-                updatedAt: now,
             })
             .where(eq(errorGroups.id, id))
             .returning();

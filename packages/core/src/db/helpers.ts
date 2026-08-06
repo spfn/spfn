@@ -251,8 +251,8 @@ export async function createMany<T extends PgTable>(
  * }, {
  *     target: [cmsPublishedCache.section, cmsPublishedCache.locale],
  *     set: {
- *         content: data.content,
- *         updatedAt: new Date()
+ *         content: data.content
+ *         // updatedAt is stamped by the database — do not name it here
  *     }
  * });
  *

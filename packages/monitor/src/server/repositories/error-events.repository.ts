@@ -12,11 +12,7 @@ export class ErrorEventsRepository extends BaseRepository
 {
     async create(data: NewErrorEvent): Promise<ErrorEvent>
     {
-        return await this._create(errorEvents, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(errorEvents, data);
     }
 
     async findByGroupId(

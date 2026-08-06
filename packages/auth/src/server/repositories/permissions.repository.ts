@@ -96,11 +96,7 @@ export class PermissionsRepository extends BaseRepository
      */
     async create(data: NewPermissionEntity): Promise<PermissionEntity>
     {
-        return await this._create(permissions, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(permissions, data);
     }
 
     /**
@@ -110,14 +106,7 @@ export class PermissionsRepository extends BaseRepository
     {
         if (data.length === 0) return [];
 
-        const now = new Date();
-        const valuesWithTimestamps = data.map(d => ({
-            ...d,
-            createdAt: now,
-            updatedAt: now,
-        }));
-
-        return await this._createMany(permissions, valuesWithTimestamps);
+        return await this._createMany(permissions, data);
     }
 
     /**
@@ -127,7 +116,7 @@ export class PermissionsRepository extends BaseRepository
     {
         const result = await this.db
             .update(permissions)
-            .set({ ...data, updatedAt: new Date() })
+            .set(data)
             .where(eq(permissions.id, id))
             .returning();
 

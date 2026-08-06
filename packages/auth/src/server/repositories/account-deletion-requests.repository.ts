@@ -99,11 +99,7 @@ export class AccountDeletionRequestsRepository extends BaseRepository
      */
     async create(data: NewAccountDeletionRequest)
     {
-        return await this._create(accountDeletionRequests, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(accountDeletionRequests, data);
     }
 
     /**
@@ -121,7 +117,6 @@ export class AccountDeletionRequestsRepository extends BaseRepository
             .set({
                 status: 'cancelled',
                 cancelledAt: new Date(),
-                updatedAt: new Date(),
             })
             .where(
                 and(
@@ -152,7 +147,6 @@ export class AccountDeletionRequestsRepository extends BaseRepository
                 status: 'completed',
                 completedAt: new Date(),
                 purgeStrategy,
-                updatedAt: new Date(),
             })
             .where(
                 and(
