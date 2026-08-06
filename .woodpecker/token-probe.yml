@@ -5,7 +5,7 @@
 # Delete this file and its branch when the debugging session ends.
 when:
     branch: debug/wp-token-probe
-    event: manual
+    event: [push, manual]
 
 steps:
     probe:
