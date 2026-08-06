@@ -15,6 +15,6 @@ steps:
         commands:
             - echo "len=${#GITEA_NPM_TOKEN}"
             - printf '%s' "$GITEA_NPM_TOKEN" | sha256sum | cut -c1-12
-            - curl -s -o /dev/null -w 'user-api-token-scheme %{http_code}\n' -H "Authorization: token $GITEA_NPM_TOKEN" https://git.superfunction.xyz/api/v1/user
-            - curl -s -o /dev/null -w 'npm-meta-bearer-scheme %{http_code}\n' -H "Authorization: Bearer $GITEA_NPM_TOKEN" "https://git.superfunction.xyz/api/packages/superfunction/npm/@spfn%2Fcore"
-            - curl -s -o /dev/null -w 'no-auth-baseline %{http_code}\n' https://git.superfunction.xyz/api/v1/user
+            - 'curl -s -o /dev/null -w "user-api-token-scheme %{http_code}\n" -H "Authorization: token $GITEA_NPM_TOKEN" https://git.superfunction.xyz/api/v1/user'
+            - 'curl -s -o /dev/null -w "npm-meta-bearer-scheme %{http_code}\n" -H "Authorization: Bearer $GITEA_NPM_TOKEN" "https://git.superfunction.xyz/api/packages/superfunction/npm/@spfn%2Fcore"'
+            - 'curl -s -o /dev/null -w "no-auth-baseline %{http_code}\n" https://git.superfunction.xyz/api/v1/user'
