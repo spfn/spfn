@@ -133,20 +133,27 @@ There is **no validation in the builder** — validation runs inside `startServe
 > via the `fetchTimeout` field on a `ServerConfig` object (or env vars); lifecycle hooks go
 > through `.lifecycle({ ... })`.
 
-### `.routes()` auto-merges global middlewares
+### `.routes()` keeps the router's own middleware
 
-Calling `.routes(appRouter)` pulls in middlewares the router registered via its own
-`.use()` and `.packages()` — you usually do **not** also call `.middlewares()`:
+Middleware a router registered with `.use()` travels with that router: `.routes(appRouter)`
+records the router, and route registration applies its middleware to that router's routes
+(package routers included). You usually do **not** also call `.middlewares()`:
 
 ```typescript
 const appRouter = defineRouter({ getUser, createUser })
-    .packages([authRouter])           // package routers' globals included too
-    .use([authMiddleware]);           // → auto-merged into server config.middlewares
+    .packages([authRouter])           // package routers keep their own .use() middleware
+    .use([authMiddleware]);           // applied to this router's routes
 
 export default defineServerConfig()
-    .routes(appRouter)                // authMiddleware now active server-wide
+    .routes(appRouter)                // authMiddleware active on every route above
     .build();
 ```
+
+A named middleware runs **at most once per route**, no matter how many registrations name
+it — registering the same one at both levels (`.middlewares([authMiddleware])` *and*
+`.use([authMiddleware])`) is not an error and does not run it twice. Middleware holding
+one-shot state, such as a nonce replay ledger, depends on that: a second run would reject
+the very request the first run accepted.
 
 ### `.lifecycle()` is mergeable (not last-wins)
 
@@ -310,7 +317,8 @@ jobs registered after `afterInfrastructure`.
 
 **Events** (`.events(eventRouter)`) register an SSE stream at `/events/stream` (override via
 `{ path }`). With `{ auth: { enabled: true } }`, a `POST /events/token` endpoint is also
-registered, guarded by `config.middlewares`; if a cache (Redis/Valkey) is available it's
+registered, guarded by your app's named middleware — both `.middlewares([...])` and the
+router's `.use([...])`; if a cache (Redis/Valkey) is available it's
 used as the token store automatically (multi-instance safe), else in-memory.
 
 **WebSockets** (`.websockets(wsRouter)`) attach a WS handler at `/ws` (override via

@@ -455,7 +455,8 @@ export const appRouter = defineRouter({ getRoot, getHealth })
 ### `.use([...])` — router-level global middleware
 
 Named middleware applied to **every** route in the router (and package routers), unless a
-route opts out with `.skip(...)`. These are merged with server-config middleware at registration.
+route opts out with `.skip(...)`. The router carries them, and route registration merges them
+with server-config middleware — each one attaching **once** per route.
 
 ```typescript
 export const appRouter = defineRouter({ getRoot, getHealth })
@@ -546,7 +547,11 @@ server-level named middleware (minus skipped / auto-skipped)
       → handler
 ```
 
-Dedup rules: named middleware by `name`; plain middleware by handler reference.
+Dedup rules: named middleware by `name`; plain middleware by handler reference. A name is
+one middleware however many times it is registered — server-config and router-level `.use()`
+naming the same middleware attach it **once**, which is what lets middleware hold one-shot
+state (a nonce ledger) without rejecting its own request. An entry with no name is never
+collapsed, since unrelated anonymous handlers share the empty name.
 
 ---
 

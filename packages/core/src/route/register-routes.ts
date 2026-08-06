@@ -239,6 +239,15 @@ function registerRoute(
                 {
                     logger.debug(`⏭️  Auto-skipping middleware '${middleware.name}' for route: ${method} ${path}`, { name });
                 }
+                else if (middleware.name && registeredNames.has(middleware.name))
+                {
+                    // A named middleware runs at most once per route. Two entries under
+                    // one name are the same middleware reached by two paths (server
+                    // config and router-level .use), and running it twice breaks any
+                    // middleware holding one-shot state. An entry with no name is never
+                    // collapsed — unrelated anonymous handlers share the empty name.
+                    logger.debug(`🔄 Skipping duplicate middleware '${middleware.name}' for route: ${method} ${path}`, { name });
+                }
                 else
                 {
                     allMiddlewares.push(middleware.handler);

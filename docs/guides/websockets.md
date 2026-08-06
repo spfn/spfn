@@ -177,8 +177,9 @@ WebSocket connections cannot carry custom headers, so SPFN uses the same **Token
 
 The token endpoint path is **derived** from the WS path by replacing its last segment:
 `/ws` → `POST /token`, `/realtime/ws` → `POST /realtime/token`. It is registered directly on
-the Hono app with `config.middlewares` applied, so whatever authenticates your routes also
-authenticates token issuance.
+the Hono app with your app's named middleware applied — both the server-level
+`.middlewares([...])` and the router's `.use([...])` — so whatever authenticates your routes
+also authenticates token issuance.
 
 Enable with `auth: { enabled: true }`:
 
