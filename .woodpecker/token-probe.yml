@@ -4,8 +4,8 @@
 # headers lost on the CI→Gitea network path, or an npm-endpoint-specific refusal.
 # Delete this file and its branch when the debugging session ends.
 when:
-    branch: debug/wp-token-probe
-    event: [push, manual]
+    branch: main
+    event: manual
 
 steps:
     probe:
