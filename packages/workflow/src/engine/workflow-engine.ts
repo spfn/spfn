@@ -203,7 +203,7 @@ implements WorkflowEngine<TWorkflows>
             // Update currentStep in execution record
             await this.db
                 .update(workflowExecutions)
-                .set({ currentStep: currentStepIndex, updatedAt: new Date() })
+                .set({ currentStep: currentStepIndex })
                 .where(eq(workflowExecutions.id, executionId));
 
             // Check if this is a parallel group
@@ -350,7 +350,6 @@ implements WorkflowEngine<TWorkflows>
             .set({
                 status: 'failed' as WorkflowStatus,
                 error,
-                updatedAt: new Date(),
             })
             .where(eq(workflowExecutions.id, executionId));
 
@@ -430,7 +429,6 @@ implements WorkflowEngine<TWorkflows>
             .set({
                 status: 'completed' as WorkflowStatus,
                 completedAt: new Date(),
-                updatedAt: new Date(),
             })
             .where(eq(workflowExecutions.id, executionId));
 
@@ -529,7 +527,6 @@ implements WorkflowEngine<TWorkflows>
             .update(workflowExecutions)
             .set({
                 status,
-                updatedAt: new Date(),
             })
             .where(eq(workflowExecutions.id, executionId));
     }
@@ -546,7 +543,6 @@ implements WorkflowEngine<TWorkflows>
     {
         const updates: Record<string, unknown> = {
             status,
-            updatedAt: new Date(),
         };
 
         if (status === 'running')
@@ -845,7 +841,6 @@ implements WorkflowEngine<TWorkflows>
                         currentStep: 0,
                         error: null,
                         completedAt: null,
-                        updatedAt: new Date(),
                     })
                     .where(eq(workflowExecutions.id, executionId));
             }
@@ -893,7 +888,6 @@ implements WorkflowEngine<TWorkflows>
                 error: null,
                 startedAt: null,
                 completedAt: null,
-                updatedAt: new Date(),
             })
             .where(inArray(workflowStepExecutions.id, steps.map(s => s.id)));
     }

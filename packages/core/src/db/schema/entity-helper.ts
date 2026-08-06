@@ -16,6 +16,7 @@
  * ```
  */
 
+import { sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { bigserial, bigint as pgBigint, timestamp, text, uuid as pgUuid, jsonb } from 'drizzle-orm/pg-core';
 
@@ -40,8 +41,19 @@ export function id()
 /**
  * Standard timestamp fields (createdAt, updatedAt)
  *
- * Both fields are timezone-aware, auto-set to current time on creation.
- * updatedAt must be manually updated in your application code.
+ * Both fields are timezone-aware and come from the database clock, never from the
+ * application process. On insert both take `now()` through their column default, so a
+ * new row's two timestamps are equal. On update Drizzle sets `updated_at = now()` for
+ * you — do not pass `new Date()` yourself.
+ *
+ * Stamping `updated_at` from the application would read a second clock: the app host
+ * and the database host are the same machine in development and different machines in
+ * production, so a row could record an update earlier than its own creation, and
+ * ordering rows by `updated_at` would order by whichever host's clock ran ahead.
+ *
+ * `now()` is the transaction's start time, matching what `.defaultNow()` writes. It is
+ * not a commit-order sequence — anything that needs a true sequence needs a sequence
+ * column, not a timestamp.
  *
  * @returns Object with createdAt and updatedAt columns
  *
@@ -53,12 +65,9 @@ export function id()
  *     ...timestamps(),
  * });
  *
- * // Manual update
+ * // updated_at is stamped by the database — it is not named here
  * await db.update(users)
- *     .set({
- *         email: 'new@example.com',
- *         updatedAt: new Date()
- *     })
+ *     .set({ email: 'new@example.com' })
  *     .where(eq(users.id, userId));
  * ```
  */
@@ -70,7 +79,8 @@ export function timestamps()
             .notNull(),
         updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
             .defaultNow()
-            .notNull(),
+            .notNull()
+            .$onUpdate(() => sql`now()`),
     };
 }
 

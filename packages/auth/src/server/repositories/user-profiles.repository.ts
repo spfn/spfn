@@ -61,11 +61,7 @@ export class UserProfilesRepository extends BaseRepository
      */
     async create(data: NewUserProfile)
     {
-        return await this._create(userProfiles, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(userProfiles, data);
     }
 
     /**
@@ -75,7 +71,7 @@ export class UserProfilesRepository extends BaseRepository
     {
         const result = await this.db
             .update(userProfiles)
-            .set({ ...data, updatedAt: new Date() })
+            .set(data)
             .where(eq(userProfiles.id, id))
             .returning();
 
@@ -89,7 +85,7 @@ export class UserProfilesRepository extends BaseRepository
     {
         const result = await this.db
             .update(userProfiles)
-            .set({ ...data, updatedAt: new Date() })
+            .set(data)
             .where(eq(userProfiles.userId, userId))
             .returning();
 

@@ -28,11 +28,7 @@ export class LogsRepository extends BaseRepository
 {
     async create(data: NewLog): Promise<Log>
     {
-        return await this._create(logs, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(logs, data);
     }
 
     async findMany(filters: LogFilters = {}): Promise<Log[]>

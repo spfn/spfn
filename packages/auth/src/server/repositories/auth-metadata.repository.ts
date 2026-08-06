@@ -35,13 +35,11 @@ export class AuthMetadataRepository extends BaseRepository
             .values({
                 key,
                 value,
-                updatedAt: new Date(),
             })
             .onConflictDoUpdate({
                 target: authMetadata.key,
                 set: {
                     value,
-                    updatedAt: new Date(),
                 },
             });
     }

@@ -180,7 +180,6 @@ export async function registerPublicKeyService(
         deviceName,
         platform,
         isActive: true,
-        createdAt: new Date(),
         expiresAt: getKeyExpiryDate(),
     });
 }
@@ -223,7 +222,6 @@ export async function rotateKeyService(
         deviceName: params.deviceName ?? replaced?.deviceName ?? undefined,
         platform: params.platform ?? replaced?.platform ?? undefined,
         isActive: true,
-        createdAt: new Date(),
         expiresAt: getKeyExpiryDate(),
     });
 

@@ -124,7 +124,7 @@ export class CmsLabelsRepository extends BaseRepository
     {
         const result = await this.db
             .update(cmsLabels)
-            .set({ ...data, updatedAt: new Date() })
+            .set(data)
             .where(eq(cmsLabels.id, id))
             .returning();
 
@@ -198,7 +198,7 @@ export class CmsLabelsRepository extends BaseRepository
         {
             await this.db
                 .update(cmsLabels)
-                .set({ ...data, updatedAt: new Date() })
+                .set(data)
                 .where(eq(cmsLabels.key, key));
         }
     }

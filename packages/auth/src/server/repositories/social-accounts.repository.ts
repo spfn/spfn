@@ -164,8 +164,6 @@ export class SocialAccountsRepository extends BaseRepository
             refreshToken: data.refreshToken
                 ? await encryptToken(data.refreshToken, context('refresh'))
                 : data.refreshToken,
-            createdAt: new Date(),
-            updatedAt: new Date(),
         });
 
         // repo 외부 계약을 "토큰은 항상 평문"으로 통일 (read/update 경로와 일관)
@@ -215,7 +213,6 @@ export class SocialAccountsRepository extends BaseRepository
                 refreshToken: data.refreshToken
                     ? await encryptToken(data.refreshToken, context('refresh'))
                     : data.refreshToken,
-                updatedAt: new Date(),
             })
             .where(eq(userSocialAccounts.id, id))
             .returning();

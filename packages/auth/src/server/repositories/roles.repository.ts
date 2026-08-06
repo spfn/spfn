@@ -70,11 +70,7 @@ export class RolesRepository extends BaseRepository
      */
     async create(data: NewRoleEntity)
     {
-        return await this._create(roles, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(roles, data);
     }
 
     /**
@@ -84,7 +80,7 @@ export class RolesRepository extends BaseRepository
     {
         const result = await this.db
             .update(roles)
-            .set({ ...data, updatedAt: new Date() })
+            .set(data)
             .where(eq(roles.id, id))
             .returning();
 

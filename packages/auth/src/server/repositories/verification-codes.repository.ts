@@ -69,11 +69,7 @@ export class VerificationCodesRepository extends BaseRepository
      */
     async create(data: NewVerificationCode)
     {
-        return await this._create(verificationCodes, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(verificationCodes, data);
     }
 
     /**
@@ -86,7 +82,6 @@ export class VerificationCodesRepository extends BaseRepository
             .update(verificationCodes)
             .set({
                 usedAt: new Date(),
-                updatedAt: new Date(),
             })
             .where(eq(verificationCodes.id, id))
             .returning();
@@ -107,7 +102,6 @@ export class VerificationCodesRepository extends BaseRepository
             .update(verificationCodes)
             .set({
                 attempts: code.attempts + 1,
-                updatedAt: new Date(),
             })
             .where(eq(verificationCodes.id, id))
             .returning();
@@ -161,7 +155,6 @@ export class VerificationCodesRepository extends BaseRepository
             .update(verificationCodes)
             .set({
                 usedAt: new Date(),
-                updatedAt: new Date(),
             })
             .where(
                 and(

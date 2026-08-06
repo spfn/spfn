@@ -92,11 +92,7 @@ export class InvitationsRepository extends BaseRepository
      */
     async create(data: NewInvitation)
     {
-        return await this._create(userInvitations, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(userInvitations, data);
     }
 
     /**
@@ -110,7 +106,6 @@ export class InvitationsRepository extends BaseRepository
     {
         const updates: any = {
             status,
-            updatedAt: new Date(),
         };
 
         if (timestamp)
@@ -156,10 +151,7 @@ export class InvitationsRepository extends BaseRepository
 
         const result = await this.db
             .update(userInvitations)
-            .set({
-                status: 'expired',
-                updatedAt: now,
-            })
+            .set({ status: 'expired' })
             .where(
                 and(
                     eq(userInvitations.status, 'pending'),
@@ -292,10 +284,7 @@ export class InvitationsRepository extends BaseRepository
     {
         const result = await this.db
             .update(userInvitations)
-            .set({
-                ...data,
-                updatedAt: new Date(),
-            })
+            .set(data)
             .where(eq(userInvitations.id, id))
             .returning();
 
@@ -312,7 +301,6 @@ export class InvitationsRepository extends BaseRepository
             .set({
                 status: 'pending',
                 expiresAt: newExpiresAt,
-                updatedAt: new Date(),
             })
             .where(eq(userInvitations.id, id))
             .returning();
@@ -340,7 +328,6 @@ export class InvitationsRepository extends BaseRepository
                 status: 'cancelled',
                 cancelledAt: new Date(),
                 metadata: newMetadata,
-                updatedAt: new Date(),
             })
             .where(eq(userInvitations.id, id))
             .returning();

@@ -39,6 +39,7 @@ Create entity files using Drizzle ORM's `pgTable` for the public schema:
 
 ```typescript
 // src/server/entities/users.ts
+import { sql } from 'drizzle-orm';
 import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
@@ -46,7 +47,8 @@ export const users = pgTable('users', {
     email: text('email').notNull().unique(),
     name: text('name').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+        .$onUpdate(() => sql`now()`),
 });
 
 // Type inference for TypeScript
@@ -58,6 +60,7 @@ export type NewUser = typeof users.$inferInsert;
 
 ```typescript
 // src/server/entities/posts.ts
+import { sql } from 'drizzle-orm';
 import { pgTable, serial, text, timestamp, integer } from 'drizzle-orm/pg-core';
 import { users } from './users';
 
@@ -67,7 +70,8 @@ export const posts = pgTable('posts', {
     content: text('content').notNull(),
     authorId: integer('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+        .$onUpdate(() => sql`now()`),
 });
 
 export type Post = typeof posts.$inferSelect;

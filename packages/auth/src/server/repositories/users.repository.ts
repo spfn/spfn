@@ -172,11 +172,7 @@ export class UsersRepository extends BaseRepository
      */
     async create(data: NewUser)
     {
-        return await this._create(users, {
-            ...data,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
+        return await this._create(users, data);
     }
 
     /**
@@ -187,7 +183,7 @@ export class UsersRepository extends BaseRepository
     {
         const result = await this.db
             .update(users)
-            .set({ ...data, updatedAt: new Date() })
+            .set(data)
             .where(eq(users.id, id))
             .returning();
 
@@ -207,7 +203,7 @@ export class UsersRepository extends BaseRepository
     {
         const result = await this.db
             .update(users)
-            .set({ status: 'active', updatedAt: new Date() })
+            .set({ status: 'active' })
             .where(
                 and(
                     eq(users.id, id),
@@ -231,7 +227,6 @@ export class UsersRepository extends BaseRepository
     {
         const updateData: Partial<NewUser> = {
             passwordHash,
-            updatedAt: new Date(),
         };
 
         if (clearPasswordChangeRequired)
@@ -258,7 +253,6 @@ export class UsersRepository extends BaseRepository
             .update(users)
             .set({
                 lastLoginAt: new Date(),
-                updatedAt: new Date(),
             })
             .where(eq(users.id, id))
             .returning();
