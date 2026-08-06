@@ -32,7 +32,7 @@ import {
 } from '@spfn/auth/errors';
 
 import { readContextClientIdentity } from '../client-proof/version-middleware';
-import { resolveAuthenticatedUser, selectAuthProfile, type AuthContext } from './auth-profiles';
+import { resolveAuthenticatedUser, runAuthProfile, type AuthContext } from './auth-profiles';
 
 // Auth context type — one principal shape for every scheme (see auth-profiles).
 export type { AuthContext } from './auth-profiles';
@@ -79,16 +79,21 @@ declare module 'hono'
 export const authenticate = defineMiddleware('auth', async (c, next) =>
 {
     // Profile-named requests (x-spfn-auth-profile) are answered by the
-    // registered verifier; mixing with Bearer and unknown profiles throw
-    // inside selectAuthProfile. Everything below this block is the
-    // unchanged Bearer path.
-    const profileVerifier = selectAuthProfile(c);
-    if (profileVerifier !== null)
+    // registered verifier; a request mixing Bearer credentials in, and an
+    // unknown profile, are refused inside runAuthProfile — which answers a
+    // refusal with the contract's own error envelope rather than throwing.
+    // Everything below this block is the unchanged Bearer path.
+    const profile = await runAuthProfile(c);
+    if (profile.kind === 'refused')
     {
-        c.set('auth', await profileVerifier.verify(c));
+        return profile.response;
+    }
+    if (profile.kind === 'authenticated')
+    {
+        c.set('auth', profile.auth);
         await next();
 
-        return;
+        return undefined;
     }
 
     // Extract Authorization header
@@ -210,6 +215,8 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
 
     // Continue to route handler
     await next();
+
+    return undefined;
 });
 
 /**
@@ -242,16 +249,20 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
 export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
 {
     // Presented profile credentials are verified exactly as authenticate
-    // does: credentials that are presented but invalid are refused, never
-    // downgraded to anonymous passage. Only "presented nothing" continues
-    // without an auth context.
-    const profileVerifier = selectAuthProfile(c);
-    if (profileVerifier !== null)
+    // does: credentials that are presented but invalid are refused with the
+    // contract envelope, never downgraded to anonymous passage. Only
+    // "presented nothing" continues without an auth context.
+    const profile = await runAuthProfile(c);
+    if (profile.kind === 'refused')
     {
-        c.set('auth', await profileVerifier.verify(c));
+        return profile.response;
+    }
+    if (profile.kind === 'authenticated')
+    {
+        c.set('auth', profile.auth);
         await next();
 
-        return;
+        return undefined;
     }
 
     const authHeader = c.req.header('Authorization');
@@ -260,7 +271,7 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
     {
         await next();
 
-        return;
+        return undefined;
     }
 
     const token = authHeader.substring(7);
@@ -273,7 +284,7 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
         {
             await next();
 
-            return;
+            return undefined;
         }
 
         const keyId = decoded.keyId as string;
@@ -284,14 +295,14 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
         {
             await next();
 
-            return;
+            return undefined;
         }
 
         if (keyRecord.expiresAt && new Date() > keyRecord.expiresAt)
         {
             await next();
 
-            return;
+            return undefined;
         }
 
         verifyClientToken(
@@ -309,7 +320,7 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
         {
             await next();
 
-            return;
+            return undefined;
         }
 
         const { user, role } = result;
@@ -332,4 +343,6 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
     }
 
     await next();
+
+    return undefined;
 }, { skips: ['auth'] });

@@ -5,7 +5,9 @@
 export * from './authenticate';
 export {
     selectAuthProfile,
+    runAuthProfile,
     resolveAuthenticatedUser,
+    type AuthProfileOutcome,
     type AuthProfileVerifier,
 } from './auth-profiles';
 export * from './require-permission';

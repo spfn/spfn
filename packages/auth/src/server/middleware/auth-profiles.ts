@@ -25,10 +25,10 @@
 import type { Context } from 'hono';
 
 import {
-    BadRequestError,
-    ConflictError,
+    SerializableError,
     ServiceUnavailableError,
     UnauthorizedError,
+    type SerializedError,
 } from '@spfn/core/errors';
 
 import type { User } from '@spfn/auth/server';
@@ -59,6 +59,7 @@ import {
     type ClientProofInput,
 } from '../client-proof/proof';
 import { ClientProofRefusal } from '../client-proof/refusal';
+import { clientProofRefusalResponse } from '../client-proof/refusal-response';
 import { getClientProofReplayStore } from '../client-proof/replay-store';
 import { readContextClientIdentity } from '../client-proof/version-middleware';
 
@@ -100,10 +101,7 @@ export function selectAuthProfile(c: Context): AuthProfileVerifier | null
     }
     if (c.req.header('Authorization') !== undefined)
     {
-        throw new BadRequestError({
-            message: 'an auth profile and Bearer credentials must not be mixed in one request',
-            details: { code: 'PROFILE_REJECTED' },
-        });
+        throw refusalError(ClientProofRefusal.credentialsMixed());
     }
     const verifier = AUTH_PROFILE_VERIFIERS.get(profile);
     if (verifier === undefined)
@@ -153,20 +151,81 @@ export async function resolveAuthenticatedUser(userId: number): Promise<{
 
 // ---- clientProofV1 ---------------------------------------------------------
 
+/**
+ * A contract refusal travelling as a throw.
+ *
+ * The verifier is a function that returns a principal, so a refusal has to
+ * leave it as an exception — but a proven call is answered by a generated SDK
+ * that classifies by `error.code` alone. Wrapping the refusal in an ordinary
+ * error class made `error.code` read `UnauthorizedError`, a code no SDK knows
+ * (#106). `runAuthProfile` catches this carrier and answers with the contract
+ * envelope instead, so the wrapper never reaches the wire.
+ *
+ * It is a SerializableError all the same, for a caller that drives
+ * `selectAuthProfile` itself and lets the throw escape: `__type` carries the
+ * contract code rather than this class's name, because the error handler mints
+ * `error.code` from `__type` and the contract code is the only value that
+ * classifies this failure.
+ */
+class ClientProofRefusalError extends SerializableError
+{
+    readonly statusCode: number;
+
+    constructor(readonly refusal: ClientProofRefusal)
+    {
+        super(refusal.message);
+        this.name = 'ClientProofRefusalError';
+        this.statusCode = refusal.httpStatus;
+    }
+
+    toJSON(): SerializedError
+    {
+        return { __type: this.refusal.code, message: this.message };
+    }
+}
+
 /** The contract refusal as the middleware's error vocabulary. */
 function refusalError(refusal: ClientProofRefusal): Error
 {
-    const data = { message: refusal.message, details: { code: refusal.code } };
-    if (refusal.code === 'PROFILE_REJECTED')
-    {
-        return new BadRequestError(data);
-    }
-    if (refusal.code === 'CONTRACT_UNSUPPORTED')
-    {
-        return new ConflictError(data);
-    }
+    return new ClientProofRefusalError(refusal);
+}
 
-    return new UnauthorizedError(data);
+/** What the profile path produced for one request. */
+export type AuthProfileOutcome =
+    | { kind: 'none' }
+    | { kind: 'authenticated'; auth: AuthContext }
+    | { kind: 'refused'; response: Response };
+
+/**
+ * The profile path from dispatch to answer — what `authenticate` and
+ * `optionalAuth` both run before their own Bearer code.
+ *
+ * `none` means the request named no profile and the caller continues on the
+ * Bearer path. A refusal comes back as a built response rather than a throw:
+ * the answer a proven call gets is the contract's own envelope, and an error
+ * handed to the generic error handler is classified by its class name instead.
+ */
+export async function runAuthProfile(c: Context): Promise<AuthProfileOutcome>
+{
+    try
+    {
+        const verifier = selectAuthProfile(c);
+        if (verifier === null)
+        {
+            return { kind: 'none' };
+        }
+
+        return { kind: 'authenticated', auth: await verifier.verify(c) };
+    }
+    catch (err)
+    {
+        if (err instanceof ClientProofRefusalError)
+        {
+            return { kind: 'refused', response: clientProofRefusalResponse(c, err.refusal) };
+        }
+
+        throw err;
+    }
 }
 
 /**
