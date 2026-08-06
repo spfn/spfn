@@ -377,6 +377,24 @@ export class ServerConfigBuilder
     }
 
     /**
+     * Configure the migration boot gate
+     *
+     * @example
+     * ```typescript
+     * // A harness that applies migrations itself, after the server is up
+     * export default defineServerConfig()
+     *     .migrations({ allowPending: true })
+     *     .build();
+     * ```
+     */
+    migrations(migrations: ServerConfig['migrations']): this
+    {
+        this.config.migrations = migrations;
+
+        return this;
+    }
+
+    /**
      * Register workflow router for workflow orchestration
      *
      * Automatically initializes the workflow engine after database is ready.

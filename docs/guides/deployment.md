@@ -365,6 +365,28 @@ docker run --rm \
   npx spfn db migrate
 ```
 
+### Migrations gate the boot
+
+A server whose database is behind the code it serves does not fail at startup — it fails
+on the first request that touches a missing column, as an opaque 500. So it refuses to
+start instead. `spfn start` (and `startServer()` directly) compares the migrations each
+installed function package ships against what the database records as applied, prints the
+ones still waiting, and exits.
+
+A deploy that stops here is one that never served the errors. Put the migration step
+before the container starts, not after it.
+
+The escape hatch is an environment variable, because a container cannot be handed a CLI
+flag:
+
+```bash
+SPFN_ALLOW_PENDING_MIGRATIONS=true    # start anyway; the pending list is logged as a warning
+```
+
+The check is skipped entirely when the app initializes no database or no package ships
+migrations, and a database that cannot be reached is reported as "could not verify" —
+never as drift.
+
 ## CI/CD Pipeline Example
 
 Example GitHub Actions workflow for automated deployment:
@@ -451,6 +473,25 @@ services:
       retries: 3
       start_period: 40s
 ```
+
+When detailed health is enabled, the SPFN server's `/health` also reports migration state
+per function package, so a readiness probe can catch drift the local boot gate never sees
+— a pod that came up before a migration ran, for instance:
+
+```json
+{
+  "status": "ok",
+  "migrations": {
+    "status": "pending",
+    "pending": 1,
+    "targets": [{ "name": "@spfn/auth", "total": 13, "applied": 12, "pending": 1,
+                  "pendingTags": ["20260805143152_client_identity"] }]
+  }
+}
+```
+
+Reporting drift does not change the overall `status` on its own — a probe that should
+hold a drifted pod out of rotation asserts `migrations.pending === 0` itself.
 
 ### 3. Logging
 

@@ -1,119 +1,34 @@
 /**
- * Migration status inspection
+ * Migration status for the CLI
  *
- * Shared by `spfn db status` and the `spfn dev` startup warning.
- * Compares each migration folder (function packages + project, both drizzle-kit
- * layouts) against the applied-migration tracking tables.
+ * `spfn db status` and the `spfn dev` / `spfn start` pre-flight check both read
+ * migration state through `@spfn/core/db`, which is the same implementation the
+ * server's boot gate and health endpoint use. This module only opens a
+ * short-lived connection for the commands that run outside a server.
  */
 
-import { join } from 'path';
-import { existsSync } from 'fs';
 import chalk from 'chalk';
 
+import {
+    collectMigrationStatus,
+    formatPendingMigrations,
+    pendingMigrationTargets,
+    pendingMigrationsSummary,
+    RUN_MIGRATIONS_HINT,
+    type MigrationStatus,
+    type MigrationTargetStatus,
+} from '@spfn/core/db';
 import { env } from '@spfn/core/config';
 import { loadEnv } from '@spfn/core/server';
 
-import {
-    discoverFunctionMigrations,
-    readMigrationEntries,
-    type FunctionMigrationEntry,
-} from './function-migrations.js';
+export {
+    filterPendingEntries,
+    functionMigrationsTable,
+    migrationTargets,
+    pendingMigrationTargets,
+} from '@spfn/core/db';
 
-export type MigrationTargetStatus = {
-    name: string;
-    total: number;
-    applied: number;
-    pending: number;
-    pendingTags: string[];
-};
-
-export type MigrationStatus = {
-    packages: MigrationTargetStatus[];
-    project: MigrationTargetStatus | null;
-};
-
-/**
- * Per-package migrations table name — must match executeFunctionMigrations()
- */
-export function functionMigrationsTable(packageName: string): string
-{
-    return `__spfn_fn_${packageName.replace('@spfn/', '')}_migrations`;
-}
-
-/**
- * An entry counts as applied when its name is recorded (drizzle-orm 1.0
- * projects) or its timestamp is not newer than the last applied record —
- * the rule the CLI's function-migration runner and drizzle-orm ≤0.45 share.
- */
-export function filterPendingEntries(
-    entries: FunctionMigrationEntry[],
-    lastAppliedMillis: number,
-    appliedNames: Set<string>,
-): FunctionMigrationEntry[]
-{
-    return entries.filter(entry => entry.millis > lastAppliedMillis && !appliedNames.has(entry.name));
-}
-
-/**
- * drizzle-orm 1.0 records a `name` column and treats a migration as applied
- * when its name is present; CLI-owned per-package tables have no such column.
- */
-async function readAppliedNames(sql: any, tableName: string): Promise<Set<string>>
-{
-    const columnCheck = await sql`
-        SELECT EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_schema = 'drizzle' AND table_name = ${tableName} AND column_name = 'name'
-        ) AS "exists"`;
-
-    if (!columnCheck[0]?.exists)
-    {
-        return new Set();
-    }
-
-    const rows: { name: string }[] = await sql`
-        SELECT name FROM drizzle.${sql(tableName)} WHERE name IS NOT NULL`;
-
-    return new Set(rows.map(row => row.name));
-}
-
-async function collectTargetStatus(
-    sql: any,
-    name: string,
-    migrationsDir: string,
-    tableName: string,
-): Promise<MigrationTargetStatus>
-{
-    const entries = readMigrationEntries(migrationsDir, name);
-
-    const tableCheck = await sql`
-        SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'drizzle' AND table_name = ${tableName}
-        ) AS "exists"`;
-
-    let lastApplied = 0;
-    let appliedNames = new Set<string>();
-
-    if (tableCheck[0]?.exists)
-    {
-        const rows = await sql`
-            SELECT created_at FROM drizzle.${sql(tableName)}
-            ORDER BY created_at DESC LIMIT 1`;
-        lastApplied = rows[0]?.created_at ? Number(rows[0].created_at) : 0;
-        appliedNames = await readAppliedNames(sql, tableName);
-    }
-
-    const pendingEntries = filterPendingEntries(entries, lastApplied, appliedNames);
-
-    return {
-        name,
-        total: entries.length,
-        applied: entries.length - pendingEntries.length,
-        pending: pendingEntries.length,
-        pendingTags: pendingEntries.map(e => e.name),
-    };
-}
+export type { MigrationStatus, MigrationTargetStatus };
 
 /**
  * Collect applied/pending status for all function packages and the project.
@@ -132,43 +47,52 @@ export async function getMigrationStatus(
         throw new Error('DATABASE_URL not found in environment');
     }
 
+    const { drizzle } = await import('drizzle-orm/postgres-js');
     const postgres = await import('postgres');
-    const sql = postgres.default(url, { max: 1, connect_timeout: 5 });
+    const connection = postgres.default(url, { max: 1, connect_timeout: 5 });
 
     try
     {
-        const packages: MigrationTargetStatus[] = [];
-
-        for (const func of discoverFunctionMigrations(cwd))
-        {
-            packages.push(await collectTargetStatus(
-                sql,
-                func.packageName,
-                func.migrationsDir,
-                functionMigrationsTable(func.packageName),
-            ));
-        }
-
-        const projectDir = join(cwd, 'src', 'server', 'drizzle');
-        const project = existsSync(projectDir)
-            ? await collectTargetStatus(sql, 'project (src/server/drizzle)', projectDir, '__drizzle_migrations')
-            : null;
-
-        return { packages, project: project && project.total > 0 ? project : null };
+        return await collectMigrationStatus(drizzle({ client: connection }), cwd);
     }
     finally
     {
-        await sql.end();
+        await connection.end();
     }
 }
 
+export type StartupMigrationCheck = {
+    /** The caller must stop: migrations are pending and nothing allows it. */
+    block: boolean;
+    /** Pass this on to the server process so it makes the same decision. */
+    allowPending: boolean;
+};
+
 /**
- * Warn (non-fatal) about pending migrations — used at `spfn dev` startup.
- * Silent when DATABASE_URL is absent or the database is unreachable:
- * dev must keep starting regardless.
+ * Pre-flight check for `spfn dev` and `spfn start`.
+ *
+ * The server refuses the same boot by itself — this runs first only so the
+ * refusal is immediate and readable instead of arriving as a child process that
+ * died while the CLI waited for a readiness signal.
+ *
+ * Silent when there is no database to ask: a project without DATABASE_URL, or a
+ * database that cannot be reached, is not migration drift and must not be
+ * reported as such.
+ *
+ * The environment variable is read through `@spfn/core/config`, the same
+ * accessor the server's gate uses, so `1` and `yes` mean here what they mean
+ * there — the CLI must never refuse a boot the server would have allowed.
  */
-export async function warnPendingMigrations(cwd: string, databaseUrl?: string): Promise<void>
+export async function checkPendingMigrationsBeforeStart(
+    cwd: string,
+    databaseUrl: string | undefined,
+    flagAllowsPending: boolean,
+): Promise<StartupMigrationCheck>
 {
+    loadEnv();
+
+    const allowPending = flagAllowsPending || env.SPFN_ALLOW_PENDING_MIGRATIONS === true;
+
     let status: MigrationStatus;
 
     try
@@ -177,21 +101,34 @@ export async function warnPendingMigrations(cwd: string, databaseUrl?: string): 
     }
     catch
     {
-        return;
+        // "Could not check" is not "checked and pending" — never block on it.
+        return { block: false, allowPending };
     }
 
-    const targets = [...status.packages, ...(status.project ? [status.project] : [])]
-        .filter(t => t.pending > 0);
+    const targets = pendingMigrationTargets(status);
 
     if (targets.length === 0)
     {
-        return;
+        return { block: false, allowPending };
     }
 
-    console.warn('');
-    for (const target of targets)
+    const lines = formatPendingMigrations(targets);
+
+    console.log('');
+
+    if (allowPending)
     {
-        console.warn(chalk.yellow(`⚠️  ${target.name}: ${target.pending} pending migration(s)`));
+        console.warn(chalk.yellow(`⚠️  Starting with pending migrations — ${pendingMigrationsSummary(targets)}`));
+        lines.forEach(line => console.warn(chalk.yellow(`   ${line}`)));
+        console.warn(chalk.yellow(`   Requests hitting the missing columns will fail. ${RUN_MIGRATIONS_HINT}\n`));
+
+        return { block: false, allowPending };
     }
-    console.warn(chalk.yellow('   Missing tables will fail at request time — run: pnpm spfn db migrate\n'));
+
+    console.error(chalk.red(`❌ Refusing to start: ${pendingMigrationsSummary(targets)}`));
+    lines.forEach(line => console.error(chalk.red(`   ${line}`)));
+    console.error(chalk.yellow(`\n   ${RUN_MIGRATIONS_HINT}`));
+    console.error(chalk.dim('   To start anyway: --allow-pending-migrations, or SPFN_ALLOW_PENDING_MIGRATIONS=true\n'));
+
+    return { block: true, allowPending };
 }

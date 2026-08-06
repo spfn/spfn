@@ -30,6 +30,10 @@ export { createServer, startServer } from './server';
 export { createServerlessApp, resetServerlessApp, provisionInfrastructure } from './serverless';
 export { getShutdownManager } from './shutdown-manager';
 
+// Migration boot gate
+export { getMigrationSnapshot, resetMigrationSnapshot, PendingMigrationsError } from './migration-gate';
+export type { MigrationSnapshot } from './migration-gate';
+
 // Config builder
 export { defineServerConfig } from './config-builder';
 

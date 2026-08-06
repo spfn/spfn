@@ -60,6 +60,7 @@ export const devCommand = new Command('dev')
     .option('--routes <path>', 'Routes directory path')
     .option('--server-only', 'Run only Hono server (skip Next.js)')
     .option('--watch', 'Enable hot reload (watch mode)')
+    .option('--allow-pending-migrations', 'Start even when migrations are pending (they are listed as a warning)')
     .action(async (options) =>
     {
         // Increase max listeners to prevent warning in dev mode
@@ -100,12 +101,27 @@ export const devCommand = new Command('dev')
             logger.warn(`[SPFN] Could not resolve keychain secret(s): ${keychainMissing.join(', ')} — run \`spfn secret set <KEY>\``);
         }
 
-        const serverEnv = { ...process.env, ...keychainEnv };
+        const serverEnv: NodeJS.ProcessEnv = { ...process.env, ...keychainEnv };
 
-        // Warn about pending package/project migrations before starting —
-        // missing package tables (e.g. @spfn/auth) otherwise fail only at request time
-        const { warnPendingMigrations } = await import('../utils/migration-status.js');
-        await warnPendingMigrations(cwd, serverEnv.DATABASE_URL);
+        // A package bumped without `spfn db migrate` boots fine and then 500s on the
+        // first request touching a missing column. Refuse here instead; the server
+        // refuses the same boot by itself, this only makes the message immediate.
+        const { checkPendingMigrationsBeforeStart } = await import('../utils/migration-status.js');
+        const migrationCheck = await checkPendingMigrationsBeforeStart(
+            cwd,
+            serverEnv.DATABASE_URL,
+            options.allowPendingMigrations === true,
+        );
+
+        if (migrationCheck.block)
+        {
+            process.exit(1);
+        }
+
+        if (migrationCheck.allowPending)
+        {
+            serverEnv.SPFN_ALLOW_PENDING_MIGRATIONS = 'true';
+        }
 
         // Check if Next.js project
         const packageJsonPath = join(cwd, 'package.json');

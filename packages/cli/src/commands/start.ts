@@ -12,6 +12,7 @@ interface StartOptions
     nextOnly?: boolean;
     port?: string;
     host?: string;
+    allowPendingMigrations?: boolean;
 }
 
 export const startCommand = new Command('start')
@@ -20,6 +21,7 @@ export const startCommand = new Command('start')
     .option('--next-only', 'Run only Next.js (skip SPFN server)')
     .option('-p, --port <port>', 'Server port', '8790')
     .option('-h, --host <host>', 'Server host', '0.0.0.0')
+    .option('--allow-pending-migrations', 'Start even when migrations are pending (they are listed as a warning)')
     .action(async (options: StartOptions) =>
     {
         // Set NODE_ENV to production (Next.js style)
@@ -75,6 +77,29 @@ export const startCommand = new Command('start')
         // Set environment variables for port/host
         process.env.SPFN_PORT = options.port;
         process.env.SPFN_HOST = options.host;
+
+        // Refuse a boot whose database is behind the code it is about to serve.
+        // Skipped for --next-only: no SPFN server starts, so nothing can drift.
+        if (!options.nextOnly)
+        {
+            const { checkPendingMigrationsBeforeStart } = await import('../utils/migration-status.js');
+            const migrationCheck = await checkPendingMigrationsBeforeStart(
+                cwd,
+                process.env.DATABASE_URL,
+                options.allowPendingMigrations === true,
+            );
+
+            if (migrationCheck.block)
+            {
+                process.exit(1);
+            }
+
+            if (migrationCheck.allowPending)
+            {
+                // The server process re-decides for itself — hand it the same answer.
+                process.env.SPFN_ALLOW_PENDING_MIGRATIONS = 'true';
+            }
+        }
 
         // Run server only mode
         if (options.serverOnly || !hasNext)

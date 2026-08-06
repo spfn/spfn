@@ -218,6 +218,16 @@ export const coreEnvSchema = defineEnvSchema({
     }),
 
     // ========================================================================
+    // Database - Migrations
+    // ========================================================================
+
+    SPFN_ALLOW_PENDING_MIGRATIONS: envBoolean({
+        description: 'Start the server even when a function package or the project has migrations the database has not applied. Off by default: a server booted with pending migrations fails only at request time, as an opaque 500. The flag equivalent is `spfn dev --allow-pending-migrations`.',
+        default: false,
+        examples: [true, false],
+    }),
+
+    // ========================================================================
     // Drizzle ORM
     // ========================================================================
 
