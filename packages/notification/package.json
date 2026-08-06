@@ -1,6 +1,6 @@
 {
   "name": "@spfn/notification",
-    "version": "0.1.0-beta.27",
+    "version": "0.2.0-beta.1",
   "type": "module",
   "description": "Multi-channel notification system for SPFN - Email, SMS, Slack, Push",
   "exports": {
@@ -55,7 +55,7 @@
     "url": "https://github.com/fxylabs/spfn/issues"
   },
   "peerDependencies": {
-    "@spfn/core": ">=0.2.0-beta.54",
+    "@spfn/core": ">=0.3.0-beta.1 <0.4.0",
     "@aws-sdk/client-sesv2": "^3.0.0",
     "@aws-sdk/client-sns": "^3.0.0",
     "drizzle-orm": ">=1.0.0-rc.4 <2"
