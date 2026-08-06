@@ -8,8 +8,11 @@
 # versions it already has), so re-running is safe and a package.json change
 # without a version bump publishes nothing.
 #
-# Needs the GITEA_NPM_TOKEN secret: a Gitea token allowed to write packages
-# under the superfunction org.
+# Needs the repo secret `primitives_gitea_npm_token`: a Gitea token allowed to
+# write packages under the superfunction org. The name is deliberately unique —
+# a server-global secret named GITEA_NPM_TOKEN (stale, wrong scope) shadows any
+# same-named repo secret under Woodpecker's case-insensitive matching, which is
+# why every CI publish failed E401 while the same token worked locally (w-wvy3y).
 # Runs on every main push and on a manual run from the Woodpecker UI (backfill).
 # No path filter: the real gate is scripts/publish-changed.mjs asking the
 # registry, which makes a push without a version bump a fast no-op — and a path
@@ -22,7 +25,7 @@ steps:
     publish-gitea:
         image: node:22
         environment:
-            GITEA_NPM_TOKEN: { from_secret: gitea_npm_token }
+            GITEA_NPM_TOKEN: { from_secret: primitives_gitea_npm_token }
         commands:
             - printf '%s\n' '@spfn:registry=https://git.superfunction.xyz/api/packages/superfunction/npm/' "//git.superfunction.xyz/api/packages/superfunction/npm/:_authToken=$GITEA_NPM_TOKEN" > ~/.npmrc
             - corepack enable
