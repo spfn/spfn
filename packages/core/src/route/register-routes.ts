@@ -152,7 +152,7 @@ function registerRoute(
     namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>,
 ): RegisteredRoute | null
 {
-    const { method, path, input, middlewares = [], skipMiddlewares, handler } = routeDef;
+    const { method, path, input, interceptor, middlewares = [], skipMiddlewares, handler } = routeDef;
 
     if (!method || !path)
     {
@@ -168,7 +168,7 @@ function registerRoute(
     const wrappedHandler = async (c: Context) =>
     {
         // Create RouteBuilderContext with validation
-        const { context, responseMeta } = await createRouteBuilderContext(c, input || {});
+        const { context, responseMeta } = await createRouteBuilderContext(c, input || {}, interceptor);
 
         // Call user handler
         const result = await handler(context);
@@ -299,6 +299,17 @@ interface ResponseMeta
 }
 
 /**
+ * HTTP methods that never carry a request body
+ *
+ * A `GET`/`HEAD` request has no body to read, so an interceptor declaration on such a
+ * route must not make the request fail on a body that was never sent.
+ */
+function methodCarriesBody(method: string): boolean
+{
+    return method !== 'GET' && method !== 'HEAD';
+}
+
+/**
  * Create RouteBuilderContext from Hono Context
  *
  * Validates params, query, body, headers, cookies and returns structured input.
@@ -308,6 +319,7 @@ interface ResponseMeta
 async function createRouteBuilderContext<TInput extends RouteInput>(
     c: Context,
     input: TInput,
+    interceptor?: RouteInput,
 ): Promise<{ context: RouteBuilderContext<TInput>; responseMeta: ResponseMeta }>
 {
     // Validate and extract all input fields
@@ -320,19 +332,31 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
     let body: Record<string, unknown> = {};
     let formData: Record<string, unknown> = {};
 
-    if (input.body || input.formData)
+    // A `.interceptor({ body })` declaration describes a body a middleware injects into the
+    // request, so it has to trigger parsing too — a route that declares its whole body there
+    // and no `.input` would otherwise hand the handler an empty body. Interceptor fields stay
+    // unvalidated (the middleware owns them), exactly as when they ride along an input body.
+    const injected = methodCarriesBody(c.req.method) ? interceptor : undefined;
+    const expectsBody = input.body ?? injected?.body;
+    const expectsFormData = input.formData ?? injected?.formData;
+
+    if (expectsBody || expectsFormData)
     {
         const contentType = c.req.header('content-type') || '';
 
-        if (contentType.includes('multipart/form-data') && input.formData)
+        if (contentType.includes('multipart/form-data') && expectsFormData)
         {
             const rawFormData = await parseFormData(c);
-            formData = validateFormData(input.formData, rawFormData, 'form data');
+            formData = input.formData
+                ? validateFormData(input.formData, rawFormData, 'form data')
+                : rawFormData;
         }
-        else if (input.body)
+        else if (expectsBody)
         {
             const rawBody = await parseJsonBody(c);
-            body = validateField(input.body, rawBody, 'request body');
+            body = input.body
+                ? validateField(input.body, rawBody, 'request body')
+                : rawBody;
         }
     }
 

@@ -394,6 +394,23 @@ route.post('/_auth/login')
     });
 ```
 
+An `interceptor` `body`/`formData` declaration also makes the request body be **parsed**, so a
+route whose entire body comes from a middleware needs no `.input` to see it:
+
+```typescript
+route.post('/_auth/keys/rotate')
+    .interceptor({ body: Type.Object({ publicKey: Type.String(), keyId: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        // body = { publicKey, keyId } — parsed, not validated
+    });
+```
+
+Parsing only: the values are passed through as they arrived, so a field the middleware failed
+to inject reaches the handler as `undefined` rather than as a 400. A `GET`/`HEAD` route never
+reads a body, whatever it declares.
+
 ---
 
 ## defineRouter — composition
