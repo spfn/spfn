@@ -39,6 +39,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The conformance suites import @spfn/core subpaths, whose exports point at
+      # dist/ — a fresh checkout has no dist, so the workspace deps must be built.
+      - name: Build workspace dependencies the suites import
+        run: pnpm --filter @spfn/core build && pnpm --filter @spfn/notification build
+
       - name: Regenerate the export
         run: pnpm --filter @spfn/auth export:mobile-contract
 
