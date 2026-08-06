@@ -1050,6 +1050,20 @@ pnpm spfn db migrate   # applies @spfn/auth migrations + project migrations
 If you installed the package with plain `pnpm add @spfn/auth` (instead of `spfn add`), no
 migration has run yet — `spfn db migrate` is required once before the auth routes work.
 
+### "Refusing to start: N pending migration(s)"
+
+The server checks migration state before it serves anything, and stops when the database
+is behind the code. This is the same failure as above, moved to boot: without the check,
+the server starts, passes its health check, and 500s on the first request touching a
+column the migration would have added.
+
+Read the list it prints, then run `pnpm spfn db migrate`. It happens most often right
+after upgrading `@spfn/auth` — a new version can carry new columns.
+
+To start anyway (a harness that migrates later, a rollout that must proceed), pass
+`spfn dev --allow-pending-migrations`, or set `SPFN_ALLOW_PENDING_MIGRATIONS=true` where
+no flag can be passed. Both log the pending list as a warning instead.
+
 ### "SPFN_AUTH_SESSION_SECRET is required"
 
 `SPFN_AUTH_SESSION_SECRET` must be set in `.env.local` (Next.js side). It must be at least 32 characters.

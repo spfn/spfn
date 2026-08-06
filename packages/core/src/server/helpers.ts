@@ -1,9 +1,10 @@
 import type { Hono, Handler, MiddlewareHandler } from 'hono';
 import type { Server } from 'http';
 import { Agent, setGlobalDispatcher } from 'undici';
-import { getDatabase } from '@spfn/core/db';
+import { getDatabase, migrationTargets } from '@spfn/core/db';
 import { getCache } from '@spfn/core/cache';
 import { env } from '@spfn/core/config';
+import { getMigrationSnapshot } from './migration-gate';
 import { getShutdownManager } from './shutdown-manager';
 import type { NamedMiddleware, Router } from '@spfn/core/route';
 
@@ -17,6 +18,33 @@ interface ServiceStatus
     error?: string;
 }
 
+interface MigrationTargetHealth
+{
+    name: string;
+    total: number;
+    applied: number;
+    pending: number;
+    pendingTags: string[];
+}
+
+/**
+ * Migration drift as a readiness probe can see it.
+ *
+ * `status` is `unknown` when there was nothing to check (no database, no
+ * migrations) or the check itself failed — never conflated with `up_to_date`.
+ * The overall health `status` is deliberately left alone: reporting drift must
+ * not, by itself, take a running deployment out of rotation. A probe that wants
+ * that asserts `migrations.pending === 0` explicitly.
+ */
+interface MigrationHealth
+{
+    status: 'up_to_date' | 'pending' | 'unknown';
+    pending: number;
+    checkedAt: string;
+    targets: MigrationTargetHealth[];
+    reason?: string;
+}
+
 interface HealthCheckResponse
 {
     status: 'ok' | 'degraded';
@@ -25,6 +53,7 @@ interface HealthCheckResponse
         database: ServiceStatus;
         redis: ServiceStatus;
     };
+    migrations?: MigrationHealth;
 }
 
 interface StartupConfig
@@ -57,6 +86,35 @@ interface StartupConfig
 // ============================================================================
 // Functions
 // ============================================================================
+
+/**
+ * Read the cached migration snapshot and shape it for the health payload.
+ *
+ * The snapshot is recomputed at most once every 30 seconds, so a probe polling
+ * every few seconds costs no extra database round-trips.
+ */
+async function readMigrationHealth(): Promise<MigrationHealth>
+{
+    const snapshot = await getMigrationSnapshot();
+
+    if (snapshot.state !== 'ok')
+    {
+        return {
+            status: 'unknown',
+            pending: 0,
+            checkedAt: snapshot.checkedAt,
+            targets: [],
+            reason: snapshot.reason,
+        };
+    }
+
+    return {
+        status: snapshot.pending > 0 ? 'pending' : 'up_to_date',
+        pending: snapshot.pending,
+        checkedAt: snapshot.checkedAt,
+        targets: migrationTargets(snapshot.status),
+    };
+}
 
 export function createHealthCheckHandler(detailed: boolean): Handler
 {
@@ -136,6 +194,8 @@ export function createHealthCheckHandler(detailed: boolean): Handler
                 (dbStatus === 'error' || dbStatus === 'not_initialized') ||
                 (redisStatus === 'error');
             response.status = hasErrors ? 'degraded' : 'ok';
+
+            response.migrations = await readMigrationHealth();
         }
 
         const statusCode = response.status === 'ok' ? 200 : 503;

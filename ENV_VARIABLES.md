@@ -118,6 +118,21 @@ Verified against the source on 2026-08-05. The authoritative definition is
 - **Description**: Output directory for Drizzle migrations
 - **Location**: `packages/core/src/config/schema.ts:231`
 
+### `SPFN_ALLOW_PENDING_MIGRATIONS`
+- **Type**: `boolean`
+- **Required**: No
+- **Default**: `false`
+- **Description**: Start the server even when a function package (or the project) has
+  migrations the database has not applied. Off by default: such a server boots, passes
+  its health check, and then fails every request touching a missing column as an opaque
+  500. Set it where a CLI flag cannot be passed — a container's env, a CI job. The flag
+  equivalent is `spfn dev --allow-pending-migrations` / `spfn start
+  --allow-pending-migrations`; the config equivalent is
+  `defineServerConfig().migrations({ allowPending: true })`. Either way the pending
+  migrations are logged as a warning.
+- **Location**: `packages/core/src/config/schema.ts`, read at
+  `packages/core/src/server/migration-gate.ts`
+
 ### `TRANSACTION_TIMEOUT`
 - **Type**: `number` (milliseconds)
 - **Required**: No

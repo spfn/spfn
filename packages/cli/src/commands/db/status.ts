@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 
 import { validateDatabasePrerequisites } from './utils/drizzle.js';
-import { getMigrationStatus } from '../../utils/migration-status.js';
+import { getMigrationStatus, migrationTargets } from '../../utils/migration-status.js';
 
 /**
  * Show applied/pending migration status for function packages and the project.
@@ -34,7 +34,7 @@ export async function dbStatus(): Promise<void>
         process.exit(1);
     }
 
-    const targets = [...status.packages, ...(status.project ? [status.project] : [])];
+    const targets = migrationTargets(status);
 
     if (targets.length === 0)
     {

@@ -124,6 +124,7 @@ There is **no validation in the builder** — validation runs inside `startServe
 | `.shutdown({...})` | `shutdown` | `{ timeout? }` (ms) |
 | `.healthCheck({...})` | `healthCheck` | `{ enabled?, path?, detailed? }` |
 | `.infrastructure({...})` | `infrastructure` | `{ database?, redis? }` — `false` disables auto-init |
+| `.migrations({...})` | `migrations` | `{ allowPending? }` — `true` boots with pending migrations (warn instead of refuse) |
 | `.debug(boolean)` | `debug` | Default `NODE_ENV === 'development'` |
 | `.lifecycle({...})` | merged | **Mergeable** — see below |
 | `.build()` | — | Returns the final `ServerConfig` |
@@ -201,14 +202,16 @@ Its startup sequence:
 4. `lifecycle.beforeInfrastructure` → init DB (unless disabled) → init Redis (unless
    disabled) → `lifecycle.afterInfrastructure` → init pg-boss + register jobs (if `.jobs()`)
    → init workflow engine (if `.workflows()`)
-5. `createServer(config)` builds the Hono app (middleware pipeline below)
-6. `serve()` starts listening; WebSocket handler attached if `.websockets()`
-7. Apply HTTP server timeouts + global `fetch()` (undici) timeouts
-8. Print banner, register process handlers (`SIGTERM`, `SIGINT`, `uncaughtException`,
+5. **Migration boot gate** — refuses to go further when a function package (or
+   `src/server/drizzle`) has migrations the database has not applied (see below)
+6. `createServer(config)` builds the Hono app (middleware pipeline below)
+7. `serve()` starts listening; WebSocket handler attached if `.websockets()`
+8. Apply HTTP server timeouts + global `fetch()` (undici) timeouts
+9. Print banner, register process handlers (`SIGTERM`, `SIGINT`, `uncaughtException`,
    `unhandledRejection`)
-9. `lifecycle.afterStart(instance)`
+10. `lifecycle.afterStart(instance)`
 
-`createServer(config?)` only does step 5 — it returns a configured `Hono` app **without
+`createServer(config?)` only does step 6 — it returns a configured `Hono` app **without
 listening** and without infrastructure/shutdown. Use it for integration tests
 (`app.request('/health')`) or when you call `@hono/node-server`'s `serve()` yourself.
 
@@ -393,13 +396,69 @@ the server's shutdown sequence — application code uses the four methods above.
 - **Detailed** (`detailed: true`, the dev default): adds
   `services.{database,redis}.status` — `connected` / `error` / `not_initialized` /
   `unknown`. Any DB `error`/`not_initialized` or Redis `error` ⇒ `status: 'degraded'` and
-  HTTP **503**.
+  HTTP **503**. Also adds `migrations` (below).
 
 ```typescript
 defineServerConfig()
     .healthCheck({ path: '/api/health', detailed: true })
     .build();
 ```
+
+### `migrations` in the detailed payload
+
+```json
+"migrations": {
+  "status": "up_to_date",
+  "pending": 0,
+  "checkedAt": "2026-08-06T09:00:00.000Z",
+  "targets": [
+    { "name": "@spfn/auth", "total": 13, "applied": 13, "pending": 0, "pendingTags": [] }
+  ]
+}
+```
+
+- `status` — `up_to_date` / `pending` / `unknown`. `unknown` means there was nothing to
+  check (no database, no migrations) or the check failed; `reason` says which. It is never
+  conflated with `up_to_date`.
+- The snapshot is recomputed at most once every **30 seconds**, so a readiness probe
+  polling every few seconds adds no database round-trips.
+- Migration state does **not** change the overall `status`. Reporting drift must not, by
+  itself, pull a running deployment out of rotation — a probe that wants that asserts
+  `migrations.pending === 0`.
+
+---
+
+## Migration boot gate
+
+A function package ships its own migrations, so upgrading `@spfn/auth` can add columns the
+database has never heard of. Such a server boots, passes its health check, and then fails
+every request touching a new column with an opaque 500.
+
+Step 5 of the startup sequence stops that: it compares what each installed function
+package ships (and `src/server/drizzle`, where present) against what the database records
+as applied, logs the ones still waiting, and throws `PendingMigrationsError`.
+
+The check runs on the pool `initDatabase()` just opened — no second connection. Three
+situations never produce a refusal:
+
+| Situation | What happens |
+|---|---|
+| No database initialized, or no migrations shipped | Skipped |
+| Database configured but unreachable | `initDatabase()` already threw; the gate never runs |
+| The status query itself fails | Logged as "could not verify"; boot proceeds |
+
+Opt out — a harness that migrates after boot, a rollout that must proceed — with any of:
+
+```typescript
+defineServerConfig().migrations({ allowPending: true }).build();   // config (wins)
+```
+```bash
+SPFN_ALLOW_PENDING_MIGRATIONS=true    # env — for containers, which take no CLI flag
+spfn dev --allow-pending-migrations   # CLI flag
+```
+
+All three log the pending list as a warning rather than continuing silently.
+`createServerlessApp()` has no boot to gate — run `spfn db migrate` as a deploy step there.
 
 ---
 

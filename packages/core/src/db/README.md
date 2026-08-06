@@ -407,6 +407,12 @@ These have their own READMEs — do not duplicate their APIs here, link to them:
 - [schema/README.md](./schema/README.md) — column helpers (`id`, `uuid`, `timestamps`,
   `foreignKey`, `enumText`, `typedJsonb`, …) and PostgreSQL schema isolation
   (`createSchema`, `packageNameToSchema`, `getSchemaInfo`).
+- [migrations/index.ts](./migrations/index.ts) — which migrations each installed function
+  package ships and which the database has applied: `discoverFunctionMigrations`,
+  `collectMigrationStatus`, `pendingMigrationTargets`, `countPendingMigrations`. Read-only
+  — applying migrations is `spfn db migrate`. One implementation behind `spfn db status`,
+  the server's migration boot gate and the detailed health payload, so they cannot
+  disagree about what "pending" means.
 
 ---
 

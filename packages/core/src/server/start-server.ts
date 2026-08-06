@@ -30,6 +30,7 @@ import {
     getTimeoutConfig,
     resolveEndpointMiddlewares,
 } from './helpers';
+import { runMigrationBootGate } from './migration-gate';
 import { getShutdownManager, resetShutdownManager } from './shutdown-manager';
 
 import type { ServerConfig, ServerInstance } from './types';
@@ -125,6 +126,10 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
     try
     {
         await initializeInfrastructure(finalConfig);
+
+        // Pending migrations become an opaque 500 on the first request that touches
+        // a missing column — refuse here instead, where the fix is one command.
+        await runMigrationBootGate(finalConfig);
 
         const app = await createServer(finalConfig);
         const server = startHttpServer(app, host, port);

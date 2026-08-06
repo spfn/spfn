@@ -44,6 +44,32 @@ export type { DrizzleConfigOptions } from './manager/config-generator';
 // Schema Helpers
 export * from './schema';
 
+// Migration discovery & status (function packages + project)
+export {
+    collectMigrationStatus,
+    countPendingMigrations,
+    discoverFunctionMigrations,
+    filterPendingEntries,
+    formatPendingMigrations,
+    functionMigrationsTable,
+    hasMigrationTargets,
+    migrationTargets,
+    pendingMigrationTargets,
+    pendingMigrationsSummary,
+    projectMigrationsDir,
+    readMigrationEntries,
+    PROJECT_MIGRATIONS_TABLE,
+    PROJECT_TARGET_NAME,
+    RUN_MIGRATIONS_HINT,
+} from './migrations';
+export type {
+    FunctionMigrationEntry,
+    FunctionMigrationInfo,
+    MigrationStatus,
+    MigrationStatusDb,
+    MigrationTargetStatus,
+} from './migrations';
+
 // Transaction
 export { Transactional, getTransaction, getTransactionContext, runWithTransaction, runInTransaction, onAfterCommit } from './transaction';
 export type { TransactionContext, TransactionDB, TransactionalOptions, RunInTransactionOptions, AfterCommitCallback } from './transaction';

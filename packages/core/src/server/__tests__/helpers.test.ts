@@ -15,6 +15,7 @@ import {
     buildStartupConfig,
     createHealthCheckHandler,
 } from '../helpers';
+import { resetMigrationSnapshot } from '../migration-gate';
 import type { ServerConfig } from '../types';
 import { Hono } from 'hono';
 
@@ -445,6 +446,56 @@ describe('Server Helpers', () =>
             expect(data.services).toBeDefined();
             expect(data.services.database).toBeDefined();
             expect(data.services.redis).toBeDefined();
+        });
+
+        it('should report migration state in the detailed payload', async () =>
+        {
+            resetMigrationSnapshot();
+
+            const handler = createHealthCheckHandler(true);
+            const app = new Hono();
+
+            app.get('/health', handler);
+
+            const res = await app.fetch(new Request('http://localhost/health'));
+            const data: any = await res.json();
+
+            expect(data.migrations).toBeDefined();
+            expect(['up_to_date', 'pending', 'unknown']).toContain(data.migrations.status);
+            expect(typeof data.migrations.pending).toBe('number');
+            expect(Array.isArray(data.migrations.targets)).toBe(true);
+        });
+
+        it('should leave migration state out of the basic payload', async () =>
+        {
+            resetMigrationSnapshot();
+
+            const handler = createHealthCheckHandler(false);
+            const app = new Hono();
+
+            app.get('/health', handler);
+
+            const res = await app.fetch(new Request('http://localhost/health'));
+            const data: any = await res.json();
+
+            expect(data.migrations).toBeUndefined();
+        });
+
+        it('should not degrade overall health because migrations are unknown', async () =>
+        {
+            resetMigrationSnapshot();
+
+            const handler = createHealthCheckHandler(true);
+            const app = new Hono();
+
+            app.get('/health', handler);
+
+            const res = await app.fetch(new Request('http://localhost/health'));
+            const data: any = await res.json();
+
+            // Migration state is reported, never a reason on its own to fail a probe
+            expect(data.migrations.status).toBe('unknown');
+            expect(data.status).toBe('degraded'); // from the uninitialized database, not migrations
         });
 
         it('should return timestamp in ISO format', async () => 

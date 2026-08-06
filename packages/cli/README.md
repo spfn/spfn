@@ -137,8 +137,12 @@ no pre-build needed.
 | `-p, --port <port>` | Server port | from `server.config.ts` / env (`4000` in server-only fallback) |
 | `-H, --host <host>` | Server host | `localhost` |
 | `--routes <path>` | Routes directory path | server default |
+| `--allow-pending-migrations` | Start even when migrations are pending (they are listed as a warning) | off |
 
 Note: hot reload is **off by default** — pass `--watch` to restart on file changes.
+
+Pending migrations stop the boot — see [Database](#spfn-db) for what the refusal looks
+like and how to override it.
 
 ### `spfn build`
 
@@ -163,8 +167,13 @@ if `.spfn/server`, `.spfn/prod-server.mjs`, or `.next` are missing.
 | `--next-only` | Run only Next.js | off |
 | `-p, --port <port>` | SPFN server port (sets `SPFN_PORT`) | `8790` |
 | `-h, --host <host>` | SPFN server host (sets `SPFN_HOST`) | `0.0.0.0` |
+| `--allow-pending-migrations` | Start even when migrations are pending (they are listed as a warning) | off |
 
 Next.js is started on `0.0.0.0:3790`. Both run together via `concurrently --kill-others`.
+
+Pending migrations stop the boot unless `--allow-pending-migrations` or
+`SPFN_ALLOW_PENDING_MIGRATIONS=true` is set — see [Database](#spfn-db). `--next-only`
+skips the check: no SPFN server starts, so nothing can drift.
 
 ### `spfn codegen`
 
@@ -258,6 +267,27 @@ loaded `.env` chain.
 
 > `db push` is for development. For production, use `db generate` + `db migrate` to keep
 > migration history.
+
+**A server refuses to start while migrations are pending.** Bumping `@spfn/auth` and
+skipping `db migrate` used to boot fine, pass the health check, and then fail every
+request that touched a new column as an opaque 500. `spfn dev` and `spfn start` now
+compare the migrations each installed function package ships (and `src/server/drizzle`,
+where present) against what the database records as applied, print the ones still
+waiting, and stop:
+
+```
+❌ Refusing to start: 1 pending migration(s) in @spfn/auth
+   @spfn/auth: 1 pending migration(s) (12/13 applied)
+       - 20260805143152_client_identity
+
+   Run: pnpm spfn db migrate
+```
+
+`--allow-pending-migrations` starts anyway and logs the same list as a warning.
+`SPFN_ALLOW_PENDING_MIGRATIONS=true` does the same where no flag can be passed — a
+container's env, a CI job. The check is skipped when the app initializes no database
+or no package ships migrations, and a database it cannot reach is reported as
+"could not verify", never as drift.
 
 `db push` and `db migrate` also replay migrations shipped by installed SPFN function
 packages (`@spfn/auth`, `@spfn/cms`, …) into per-package tracking tables
@@ -486,6 +516,18 @@ Run migrations against the target DB before/with deploy:
 ```bash
 docker exec <container> npx spfn db migrate
 ```
+
+Forget, and the container will not come up: the server refuses to serve while migrations
+are pending and prints which ones. That is the intended failure — a deploy that stops at
+the gate is one that never served the 500s. If a rollout has to proceed anyway, set
+`SPFN_ALLOW_PENDING_MIGRATIONS=true` in the container's environment; the pending list is
+logged as a warning instead.
+
+A readiness probe can catch the same drift on a cluster the local gate never sees. When
+detailed health is on, `GET /health` carries a `migrations` object with per-package
+applied/pending counts — assert `migrations.pending === 0` in the probe to hold a
+drifted pod out of rotation. Reporting drift does not, by itself, change the overall
+health `status`.
 
 `spfn.config.js` (committed) configures the managed `*.spfn.app` deployment: `subdomain`,
 `region` (`us` default, `kr`, …), `customDomains`, and non-secret `env`. Its `SpfnConfig`

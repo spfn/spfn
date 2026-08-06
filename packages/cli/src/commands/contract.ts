@@ -123,7 +123,9 @@ async function releaseContractCommand(version: string, options: { dir?: string }
             logger.warn(warning);
         }
 
-        const file = writeSnapshot(contractsDir, version, document);
+        // The version comes from the document (`.contractVersion()` on the router),
+        // so writeSnapshot is never told it separately.
+        const file = writeSnapshot(contractsDir, document);
 
         console.log('\n' + chalk.green.bold(`✓ Released contract ${version}\n`));
         console.log(chalk.gray(`  ${file}`));

@@ -516,6 +516,28 @@ export interface ServerConfig
     };
 
     /**
+     * Migration boot gate
+     *
+     * Before serving, the server compares the migrations shipped by installed
+     * function packages (and by `src/server/drizzle`) against what the database
+     * records as applied, and refuses to start when any are still pending —
+     * otherwise the mismatch surfaces only at request time, as an opaque 500.
+     *
+     * Skipped when the app initializes no database or ships no migrations.
+     */
+    migrations?: {
+        /**
+         * Start anyway when migrations are pending, logging a warning that lists
+         * them. The environment equivalent is `SPFN_ALLOW_PENDING_MIGRATIONS=true`;
+         * this field wins over it.
+         *
+         * @default false
+         * @env SPFN_ALLOW_PENDING_MIGRATIONS
+         */
+        allowPending?: boolean;
+    };
+
+    /**
      * Infrastructure initialization control
      * Controls automatic initialization of database and Redis
      * @default Both enabled if credentials exist

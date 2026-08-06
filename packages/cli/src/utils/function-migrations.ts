@@ -1,33 +1,27 @@
 /**
- * Function Package Migration Discovery & Execution
+ * Function Package Migration Execution
  *
- * Discovers migrations shipped by SPFN function packages (e.g., @spfn/cms) and
- * applies them with a built-in runner. The runner reads both migration layouts —
- * drizzle-kit ≤0.31 (`NNNN_name.sql` + `meta/_journal.json`) and drizzle-kit 1.0
- * (`<YYYYMMDDHHMMSS>_name/migration.sql`) — so installed packages keep working
- * regardless of which drizzle-orm version the CLI bundles.
+ * Applies the migrations shipped by SPFN function packages (e.g., @spfn/cms).
+ * Discovery and folder reading live in `@spfn/core/db` — the server's boot gate
+ * and its health endpoint read migration state from the same implementation, so
+ * `spfn db migrate` and a running server can never disagree about what "pending"
+ * means. This module owns only the half that writes.
  */
 
 import chalk from 'chalk';
-import { createHash } from 'crypto';
-import { join } from 'path';
 
+import {
+    discoverFunctionMigrations,
+    functionMigrationsTable,
+    readMigrationEntries,
+    type FunctionMigrationEntry,
+    type FunctionMigrationInfo,
+} from '@spfn/core/db';
 import { env } from '@spfn/core/config';
 import { loadEnv } from '@spfn/core/server';
-import { existsSync, readdirSync, readFileSync } from 'fs';
 
-export type FunctionMigrationInfo = {
-    packageName: string;
-    migrationsDir: string;
-    packagePath: string;
-};
-
-export type FunctionMigrationEntry = {
-    name: string;
-    statements: string[];
-    hash: string;
-    millis: number;
-};
+export { discoverFunctionMigrations, readMigrationEntries };
+export type { FunctionMigrationEntry, FunctionMigrationInfo };
 
 export type FunctionMigrationPlan = FunctionMigrationInfo & {
     entries: FunctionMigrationEntry[];
@@ -44,89 +38,6 @@ export interface MigrationDb
 }
 
 /**
- * Discover all SPFN function packages with pre-generated migrations
- */
-export function discoverFunctionMigrations(cwd: string = process.cwd()): FunctionMigrationInfo[]
-{
-    const nodeModulesPath = join(cwd, 'node_modules');
-
-    if (!existsSync(nodeModulesPath))
-    {
-        return [];
-    }
-
-    const functions: FunctionMigrationInfo[] = [];
-
-    // Check @spfn/* packages
-    const spfnDir = join(nodeModulesPath, '@spfn');
-    if (!existsSync(spfnDir))
-    {
-        return [];
-    }
-
-    const packages = readdirSync(spfnDir);
-
-    for (const pkg of packages)
-    {
-        const packagePath = join(spfnDir, pkg);
-        const packageJsonPath = join(packagePath, 'package.json');
-
-        if (!existsSync(packageJsonPath))
-        {
-            continue;
-        }
-
-        try
-        {
-            const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-            const spfnConfig = packageJson.spfn;
-
-            if (!spfnConfig?.migrations)
-            {
-                continue;
-            }
-
-            const migrationsDir = join(packagePath, spfnConfig.migrations.dir);
-
-            if (!existsSync(migrationsDir))
-            {
-                console.warn(
-                    chalk.yellow(`⚠️  Package @spfn/${pkg} specifies migrations but directory not found: ${migrationsDir}`),
-                );
-                continue;
-            }
-
-            functions.push({
-                packageName: `@spfn/${pkg}`,
-                migrationsDir,
-                packagePath,
-            });
-        }
-        catch (error)
-        {
-            console.warn(chalk.yellow(`⚠️  Failed to parse package.json for @spfn/${pkg}`));
-        }
-    }
-
-    return functions;
-}
-
-/**
- * Read a package's migration entries, auto-detecting the folder layout.
- *
- * A `meta/_journal.json` marks the drizzle-kit ≤0.31 layout; without it the
- * directory is read as the drizzle-kit 1.0 layout.
- */
-export function readMigrationEntries(migrationsDir: string, packageName: string): FunctionMigrationEntry[]
-{
-    const journalPath = join(migrationsDir, 'meta', '_journal.json');
-
-    return existsSync(journalPath)
-        ? readJournalEntries(migrationsDir, journalPath, packageName)
-        : readFolderEntries(migrationsDir, packageName);
-}
-
-/**
  * Parse migration folders for all packages up front, so a broken package fails
  * before anything touches the database.
  */
@@ -136,104 +47,6 @@ export function loadFunctionMigrationPlans(functionMigrations: FunctionMigration
         ...func,
         entries: readMigrationEntries(func.migrationsDir, func.packageName),
     }));
-}
-
-function readJournalEntries(
-    migrationsDir: string,
-    journalPath: string,
-    packageName: string,
-): FunctionMigrationEntry[]
-{
-    let journal: { entries?: unknown };
-    try
-    {
-        journal = JSON.parse(readFileSync(journalPath, 'utf-8'));
-    }
-    catch
-    {
-        journal = {};
-    }
-
-    if (!Array.isArray(journal.entries))
-    {
-        throw new Error(`${packageName}: invalid migration journal at ${journalPath}`);
-    }
-
-    const entries = [...journal.entries] as { idx: number; tag: string; when: number }[];
-    entries.sort((a, b) => a.idx - b.idx);
-
-    return entries.map(entry =>
-    {
-        if (typeof entry?.tag !== 'string' || typeof entry?.when !== 'number')
-        {
-            throw new Error(`${packageName}: invalid journal entry in ${journalPath}`);
-        }
-
-        const sqlPath = join(migrationsDir, `${entry.tag}.sql`);
-        if (!existsSync(sqlPath))
-        {
-            throw new Error(`${packageName}: migration file not found: ${entry.tag}.sql`);
-        }
-
-        return toEntry(entry.tag, readFileSync(sqlPath, 'utf-8'), entry.when);
-    });
-}
-
-function readFolderEntries(migrationsDir: string, packageName: string): FunctionMigrationEntry[]
-{
-    const folders = readdirSync(migrationsDir, { withFileTypes: true })
-        .filter(dirent => dirent.isDirectory())
-        .map(dirent => dirent.name)
-        .filter(name => existsSync(join(migrationsDir, name, 'migration.sql')))
-        .sort((a, b) => a.localeCompare(b));
-
-    return folders.map(name => toEntry(
-        name,
-        readFileSync(join(migrationsDir, name, 'migration.sql'), 'utf-8'),
-        folderTimestampMillis(name, packageName),
-    ));
-}
-
-/**
- * Folder names in the drizzle-kit 1.0 layout start with a UTC YYYYMMDDHHMMSS
- * timestamp — the same interpretation drizzle-orm's own migrator uses.
- */
-function folderTimestampMillis(name: string, packageName: string): number
-{
-    const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(name);
-    if (!match)
-    {
-        throw new Error(`${packageName}: migration folder name must start with a YYYYMMDDHHMMSS timestamp: ${name}`);
-    }
-
-    const [, year, month, day, hour, minute, second] = match;
-
-    return Date.UTC(
-        Number(year),
-        Number(month) - 1,
-        Number(day),
-        Number(hour),
-        Number(minute),
-        Number(second),
-    );
-}
-
-function toEntry(name: string, content: string, millis: number): FunctionMigrationEntry
-{
-    return {
-        name,
-        millis,
-        hash: createHash('sha256').update(content).digest('hex'),
-        statements: content
-            .split('--> statement-breakpoint')
-            .map(statement => statement.trim())
-            .filter(statement => statement.length > 0),
-    };
-}
-
-function functionMigrationsTable(packageName: string): string
-{
-    return `__spfn_fn_${packageName.replace('@spfn/', '')}_migrations`;
 }
 
 /**

@@ -207,6 +207,7 @@ entry in `package.json` `exports`. Each module has its own README with the API d
 | `@spfn/core/nextjs/server` | Server-only: `createRpcProxy({ routeMap })`, `registerInterceptors`. Uses `next/headers`. | [src/nextjs](./src/nextjs/README.md) |
 | `@spfn/core/db` | PostgreSQL through Drizzle: CRUD helpers, `BaseRepository`, schema helpers, transactions, Postgres error mapping. One entry point for all of it. | [src/db](./src/db/README.md) |
 | `@spfn/core/db` → manager | Connection lifecycle, pool, primary/replica, health check, reconnect (`initDatabase`, `getDatabase`). Re-exported from `@spfn/core/db`. | [src/db/manager](./src/db/manager/README.md) |
+| `@spfn/core/db` → migrations | Which migrations each installed function package ships, and which the database has applied (`collectMigrationStatus`, `discoverFunctionMigrations`). What `spfn db status`, the boot gate and health all read. Re-exported from `@spfn/core/db`. | [src/db/migrations](./src/db/migrations/index.ts) |
 | `@spfn/core/db` → schema | Drizzle column helpers (`id`, `uuid`, `timestamps`, `foreignKey`, `enumText`, `typedJsonb`, `softDelete`, …). Re-exported from `@spfn/core/db`. | [src/db/schema](./src/db/schema/README.md) |
 | `@spfn/core/db` → transaction | `Transactional()` middleware and `runInTransaction`; the transaction reaches every repository through AsyncLocalStorage. Re-exported from `@spfn/core/db`. | [src/db/transaction](./src/db/transaction/README.md) |
 | `@spfn/core/middleware` | Built-in Hono middleware: `ErrorHandler`, `RequestLogger` and its masking helper. | [src/middleware](./src/middleware/README.md) |
@@ -247,6 +248,75 @@ A route name that is missing from the merged route map produces a **404 from the
 not from your backend. That is almost always a codegen you did not re-run.
 
 Generated files are output. Never hand-edit them.
+
+---
+
+## Why does the server refuse to start after a package upgrade?
+
+Because the database is behind the code. A function package ships its own migrations, so
+bumping `@spfn/auth` can add columns your database has never heard of. Before this check
+existed, that server booted, passed its health check, and then failed every request
+touching a new column with an opaque 500 — the error surfaced at the worst possible
+moment, to whoever called first.
+
+`startServer()` now compares what each installed function package ships (and
+`src/server/drizzle`, where present) against what the database records as applied, and
+stops:
+
+```
+Refusing to start: 1 pending migration(s) in @spfn/auth
+  @spfn/auth: 1 pending migration(s) (12/13 applied)
+      - 20260805143152_client_identity
+  Run: pnpm spfn db migrate
+```
+
+The check happens after the database connects and before anything is served, on the pool
+the server already opened — no second connection, and no new failure mode. Three cases
+never reach a refusal:
+
+| Situation | What happens |
+|---|---|
+| The app initializes no database, or no package ships migrations | Skipped; boot proceeds as before |
+| The database is configured but unreachable | `initDatabase()` already failed — the gate never runs, so an outage never reads as drift |
+| The status query itself fails | Logged as "could not verify", boot proceeds |
+
+To start anyway — a harness that migrates after boot, a rollout that must proceed —
+set `SPFN_ALLOW_PENDING_MIGRATIONS=true`, pass `spfn dev --allow-pending-migrations`, or
+declare it in config:
+
+```typescript
+export default defineServerConfig()
+    .migrations({ allowPending: true })
+    .build();
+```
+
+All three log the pending list as a warning rather than silently continuing.
+
+**A readiness probe sees the same thing.** When detailed health is on, `GET /health`
+carries a `migrations` object beside `services`:
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-08-06T09:00:00.000Z",
+  "services": { "database": { "status": "connected" }, "redis": { "status": "connected" } },
+  "migrations": {
+    "status": "up_to_date",
+    "pending": 0,
+    "checkedAt": "2026-08-06T09:00:00.000Z",
+    "targets": [{ "name": "@spfn/auth", "total": 13, "applied": 13, "pending": 0, "pendingTags": [] }]
+  }
+}
+```
+
+`status` is `unknown` when there was nothing to check or the check failed — never
+conflated with `up_to_date`. The snapshot is recomputed at most once every 30 seconds, so
+a probe polling every few seconds costs no extra round-trips. The overall health `status`
+is deliberately left alone: reporting drift must not, by itself, pull a running
+deployment out of rotation. A probe that wants that asserts `migrations.pending === 0`.
+
+The serverless path (`createServerlessApp`) has no boot to gate — run
+`spfn db migrate` as a deploy step there, as you already do for seeding.
 
 ---
 
@@ -347,6 +417,10 @@ part of a whole backend.
 - **The proxy decides the real HTTP method.** The browser only sends GET or POST to
   `/api/rpc/...`; a PUT, PATCH or DELETE route still works because the method comes from
   the route map.
+- **A package upgrade is not done until `spfn db migrate` has run.** The server refuses to
+  start while a function package has migrations the database has not applied. That is the
+  gate working, not a bug — see
+  [Why does the server refuse to start after a package upgrade?](#why-does-the-server-refuse-to-start-after-a-package-upgrade)
 - **Cache, events and jobs degrade quietly.** `@spfn/core/cache` runs disabled — its
   getters return `undefined` — when there is no cache config or no `ioredis`, and
   WebSocket events need the optional `ws` dependency. Do not write code expecting them to
