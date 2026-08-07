@@ -14,6 +14,7 @@ import { getRoot } from './routes/root';
 import { getHealth } from './routes/health';
 import { getMe } from './routes/me';
 import { listExamples, getExample, createExample, updateExample, deleteExample } from './routes/examples';
+import { opsRouter } from './routes/ops';
 
 export const appRouter = defineRouter({
     getRoot,
@@ -25,8 +26,8 @@ export const appRouter = defineRouter({
     updateExample,
     deleteExample,
 })
-    .packages([authRouter])   // mounts /_auth/* and exposes authApi routes
-    .use([authenticate]);     // global auth; public routes opt out per-route
+    .packages([authRouter, opsRouter])   // /_auth/* (authApi) + /_ops/* (spfn ops CLI)
+    .use([authenticate]);                // global auth; public routes opt out per-route
 
 /**
  * Router type for the typed client.
