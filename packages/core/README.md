@@ -380,6 +380,48 @@ on database code, `src/db/README.md` is the page to give it.
 
 ---
 
+## How do I operate the app from the terminal?
+
+Develop operations the way you develop features — as routes — and let the `spfn ops` CLI
+discover and invoke them. No admin dashboard, and no extra vocabulary: an ops command is a
+vertical slice whose path lives under `/_ops/`.
+
+```typescript
+// src/server/ops.ts
+import { Type } from '@sinclair/typebox';
+import { route } from '@spfn/core/route';
+import { createOpsRouter } from '@spfn/core/ops';
+import { opsTokenAuth, requireOpsScope } from '@spfn/auth/server';
+
+export const opsRouter = createOpsRouter({
+    listSignups: route.get('/_ops/signups')
+        .use([requireOpsScope('waitlist:read')])
+        .input({ query: Type.Object({ limit: Type.Optional(Type.Number()) }) })
+        .handler(async (c) => signupsRepository.list((await c.data()).query.limit)),
+}, { auth: opsTokenAuth });
+
+// src/server/router.ts — mounted like any package router, invisible to client types
+export const appRouter = defineRouter({ ... }).packages([opsRouter]);
+```
+
+`createOpsRouter` refuses a route outside `/_ops/`, injects the auth middleware into every
+route (there is no unauthenticated variant), and serves `GET /_ops/_manifest` — the
+self-description the CLI reads, with each command's TypeBox schemas as JSON Schema:
+
+```bash
+spfn ops list --app https://api.example.com          # discover commands
+spfn ops call listSignups --query limit=50            # invoke one
+spfn ops call listSignups --describe                  # print its schemas
+```
+
+Authentication is an ops token from [`@spfn/auth`](../auth/README.md#ops-tokens-spfn-ops):
+scoped, revocable, hash-stored, issued with `spfn ops token issue` where database access
+already exists — a deployed app has no token-creation endpoint. On macOS the CLI keeps the
+token in the keychain (`spfn ops token store`), and resolution order is `--token` →
+`SPFN_OPS_TOKEN` → keychain.
+
+---
+
 ## How is this different from NestJS or tRPC?
 
 **NestJS** gives you a structured backend and leaves the structure to you: modules and
