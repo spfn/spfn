@@ -54,7 +54,7 @@ with `--pm`. In a pnpm workspace, `create` installs from the workspace root.
 ## Commands
 
 Registered top-level commands: `create`, `init`, `add`, `dev`, `build`, `start`,
-`provision`, `codegen`, `contract`, `key`, `setup`, `db`, `env`, `secret`.
+`provision`, `codegen`, `contract`, `key`, `setup`, `db`, `env`, `ops`, `secret`.
 
 ### `spfn create <name>`
 
@@ -380,6 +380,36 @@ external value you paste in (`secret set`).
 ### `spfn setup icons`
 
 Install and configure SVGR for SVG-as-component imports (Next.js only).
+
+### `spfn ops`
+
+Invoke a running app's ops surface — the routes it exposes with
+[`createOpsRouter`](../core/README.md#how-do-i-operate-the-app-from-the-terminal).
+Commands are discovered from the app's `GET /_ops/_manifest`, so nothing is generated or
+configured locally.
+
+```bash
+spfn ops list --app https://api.example.com           # what can this app do?
+spfn ops call listSignups --query limit=50            # invoke a command
+spfn ops call refundOrder --param id=42 --data '{"reason":"duplicate"}'
+spfn ops call listSignups --describe                  # print its input schemas
+```
+
+The app URL comes from `--app` or `SPFN_OPS_APP`. The ops token resolves `--token` →
+`SPFN_OPS_TOKEN` → macOS keychain, and its lifecycle is managed with:
+
+```bash
+spfn ops token issue --name laptop --scopes 'waitlist:read'    # DATABASE_URL required
+spfn ops token issue --name ci --scopes '*' --no-expiry --to-keychain --app <url>
+spfn ops token list
+spfn ops token revoke <id>
+spfn ops token store --app <url>      # hidden prompt → keychain
+spfn ops token forget --app <url>
+```
+
+Issuance writes to the database directly (only the token's SHA-256 hash is stored), so it
+runs where `DATABASE_URL` points — a deployed app has no token-creation endpoint.
+`--to-keychain` delivers the secret without ever printing it.
 
 ---
 
