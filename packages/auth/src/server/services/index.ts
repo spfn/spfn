@@ -188,3 +188,16 @@ export type {
 // - Template system with variable substitution
 // - Multiple provider support (AWS SES, SNS, SendGrid, Twilio, etc.)
 // =============================================================================
+
+// Ops Token Service (CLI-first ops surface)
+export {
+    issueOpsTokenService,
+    verifyOpsTokenService,
+    revokeOpsTokenService,
+    listOpsTokensService,
+} from './ops-token.service';
+
+export type {
+    VerifiedOpsToken,
+    IssuedOpsToken,
+} from './ops-token.service';

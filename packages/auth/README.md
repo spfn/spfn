@@ -720,9 +720,18 @@ Programmatic checks (server): `hasPermission`, `hasAnyPermission`, `hasAllPermis
 
 Yes, and that is the point of the operator half of this package. The day after you deploy,
 someone has to refund an order, look up a user, publish a change, retry a failed job. The
-usual answer is to build screens for each of those. `@spfn/auth` already knows who your
-operators are and which of them may do what; [`@spfn/mcp`](../mcp/README.md) turns those
-operations into tools an AI agent can run, so the screens never get built.
+usual answer is to build screens for each of those. SPFN's answer is to expose those
+operations to an agent instead, and there are two transports for that:
+
+- **CLI-first (the default)**: develop ops as routes with
+  [`createOpsRouter`](../core/README.md#how-do-i-operate-the-app-from-the-terminal),
+  authenticate them with [ops tokens](#ops-tokens-spfn-ops), and drive them with
+  `spfn ops` from the same terminal the app was built in.
+- **MCP**: [`@spfn/mcp`](../mcp/README.md) turns operations into tools a chat client's
+  agent can run — the fit when operators work outside a terminal.
+
+`@spfn/auth` already knows who your operators are and which of them may do what; the MCP
+wiring below shows how those answers reach `@spfn/mcp`.
 
 The connection is app code, deliberately. `@spfn/mcp` does not read this package's RBAC on
 its own — it asks you for a `validateToken` and a `listTools`, and those are where auth's
@@ -831,6 +840,41 @@ Notes:
 For short-lived authenticated handshakes (e.g. SSE) where a `Bearer` header is awkward: issue
 with `authApi.issueOneTimeToken`, protect the consuming route with the `oneTimeTokenAuth`
 middleware. Call `initOneTimeTokenManager({ ttl, store })` during setup for a custom TTL/store.
+
+## Ops tokens (`spfn ops`)
+
+The machine credential behind the CLI-first ops surface
+([`@spfn/core/ops`](../core/README.md#how-do-i-operate-the-app-from-the-terminal)). An ops
+token is not a user session: it carries a label and a scope list, only its SHA-256 hash is
+stored, and the secret is shown exactly once at issuance.
+
+```typescript
+// src/server/ops.ts — the app develops its own ops as routes
+import { route } from '@spfn/core/route';
+import { createOpsRouter } from '@spfn/core/ops';
+import { opsTokenAuth, requireOpsScope } from '@spfn/auth/server';
+
+export const opsRouter = createOpsRouter({
+    listSignups: route.get('/_ops/signups')
+        .use([requireOpsScope('waitlist:read')])
+        .handler(async () => signupsRepository.list()),
+}, { auth: opsTokenAuth });
+```
+
+Issue and manage tokens where database access already exists — a deployed app carries **no
+token-creation endpoint**:
+
+```bash
+spfn ops token issue --name laptop --scopes 'waitlist:read'   # secret printed once
+spfn ops token issue --name laptop --scopes '*' --to-keychain --app https://api.example.com
+spfn ops token list
+spfn ops token revoke 3
+```
+
+Verification refuses uniformly: an expired, revoked, or never-issued token all answer the
+same 401, so whether a presented secret ever existed is not inferable. A valid token
+missing a route's scope answers 403 naming only the missing scope. `'*'` grants every
+scope.
 
 ## Mobile clientProofV1 (`@spfn/auth/client-proof`)
 
