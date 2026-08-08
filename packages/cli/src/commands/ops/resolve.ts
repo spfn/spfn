@@ -13,6 +13,50 @@ export interface OpsTargetOptions
     token?: string;
 }
 
+/**
+ * Where `http` is not a mistake: a machine talking to itself, which has no
+ * certificate to present and no network for anyone to listen on.
+ *
+ * The scaffold's own API runs on `http://localhost:8790`, so local development
+ * has to keep working — but that is the whole of the exception.
+ */
+function isLoopback(hostname: string): boolean
+{
+    return hostname === 'localhost'
+        || hostname === '127.0.0.1'
+        || hostname === '[::1]'
+        || hostname.endsWith('.localhost');
+}
+
+/**
+ * Refuse an app URL that would carry a secret in the clear.
+ *
+ * Every `spfn ops` command sends one: `token issue` prompts for an
+ * administrator's password and posts it, and `list` / `call` present an ops
+ * token. A stale `SPFN_OPS_APP` left over from a local run, or a typo'd
+ * `--app`, is enough to put either on the wire unencrypted — and nothing about
+ * the command's output would say so.
+ */
+function assertTransportSafe(parsed: URL, appUrl: string): void
+{
+    if (parsed.protocol === 'https:' || (parsed.protocol === 'http:' && isLoopback(parsed.hostname)))
+    {
+        return;
+    }
+
+    if (parsed.protocol === 'http:')
+    {
+        console.error(chalk.red(`❌ Refusing to talk to ${appUrl} over http.`));
+        console.error(chalk.gray('   An administrator password and an ops token cross this connection, and http sends both in the clear.'));
+        console.error(chalk.gray('   Use https. http is allowed only against localhost.'));
+        process.exit(1);
+    }
+
+    console.error(chalk.red(`❌ App URL must be https, got "${parsed.protocol}//".`));
+    console.error(chalk.gray('   The ops surface is reached over HTTP(S) — http is allowed only against localhost.'));
+    process.exit(1);
+}
+
 export function resolveAppUrl(options: OpsTargetOptions): string
 {
     const appUrl = options.app ?? process.env.SPFN_OPS_APP;
@@ -23,15 +67,19 @@ export function resolveAppUrl(options: OpsTargetOptions): string
         process.exit(1);
     }
 
+    let parsed: URL;
+
     try
     {
-        new URL(appUrl);
+        parsed = new URL(appUrl);
     }
     catch
     {
         console.error(chalk.red(`❌ Invalid app URL: ${appUrl}`));
         process.exit(1);
     }
+
+    assertTransportSafe(parsed, appUrl);
 
     return appUrl;
 }
@@ -59,7 +107,21 @@ export async function resolveToken(options: OpsTargetOptions, appUrl: string): P
 
     if (keychainSupported())
     {
-        const stored = await loadOpsToken(appAccount(appUrl));
+        // A keychain that cannot be read is not the same as one holding
+        // nothing: a locked keychain, or a denied access prompt, rejects here.
+        // Left uncaught it reaches the CLI's top-level handler, which prints
+        // the raw error object — so the operator gets a stack trace where the
+        // answer is one flag away.
+        const stored = await loadOpsToken(appAccount(appUrl)).catch((err: unknown) =>
+        {
+            console.error(chalk.yellow(
+                `⚠️  Could not read the keychain (${err instanceof Error ? err.message : String(err)}).`,
+            ));
+            console.error(chalk.gray('   Unlock it, or pass --token / set SPFN_OPS_TOKEN for this run.'));
+
+            return null;
+        });
+
         if (stored)
         {
             return stored;

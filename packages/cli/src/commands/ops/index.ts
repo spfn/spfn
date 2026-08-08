@@ -18,7 +18,7 @@ import {
     invokeOpsCommand,
     type OpsCommandDescriptor,
 } from '../../utils/ops/client.js';
-import { renderCommandUsage } from '../../utils/ops/describe.js';
+import { plain, renderCommandUsage } from '../../utils/ops/describe.js';
 import { collectKeyValue, resolveAppUrl, resolveToken, type OpsTargetOptions } from './resolve.js';
 import { buildTokenCommand } from './token.js';
 
@@ -57,7 +57,7 @@ async function listCommands(options: OpsTargetOptions): Promise<void>
     console.log(chalk.bold(`Ops commands at ${appUrl}:\n`));
     for (const command of manifest.commands)
     {
-        console.log(`  ${chalk.cyan(command.name)}  ${chalk.gray(`${command.method} ${command.path}`)}  input: ${inputSummary(command)}`);
+        console.log(`  ${chalk.cyan(plain(command.name))}  ${chalk.gray(`${command.method} ${plain(command.path)}`)}  input: ${inputSummary(command)}`);
     }
     console.log(chalk.gray('\n💡 Invoke: spfn ops call <name> [--param k=v] [--query k=v] [--data \'{"..."}\']'));
     console.log(chalk.gray('   Usage of one: spfn ops call <name> --describe'));
@@ -81,8 +81,8 @@ async function callCommand(
     const command = manifest.commands.find(c => c.name === name);
     if (!command)
     {
-        console.error(chalk.red(`❌ Unknown ops command "${name}".`));
-        console.error(chalk.gray(`   Known: ${manifest.commands.map(c => c.name).join(', ') || '(none)'}`));
+        console.error(chalk.red(`❌ Unknown ops command "${plain(name)}".`));
+        console.error(chalk.gray(`   Known: ${manifest.commands.map(c => plain(c.name)).join(', ') || '(none)'}`));
         process.exit(1);
     }
 
@@ -100,7 +100,7 @@ async function callCommand(
         {
             // fetch throws a raw TypeError on a GET with a body; say which
             // flag was wrong instead of printing a stack trace.
-            console.error(chalk.red(`❌ "${name}" is a ${command.method} command and takes no request body.`));
+            console.error(chalk.red(`❌ "${plain(name)}" is a ${command.method} command and takes no request body.`));
             console.error(chalk.gray('   Pass its input with --query k=v (or --param k=v for path segments).'));
             process.exit(1);
         }
@@ -133,7 +133,7 @@ async function callCommand(
         return;
     }
 
-    console.error(chalk.red(`❌ ${command.method} ${command.path} answered ${response.status}`));
+    console.error(chalk.red(`❌ ${command.method} ${plain(command.path)} answered ${response.status}`));
     console.error(rendered);
     process.exit(1);
 }

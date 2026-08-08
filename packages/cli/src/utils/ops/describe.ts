@@ -37,6 +37,32 @@ function isSchema(value: unknown): value is Schema
 }
 
 /**
+ * How deep a schema is followed before its fields stop being listed.
+ *
+ * `collectFields` recurses once per level of nesting, so a schema deep enough
+ * exhausts the stack and the command dies with `Maximum call stack size
+ * exceeded` instead of printing usage. The limit is far past anything an
+ * operator would read as a flat list anyway.
+ */
+const MAX_SCHEMA_DEPTH = 12;
+
+/**
+ * Strip what a terminal would act on rather than show.
+ *
+ * Every string rendered here — a field's description, its pattern, a command's
+ * name — is the app's, and it is written straight to the operator's terminal.
+ * Escape sequences left in it can clear the screen or redraw the lines above,
+ * so what the operator reads is no longer what the CLI wrote. Control
+ * characters are replaced rather than dropped, so text that contained them
+ * still reads as suspicious instead of quietly shrinking.
+ */
+export function plain(value: string): string
+{
+     
+    return value.replace(/[\u0000-\u001f\u007f-\u009f]/g, '?');
+}
+
+/**
  * The type as an operator should read it: `string`, `number[]`, `a|b` for a
  * union, `object` for anything with its own fields.
  */
@@ -122,7 +148,7 @@ function constraintNotes(schema: Schema): string[]
  * contributes its own fields under a dotted name rather than a row saying
  * `object` and nothing else.
  */
-function collectFields(schema: Schema, prefix = ''): FieldRow[]
+function collectFields(schema: Schema, prefix = '', depth = 0): FieldRow[]
 {
     const properties = isSchema(schema.properties) ? schema.properties : {};
     const required = Array.isArray(schema.required) ? schema.required : [];
@@ -135,8 +161,10 @@ function collectFields(schema: Schema, prefix = ''): FieldRow[]
             continue;
         }
 
-        const path = prefix ? `${prefix}.${name}` : name;
-        const nested = isSchema(raw.properties) ? collectFields(raw, path) : [];
+        const path = prefix ? `${prefix}.${plain(name)}` : plain(name);
+        const nested = isSchema(raw.properties) && depth < MAX_SCHEMA_DEPTH
+            ? collectFields(raw, path, depth + 1)
+            : [];
 
         if (nested.length > 0)
         {
@@ -146,9 +174,9 @@ function collectFields(schema: Schema, prefix = ''): FieldRow[]
 
         rows.push({
             name: path,
-            type: typeName(raw),
+            type: plain(typeName(raw)),
             requirement: required.includes(name) ? 'required' : 'optional',
-            notes: constraintNotes(raw).join(', '),
+            notes: plain(constraintNotes(raw).join(', ')),
         });
     }
 
@@ -182,7 +210,7 @@ function renderSection(label: string, flag: string, rows: FieldRow[]): string[]
  */
 export function renderCommandUsage(command: OpsCommandDescriptor): string
 {
-    const lines = [`${command.name}  ${command.method} ${command.path}`, ''];
+    const lines = [`${plain(command.name)}  ${command.method} ${plain(command.path)}`, ''];
     let described = false;
 
     for (const section of SECTIONS)
@@ -208,7 +236,7 @@ export function renderCommandUsage(command: OpsCommandDescriptor): string
         lines.push('  Takes no input.', '');
     }
 
-    lines.push(`  Invoke: spfn ops call ${command.name}${exampleFlags(command)}`);
+    lines.push(`  Invoke: spfn ops call ${plain(command.name)}${exampleFlags(command)}`);
 
     return lines.join('\n');
 }
