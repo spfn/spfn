@@ -5,13 +5,17 @@
  * its own ops as ordinary routes — domain operations only that app can name —
  * and this factory turns them into a mountable package router that:
  *
- * - enforces the `/_ops/` path prefix, so the surface is recognizable and an
- *   ops route can never shadow an app route;
+ * - requires every route to come from `opsRoute`, which applies the `/_ops`
+ *   namespace, so the surface is recognizable and an ops route can never
+ *   shadow an app route;
  * - injects the given auth middleware into every route, the manifest
  *   included, so an unauthenticated ops surface cannot be created by
  *   accident — there is no opt-out;
  * - serves `GET /_ops/_manifest`, the self-description the `spfn ops` CLI
- *   discovers commands from.
+ *   discovers commands from, registered first so no app route takes its URL.
+ *
+ * What the path looks like after the namespace is the app's business, decided
+ * when the ops route is written — this factory does not audit its shape.
  *
  * The auth middleware itself lives with the app's auth stack (`@spfn/auth`
  * ships `opsTokenAuth`); core owns only the structure, so the ops surface has
@@ -19,11 +23,11 @@
  *
  * @example
  * ```ts
- * import { createOpsRouter } from '@spfn/core/ops';
+ * import { createOpsRouter, opsRoute } from '@spfn/core/ops';
  * import { opsTokenAuth, requireOpsScope } from '@spfn/auth/server';
  *
  * export const opsRouter = createOpsRouter({
- *     listSignups: route.get('/_ops/signups')
+ *     listSignups: opsRoute.get('/signups')            // GET /_ops/signups
  *         .use([requireOpsScope('waitlist:read')])
  *         .handler(async () => signupsRepository.list()),
  * }, { auth: opsTokenAuth });
@@ -86,24 +90,26 @@ function assertOpsRoute(name: string, def: RouteDef<any>): void
     {
         throw new OpsRouterError(
             `Ops route "${name}" is at "${def.path}", outside "${OPS_PATH_PREFIX}". `
-            + 'Every ops route lives under the prefix so the surface stays recognizable '
-            + 'and can never shadow an app route.',
+            + 'Build ops routes with `opsRoute` rather than `route` — it applies the namespace, '
+            + 'so the path a definition carries is only the part the app owns.',
         );
     }
 
     if (def.path === OPS_MANIFEST_PATH)
     {
         throw new OpsRouterError(
-            `Ops route "${name}" claims "${OPS_MANIFEST_PATH}", which is reserved for the manifest.`,
+            `Ops route "${name}" claims "${OPS_MANIFEST_PATH}", which is reserved for the manifest. `
+            + 'The manifest is registered first, so this route would never answer.',
         );
     }
 }
 
 /**
  * The reserved name is checked for every entry, route and nested router
- * alike: the manifest route is merged in last, so an entry under this name
- * would be overwritten rather than refused — its routes would still be
- * announced by the manifest and answer 404 when invoked.
+ * alike, because the merge cannot refuse a duplicate key on its own. The
+ * manifest is merged in first and the app's entries spread over it, so an
+ * entry under this name would replace the manifest — the ops surface would
+ * then announce nothing and the CLI would discover no commands at all.
  */
 function assertOpsName(name: string): void
 {
@@ -122,11 +128,21 @@ function assertOpsName(name: string): void
  * a `requireOpsScope` guard among them — leaving those routes reachable by
  * any valid ops token.
  *
+ * Those middlewares are handed down to the routes rather than left on the
+ * rebuilt router. Router-level middlewares are registered ahead of every
+ * route-level one, so a guard left in place would run before the auth that
+ * was injected per route — reading a request no one had authenticated yet.
+ *
  * `.packages()` is refused rather than carried: package routes are registered
  * without passing through this factory, so they would join the ops surface
  * with neither the prefix check nor the auth injection.
  */
-function rebuildNestedRouter(name: string, router: Router<any>, auth: NamedMiddleware<string>): Router<any>
+function rebuildNestedRouter(
+    name: string,
+    router: Router<any>,
+    auth: NamedMiddleware<string>,
+    inherited: ReadonlyArray<NamedMiddleware<string>>,
+): Router<any>
 {
     if (router._packageRouters?.length > 0)
     {
@@ -136,14 +152,11 @@ function rebuildNestedRouter(name: string, router: Router<any>, auth: NamedMiddl
         );
     }
 
-    let rebuilt = defineRouter(
-        secureRoutes(router.routes, auth) as Record<string, RouteDef<any>>,
-    );
+    const handedDown = [...inherited, ...(router._globalMiddlewares ?? [])];
 
-    if (router._globalMiddlewares?.length > 0)
-    {
-        rebuilt = rebuilt.use(router._globalMiddlewares);
-    }
+    let rebuilt = defineRouter(
+        secureRoutes(router.routes, auth, handedDown) as Record<string, RouteDef<any>>,
+    );
 
     if (router._contractVersion)
     {
@@ -154,15 +167,17 @@ function rebuildNestedRouter(name: string, router: Router<any>, auth: NamedMiddl
 }
 
 /**
- * Validate every route and hand back a copy with the auth middleware
- * prepended. Route-level injection (rather than router-level `.use`) makes
+ * Validate every route and hand back a copy carrying, in order, the auth
+ * middleware, the middlewares its enclosing routers declared with `.use()`,
+ * and its own. Route-level injection (rather than router-level `.use`) makes
  * the middleware's `skips` declaration effective, so `opsTokenAuth` can
  * auto-skip a server-level `auth` middleware exactly as `oneTimeTokenAuth`
- * does.
+ * does — and it is what puts auth ahead of every group guard.
  */
 function secureRoutes(
     routes: Record<string, RouteDef<any> | Router<any>>,
     auth: NamedMiddleware<string>,
+    inherited: ReadonlyArray<NamedMiddleware<string>> = [],
 ): Record<string, RouteDef<any> | Router<any>>
 {
     const secured: Record<string, RouteDef<any> | Router<any>> = {};
@@ -173,7 +188,7 @@ function secureRoutes(
 
         if (isRouter(entry))
         {
-            secured[name] = rebuildNestedRouter(name, entry, auth);
+            secured[name] = rebuildNestedRouter(name, entry, auth, inherited);
             continue;
         }
 
@@ -185,7 +200,7 @@ function secureRoutes(
         assertOpsRoute(name, entry);
         secured[name] = {
             ...entry,
-            middlewares: [auth, ...(entry.middlewares ?? [])],
+            middlewares: [auth, ...inherited, ...(entry.middlewares ?? [])],
         };
     }
 
@@ -223,8 +238,18 @@ export function createOpsRouter<TRoutes extends Record<string, RouteDef<any, any
         .use([options.auth])
         .handler(async () => manifest);
 
+    // The manifest goes first, so no route in this object can answer its path.
+    // A route pattern that happens to cover `/_ops/_manifest` — `/_ops/:name`,
+    // say — is then only a route the app never reaches through that one URL,
+    // not a surface-wide outage where the CLI cannot discover any command.
+    //
+    // The ordering reaches no further than this object. `registerRoutes`
+    // registers a router's own routes before its package routers, so a pattern
+    // the app declares in its own router still shadows the manifest — as it
+    // shadows every other package route, which is a property of where the app
+    // put that pattern rather than of this factory.
     return defineRouter({
-        ...secured,
         [OPS_MANIFEST_NAME]: manifestRoute,
+        ...secured,
     } as Record<string, RouteDef<any>>);
 }
