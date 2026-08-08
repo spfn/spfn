@@ -97,13 +97,60 @@ function assertOpsRoute(name: string, def: RouteDef<any>): void
             `Ops route "${name}" claims "${OPS_MANIFEST_PATH}", which is reserved for the manifest.`,
         );
     }
+}
 
+/**
+ * The reserved name is checked for every entry, route and nested router
+ * alike: the manifest route is merged in last, so an entry under this name
+ * would be overwritten rather than refused — its routes would still be
+ * announced by the manifest and answer 404 when invoked.
+ */
+function assertOpsName(name: string): void
+{
     if (name === OPS_MANIFEST_NAME)
     {
         throw new OpsRouterError(
             `Ops route name "${OPS_MANIFEST_NAME}" is reserved for the manifest route.`,
         );
     }
+}
+
+/**
+ * Rebuild a nested router with the auth middleware injected into its routes,
+ * carrying over what the original declared. A plain `defineRouter` of the
+ * secured routes would silently drop the router's own `.use()` middlewares —
+ * a `requireOpsScope` guard among them — leaving those routes reachable by
+ * any valid ops token.
+ *
+ * `.packages()` is refused rather than carried: package routes are registered
+ * without passing through this factory, so they would join the ops surface
+ * with neither the prefix check nor the auth injection.
+ */
+function rebuildNestedRouter(name: string, router: Router<any>, auth: NamedMiddleware<string>): Router<any>
+{
+    if (router._packageRouters?.length > 0)
+    {
+        throw new OpsRouterError(
+            `Ops router "${name}" mounts package routers with .packages(). `
+            + 'Their routes bypass the prefix check and the auth injection, so an ops surface cannot carry them.',
+        );
+    }
+
+    let rebuilt = defineRouter(
+        secureRoutes(router.routes, auth) as Record<string, RouteDef<any>>,
+    );
+
+    if (router._globalMiddlewares?.length > 0)
+    {
+        rebuilt = rebuilt.use(router._globalMiddlewares);
+    }
+
+    if (router._contractVersion)
+    {
+        rebuilt = rebuilt.contractVersion(router._contractVersion);
+    }
+
+    return rebuilt;
 }
 
 /**
@@ -122,11 +169,11 @@ function secureRoutes(
 
     for (const [name, entry] of Object.entries(routes))
     {
+        assertOpsName(name);
+
         if (isRouter(entry))
         {
-            secured[name] = defineRouter(
-                secureRoutes(entry.routes, auth) as Record<string, RouteDef<any>>,
-            );
+            secured[name] = rebuildNestedRouter(name, entry, auth);
             continue;
         }
 

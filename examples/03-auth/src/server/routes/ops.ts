@@ -28,9 +28,7 @@ const countExamples = route.get('/_ops/examples/count')
     .use([requireOpsScope('example:read')])
     .handler(async () =>
     {
-        const examples = await exampleRepo.findAll(100, 0);
-
-        return { count: examples.length };
+        return { count: await exampleRepo.countAll() };
     });
 
 /**

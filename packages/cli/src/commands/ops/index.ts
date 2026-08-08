@@ -94,6 +94,15 @@ async function callCommand(
     let body: unknown;
     if (options.data !== undefined)
     {
+        if (command.method === 'GET')
+        {
+            // fetch throws a raw TypeError on a GET with a body; say which
+            // flag was wrong instead of printing a stack trace.
+            console.error(chalk.red(`❌ "${name}" is a ${command.method} command and takes no request body.`));
+            console.error(chalk.gray('   Pass its input with --query k=v (or --param k=v for path segments).'));
+            process.exit(1);
+        }
+
         try
         {
             body = JSON.parse(options.data);

@@ -32,6 +32,46 @@ async function connect()
     return postgres(env.DATABASE_URL, { max: 1 });
 }
 
+/**
+ * The secret exists in the clear only between issuance and delivery, so
+ * anything that can refuse delivery is checked before the row is written. A
+ * failure after the INSERT would leave a token nobody can present and nobody
+ * knows to revoke.
+ */
+function resolveExpiry(options: { expiry: boolean; expiresDays: string }): Date | null
+{
+    if (!options.expiry)
+    {
+        return null;
+    }
+
+    const days = Number(options.expiresDays);
+    if (!Number.isFinite(days) || days <= 0)
+    {
+        console.error(chalk.red(`❌ --expires-days takes a positive number of days, got "${options.expiresDays}".`));
+        console.error(chalk.gray('   Pass --no-expiry for a non-expiring token.'));
+        process.exit(1);
+    }
+
+    return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
+function resolveKeychainAccount(options: { toKeychain?: boolean; app?: string }): string | null
+{
+    if (!options.toKeychain)
+    {
+        return null;
+    }
+
+    if (!keychainSupported())
+    {
+        console.error(chalk.red('❌ --to-keychain requires macOS. Issue without it and store the printed secret yourself.'));
+        process.exit(1);
+    }
+
+    return appAccount(resolveAppUrl(options));
+}
+
 async function issueToken(options: {
     name: string;
     scopes: string;
@@ -48,9 +88,8 @@ async function issueToken(options: {
         process.exit(1);
     }
 
-    const expiresAt = options.expiry
-        ? new Date(Date.now() + Number(options.expiresDays) * 24 * 60 * 60 * 1000)
-        : null;
+    const expiresAt = resolveExpiry(options);
+    const keychainAccount = resolveKeychainAccount(options);
 
     const token = TOKEN_PREFIX + randomBytes(32).toString('hex');
     const tokenHash = createHash('sha256').update(token).digest('hex');
@@ -68,23 +107,28 @@ async function issueToken(options: {
         console.log(chalk.gray(`   scopes: ${scopes.join(', ')}`));
         console.log(chalk.gray(`   expires: ${expiresAt ? expiresAt.toISOString() : 'never'}`));
 
-        if (options.toKeychain)
+        if (keychainAccount)
         {
-            if (!keychainSupported())
+            try
             {
-                console.error(chalk.red('❌ --to-keychain requires macOS. The token was issued but not delivered — revoke it and reissue.'));
-                process.exit(1);
+                await storeOpsToken(keychainAccount, token);
+                console.log(chalk.green(`🔐 Stored in the macOS keychain for ${keychainAccount} — the secret was never printed.`));
+
+                return;
             }
-            const appUrl = resolveAppUrl(options);
-            await storeOpsToken(appAccount(appUrl), token);
-            console.log(chalk.green(`🔐 Stored in the macOS keychain for ${appAccount(appUrl)} — the secret was never printed.`));
+            catch (err)
+            {
+                // The row is already committed. Printing is the only way the
+                // operator gets a usable token out of this run — a locked
+                // keychain must not turn into an unrecoverable secret.
+                console.error(chalk.yellow(`⚠️  Keychain storage failed (${err instanceof Error ? err.message : String(err)}).`));
+                console.error(chalk.yellow('   Falling back to printing the secret.'));
+            }
         }
-        else
-        {
-            console.log('');
-            console.log(chalk.bold('   Shown once, never stored — copy it now:'));
-            console.log(`   ${token}`);
-        }
+
+        console.log('');
+        console.log(chalk.bold('   Shown once, never stored — copy it now:'));
+        console.log(`   ${token}`);
     }
     finally
     {

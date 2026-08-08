@@ -12,10 +12,17 @@ import { opsTokens, type NewOpsToken, type OpsToken } from '../entities/ops-toke
 
 export class OpsTokensRepository extends BaseRepository
 {
-    /** Lookup by the secret's hash — the verification path. Read replica. */
+    /**
+     * Lookup by the secret's hash — the verification path.
+     *
+     * Reads the primary, not the replica, unlike every other SELECT here.
+     * Revocation writes to the primary, so a replica read would keep
+     * authenticating a revoked token for the length of the replication lag —
+     * and revocation is documented as taking effect immediately.
+     */
     async findByTokenHash(tokenHash: string): Promise<OpsToken | null>
     {
-        const result = await this.readDb
+        const result = await this.db
             .select()
             .from(opsTokens)
             .where(eq(opsTokens.tokenHash, tokenHash))

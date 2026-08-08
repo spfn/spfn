@@ -107,7 +107,7 @@ export function collectOpsCommands(
 ): OpsCommand[]
 {
     const commands: OpsCommand[] = [];
-    visit(routes, commands);
+    visit(routes, commands, new Map<string, string>());
     commands.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
     return commands;
@@ -116,13 +116,14 @@ export function collectOpsCommands(
 function visit(
     routes: Record<string, RouteDef<any> | Router<any>>,
     commands: OpsCommand[],
+    claimed: Map<string, string>,
 ): void
 {
     for (const [name, entry] of Object.entries(routes))
     {
         if (isRouter(entry))
         {
-            visit(entry.routes, commands);
+            visit(entry.routes, commands, claimed);
             continue;
         }
 
@@ -131,6 +132,8 @@ function visit(
             continue;
         }
 
+        assertUnclaimedName(name, entry.path, claimed);
+
         commands.push({
             name,
             method: entry.method,
@@ -138,4 +141,25 @@ function visit(
             input: toCommandInput(entry.input as RouteInput | undefined),
         });
     }
+}
+
+/**
+ * Nested routers flatten into one command list, so two routes keyed alike in
+ * different routers would both be announced under the same command name. The
+ * CLI resolves a name to the first match, which means an operator asking for
+ * one command silently invokes the other — refuse it at definition time.
+ */
+function assertUnclaimedName(name: string, path: string, claimed: Map<string, string>): void
+{
+    const existing = claimed.get(name);
+    if (existing !== undefined)
+    {
+        throw new OpsRouterError(
+            `Two ops routes are named "${name}" ("${existing}" and "${path}"). `
+            + 'Command names are flattened across nested routers, so each must be unique '
+            + 'for the CLI to resolve the one an operator asked for.',
+        );
+    }
+
+    claimed.set(name, path);
 }

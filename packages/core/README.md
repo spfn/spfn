@@ -408,6 +408,13 @@ export const appRouter = defineRouter({ ... }).packages([opsRouter]);
 route (there is no unauthenticated variant), and serves `GET /_ops/_manifest` — the
 self-description the CLI reads, with each command's TypeBox schemas as JSON Schema:
 
+Routes may be grouped in nested `defineRouter`s, and a group's own `.use()` middlewares
+apply to its routes as usual. Three things are refused when the surface is defined, rather
+than discovered in production: two routes sharing a command name (the manifest flattens
+nested groups into one list, so the CLI could not tell them apart), the reserved name
+`getOpsManifest`, and a group mounting `.packages()` (those routes register without the
+prefix check or the auth injection).
+
 ```bash
 spfn ops list --app https://api.example.com          # discover commands
 spfn ops call listSignups --query limit=50            # invoke one

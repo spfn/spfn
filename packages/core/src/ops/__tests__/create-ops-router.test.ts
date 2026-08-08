@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 import { defineMiddleware } from '../../route/define-middleware';
 import { route, type RouteDef } from '../../route/route-builder';
-import { defineRouter } from '../../route/router';
+import { defineRouter, type Router } from '../../route/router';
 import { createOpsRouter, OPS_MANIFEST_PATH } from '../create-ops-router';
 import type { OpsManifest } from '../manifest';
 
@@ -51,6 +51,58 @@ describe('createOpsRouter', () =>
         const named = route.get('/_ops/other').handler(async () => ({}));
         expect(() => createOpsRouter({ getOpsManifest: named }, { auth: testAuth }))
             .toThrow(/reserved for the manifest route/);
+    });
+
+    it('refuses a nested router claiming the manifest name', () =>
+    {
+        const nested = defineRouter({
+            getStats: route.get('/_ops/stats').handler(async () => ({})),
+        });
+
+        expect(() => createOpsRouter({ getOpsManifest: nested }, { auth: testAuth }))
+            .toThrow(/reserved for the manifest route/);
+    });
+
+    it('refuses two routes sharing a command name across nested routers', () =>
+    {
+        const first = defineRouter({
+            listUsers: route.get('/_ops/admin/users').handler(async () => ({})),
+        });
+        const second = defineRouter({
+            listUsers: route.get('/_ops/support/users').handler(async () => ({})),
+        });
+
+        expect(() => createOpsRouter({ first, second }, { auth: testAuth }))
+            .toThrow(/Two ops routes are named "listUsers"/);
+    });
+
+    it('keeps a nested router\'s own middlewares, so a scope guard cannot be lost', () =>
+    {
+        const requireScope = defineMiddleware('requireOpsScope', async (_c, next) =>
+        {
+            await next();
+        });
+
+        const opsRouter = createOpsRouter({
+            admin: defineRouter({
+                getStats: route.get('/_ops/stats').handler(async () => ({})),
+            }).use([requireScope]),
+        }, { auth: testAuth });
+
+        const nested = opsRouter.routes.admin as Router<any>;
+        expect(nested._globalMiddlewares).toContain(requireScope);
+    });
+
+    it('refuses a nested router mounting package routers', () =>
+    {
+        const nested = defineRouter({
+            getStats: route.get('/_ops/stats').handler(async () => ({})),
+        }).packages([defineRouter({
+            unchecked: route.get('/anywhere').handler(async () => ({})),
+        })]);
+
+        expect(() => createOpsRouter({ nested }, { auth: testAuth }))
+            .toThrow(/bypass the prefix check and the auth injection/);
     });
 
     it('injects the auth middleware into every route, manifest and nested routes included', () =>
