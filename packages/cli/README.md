@@ -415,17 +415,31 @@ The app URL comes from `--app` or `SPFN_OPS_APP`. The ops token resolves `--toke
 `SPFN_OPS_TOKEN` → macOS keychain, and its lifecycle is managed with:
 
 ```bash
-spfn ops token issue --name laptop --scopes 'waitlist:read'    # DATABASE_URL required
+spfn ops token issue --name laptop --scopes 'waitlist:read' --app <url>
 spfn ops token issue --name ci --scopes '*' --no-expiry --to-keychain --app <url>
-spfn ops token list
-spfn ops token revoke <id>
+spfn ops token list --app <url>
+spfn ops token revoke <id> --app <url>
 spfn ops token store --app <url>      # hidden prompt → keychain
 spfn ops token forget --app <url>
 ```
 
-Issuance writes to the database directly (only the token's SHA-256 hash is stored), so it
-runs where `DATABASE_URL` points — a deployed app has no token-creation endpoint.
-`--to-keychain` delivers the secret without ever printing it.
+`issue`, `list` and `revoke` call the app's own admin-only routes, so the CLI prompts for
+an administrator's email and password first — no database access. Only the token's SHA-256
+hash is ever stored, so the secret exists in the clear once, in the issuance answer;
+`--to-keychain` delivers it without printing it.
+
+`--expires-days` takes 1 to 36500 days (about a century), or `--no-expiry` for a token that
+never expires. The upper bound is there because a day count becomes a date by arithmetic,
+and a big enough count produces an invalid date rather than a distant one.
+
+SPFN authenticates a request with a JWT the client signs itself, so the CLI generates a key
+pair for the command, signs the one call it needs, and revokes the key before the command
+ends — on the failing path as much as the succeeding one. Nothing is written to disk.
+
+These three commands need `@spfn/auth` **0.3.0-beta.2 or later** installed: the ops token
+lives in its schema, and the signing comes from its `@spfn/auth/crypto` entry point, which
+that release added. A missing package and one too old to carry the entry point are told
+apart, so the message names the thing to do.
 
 ---
 

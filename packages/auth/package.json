@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.3.0-beta.1",
+  "version": "0.3.0-beta.2",
   "type": "module",
   "description": "Authentication for a Next.js full-stack app: sessions, social login, OAuth, RBAC and admin roles, without assembling an auth stack yourself",
   "author": "Ray Im <rayim@fxy.global>",
@@ -26,6 +26,11 @@
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js",
       "require": "./dist/config.js"
+    },
+    "./crypto": {
+      "types": "./dist/crypto.d.ts",
+      "import": "./dist/crypto.js",
+      "require": "./dist/crypto.js"
     },
     "./errors": {
       "types": "./dist/errors.d.ts",
