@@ -411,8 +411,14 @@ listSignups  GET /_ops/signups
 Add `--json` for the raw JSON Schema. The server still validates every call — `--describe`
 reports what it will accept, and the app's answer decides.
 
-The app URL comes from `--app` or `SPFN_OPS_APP`. The ops token resolves `--token` →
-`SPFN_OPS_TOKEN` → macOS keychain, and its lifecycle is managed with:
+The app URL comes from `--app` or `SPFN_OPS_APP`, and it must be **https** — every one of
+these commands carries a secret, and `token issue` carries an administrator's password.
+`http` is accepted only against `localhost`, `127.0.0.1` and `::1`, where there is no
+network to listen on. A URL with a base path (`https://example.com/api`) is kept whole:
+both the ops calls and the administrator sign-in go through it.
+
+The ops token resolves `--token` → `SPFN_OPS_TOKEN` → macOS keychain, and its lifecycle is
+managed with:
 
 ```bash
 spfn ops token issue --name laptop --scopes 'waitlist:read' --app <url>
@@ -441,6 +447,10 @@ ops token lives in its schema, and the signing comes from its `@spfn/auth/crypto
 point, which that release added. The CLI does not depend on the package in any form — it
 loads it from the app at run time, and tells a missing package apart from one too old to
 carry the entry point, so the message names the thing to do.
+
+Because the package is the app's, it is resolved **from the directory the command runs in**.
+Run `spfn ops token` from the app's root; running it elsewhere reports the package as
+missing, and the message names the directory it looked in.
 
 ---
 

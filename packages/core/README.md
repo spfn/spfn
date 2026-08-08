@@ -448,7 +448,8 @@ Authentication is an ops token from [`@spfn/auth`](../auth/README.md#ops-tokens-
 scoped, revocable, hash-stored, issued with `spfn ops token issue` against the running app
 — the CLI signs in as an administrator, so issuance needs no database access. On macOS the
 CLI keeps the token in the keychain (`spfn ops token store`), and resolution order is
-`--token` → `SPFN_OPS_TOKEN` → keychain.
+`--token` → `SPFN_OPS_TOKEN` → keychain. The `--app` URL must be https, since every command
+carries a secret; `http` is accepted only against a loopback host.
 
 ---
 

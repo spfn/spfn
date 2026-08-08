@@ -17,6 +17,7 @@
 import prompts from 'prompts';
 import chalk from 'chalk';
 import { loadAuthCrypto } from './auth-crypto.js';
+import { joinUrl } from './client.js';
 
 export interface AdminSession
 {
@@ -25,9 +26,33 @@ export interface AdminSession
     keyId: string;
 }
 
+/**
+ * Read an answer that is supposed to be JSON.
+ *
+ * A proxy or load balancer in front of the app answers an error with HTML, and
+ * `JSON.parse` on that raises a parser's complaint about a `<` — which tells an
+ * operator nothing about what went wrong. The status is what matters there.
+ */
+function parseJsonAnswer(text: string, status: number, statusText: string): any
+{
+    if (!text)
+    {
+        return {};
+    }
+
+    try
+    {
+        return JSON.parse(text);
+    }
+    catch
+    {
+        throw new Error(`The app answered ${status} ${statusText} with something that is not JSON.`);
+    }
+}
+
 async function postJson(appUrl: string, path: string, body: unknown, authorization?: string): Promise<any>
 {
-    const response = await fetch(new URL(path, appUrl), {
+    const response = await fetch(joinUrl(appUrl, path), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -37,7 +62,7 @@ async function postJson(appUrl: string, path: string, body: unknown, authorizati
     });
 
     const text = await response.text();
-    const parsed = text ? JSON.parse(text) : {};
+    const parsed = parseJsonAnswer(text, response.status, response.statusText);
 
     if (!response.ok)
     {
@@ -175,7 +200,7 @@ export async function adminRequest(
     body?: unknown,
 ): Promise<any>
 {
-    const response = await fetch(new URL(path, appUrl), {
+    const response = await fetch(joinUrl(appUrl, path), {
         method,
         headers: {
             Authorization: session.authorization,
@@ -185,7 +210,7 @@ export async function adminRequest(
     });
 
     const text = await response.text();
-    const parsed = text ? JSON.parse(text) : {};
+    const parsed = parseJsonAnswer(text, response.status, response.statusText);
 
     if (!response.ok)
     {

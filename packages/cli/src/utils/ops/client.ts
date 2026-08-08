@@ -38,7 +38,18 @@ export interface OpsResponse
     body: unknown;
 }
 
-function joinUrl(appUrl: string, path: string): string
+/**
+ * Append an absolute path to the app URL, keeping whatever base path the
+ * operator gave.
+ *
+ * Concatenation rather than `new URL(path, appUrl)`, because an absolute path
+ * resolved against a base replaces it: an app mounted at
+ * `https://example.com/api` would be called at `https://example.com/_ops/...`.
+ * Every request the CLI makes goes through here so the two halves of the
+ * surface — the ops calls and the administrator sign-in — agree about where
+ * the app is.
+ */
+export function joinUrl(appUrl: string, path: string): string
 {
     return appUrl.replace(/\/+$/, '') + path;
 }
@@ -98,7 +109,76 @@ export async function fetchOpsManifest(appUrl: string, token: string): Promise<O
         throw new Error('The manifest answer has an unknown shape.');
     }
 
-    return manifest;
+    return { manifestVersion: 1, commands: usableCommands(manifest.commands) };
+}
+
+const OPS_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+
+/** Every ops route lives under this prefix — `createOpsRouter` enforces it. */
+const OPS_PATH_PREFIX = '/_ops/';
+
+/**
+ * Why a command cannot be used, or null when it can.
+ *
+ * The manifest is the app's own description of itself, and the CLI turns it
+ * into a request carrying an ops token — so a command is checked before it can
+ * become one, rather than trusted and allowed to fail as a stack trace deep in
+ * `fetch`. The path rule is the server's own: `createOpsRouter` refuses a route
+ * outside `/_ops/`, so anything else here did not come from it.
+ */
+function unusableBecause(command: OpsCommandDescriptor): string | null
+{
+    if (typeof command?.name !== 'string' || command.name.length === 0)
+    {
+        return 'it has no name';
+    }
+    if (typeof command.method !== 'string' || !OPS_METHODS.has(command.method))
+    {
+        return `its method is ${JSON.stringify(command.method)}`;
+    }
+    if (typeof command.path !== 'string' || !command.path.startsWith(OPS_PATH_PREFIX))
+    {
+        return `its path ${JSON.stringify(command.path)} is outside ${OPS_PATH_PREFIX}`;
+    }
+    if (command.path.split('/').includes('..'))
+    {
+        return `its path ${JSON.stringify(command.path)} climbs out of the ops namespace`;
+    }
+
+    return null;
+}
+
+/**
+ * Keep the commands the CLI can invoke and say which it dropped.
+ *
+ * Dropping rather than refusing the whole manifest: a newer server may announce
+ * something this CLI has no way to call, and one such command must not cost the
+ * operator every other command on the surface. Silence would be worse than
+ * either — an operator would read a short list as the app's whole surface.
+ */
+function usableCommands(commands: OpsCommandDescriptor[]): OpsCommandDescriptor[]
+{
+    const usable: OpsCommandDescriptor[] = [];
+
+    for (const command of commands)
+    {
+        const reason = unusableBecause(command);
+
+        if (reason !== null)
+        {
+            console.error(`⚠️  Ignoring an ops command the manifest announced: ${reason}.`);
+            continue;
+        }
+
+        usable.push({ ...command, input: isPlainObject(command.input) ? command.input : {} });
+    }
+
+    return usable;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown>
+{
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /**
