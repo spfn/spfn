@@ -392,8 +392,24 @@ configured locally.
 spfn ops list --app https://api.example.com           # what can this app do?
 spfn ops call listSignups --query limit=50            # invoke a command
 spfn ops call refundOrder --param id=42 --data '{"reason":"duplicate"}'
-spfn ops call listSignups --describe                  # print its input schemas
+spfn ops call listSignups --describe                  # what does it take?
 ```
+
+`--describe` answers from the manifest's schemas, so the usage is the running app's own,
+not a local copy that can drift:
+
+```
+listSignups  GET /_ops/signups
+
+  query parameters (--query)
+    limit  number  optional  1–100, default 10
+    state  string  required  one of: pending, approved
+
+  Invoke: spfn ops call listSignups --query limit=<value>
+```
+
+Add `--json` for the raw JSON Schema. The server still validates every call — `--describe`
+reports what it will accept, and the app's answer decides.
 
 The app URL comes from `--app` or `SPFN_OPS_APP`. The ops token resolves `--token` →
 `SPFN_OPS_TOKEN` → macOS keychain, and its lifecycle is managed with:

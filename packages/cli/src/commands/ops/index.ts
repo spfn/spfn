@@ -18,6 +18,7 @@ import {
     invokeOpsCommand,
     type OpsCommandDescriptor,
 } from '../../utils/ops/client.js';
+import { renderCommandUsage } from '../../utils/ops/describe.js';
 import { collectKeyValue, resolveAppUrl, resolveToken, type OpsTargetOptions } from './resolve.js';
 import { buildTokenCommand } from './token.js';
 
@@ -59,7 +60,7 @@ async function listCommands(options: OpsTargetOptions): Promise<void>
         console.log(`  ${chalk.cyan(command.name)}  ${chalk.gray(`${command.method} ${command.path}`)}  input: ${inputSummary(command)}`);
     }
     console.log(chalk.gray('\n💡 Invoke: spfn ops call <name> [--param k=v] [--query k=v] [--data \'{"..."}\']'));
-    console.log(chalk.gray('   Schemas: spfn ops call <name> --describe'));
+    console.log(chalk.gray('   Usage of one: spfn ops call <name> --describe'));
 }
 
 async function callCommand(
@@ -69,6 +70,7 @@ async function callCommand(
         query: Record<string, string>;
         data?: string;
         describe?: boolean;
+        json?: boolean;
     },
 ): Promise<void>
 {
@@ -86,7 +88,7 @@ async function callCommand(
 
     if (options.describe)
     {
-        console.log(JSON.stringify(command, null, 2));
+        console.log(options.json ? JSON.stringify(command, null, 2) : renderCommandUsage(command));
 
         return;
     }
@@ -152,7 +154,11 @@ opsCommand.command('call <name>')
     .option('--param <k=v>', 'path parameter (repeatable)', collectKeyValue, {})
     .option('--query <k=v>', 'query parameter (repeatable)', collectKeyValue, {})
     .option('--data <json>', 'JSON request body')
-    .option('--describe', "print the command's schemas instead of calling it")
-    .action(callCommand);
+    .option('--describe', "print the command's usage instead of calling it")
+    .option('--json', 'with --describe, print the raw JSON Schema')
+    .action(callCommand)
+    // What a command takes is known only to the running app, so it cannot be
+    // part of this static help — point at the flag that fetches it.
+    .addHelpText('after', '\nA command\'s own inputs: spfn ops call <name> --describe');
 
 opsCommand.addCommand(buildTokenCommand());

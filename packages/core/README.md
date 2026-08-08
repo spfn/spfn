@@ -418,7 +418,7 @@ prefix check or the auth injection).
 ```bash
 spfn ops list --app https://api.example.com          # discover commands
 spfn ops call listSignups --query limit=50            # invoke one
-spfn ops call listSignups --describe                  # print its schemas
+spfn ops call listSignups --describe                  # print its usage (--json for raw schemas)
 ```
 
 Authentication is an ops token from [`@spfn/auth`](../auth/README.md#ops-tokens-spfn-ops):
