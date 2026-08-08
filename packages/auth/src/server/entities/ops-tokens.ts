@@ -6,9 +6,10 @@
  * list, and the row stores only the SHA-256 hash of the secret — the secret
  * itself is shown once at issuance and never persisted.
  *
- * Issuance is an operator act performed where database access already exists
- * (`spfn ops token issue`); there is no HTTP surface for creating tokens, so
- * a deployed app exposes verification only.
+ * Issuance is an operator act, and it goes over HTTP like everything else on
+ * this surface: `POST /_auth/ops-tokens`, behind `authenticate` plus
+ * `requireRole('admin', 'superadmin')`. `spfn ops token issue` signs in as an
+ * administrator and calls it, so the CLI needs no database access of its own.
  */
 
 import { text } from 'drizzle-orm/pg-core';
