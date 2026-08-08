@@ -74,6 +74,11 @@
             "import": "./dist/contract/index.js",
             "require": "./dist/contract/index.js"
         },
+        "./ops": {
+            "types": "./dist/ops/index.d.ts",
+            "import": "./dist/ops/index.js",
+            "require": "./dist/ops/index.js"
+        },
         "./env": {
             "types": "./dist/env/index.d.ts",
             "import": "./dist/env/index.js",

@@ -24,3 +24,4 @@ export * from './user-permissions';
 
 // System entities
 export * from './auth-metadata';
+export * from './ops-tokens';

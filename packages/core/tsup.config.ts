@@ -15,6 +15,7 @@ export default defineConfig({
         'cache/index': 'src/cache/index.ts',
         'codegen/index': 'src/codegen/index.ts',
         'contract/index': 'src/contract/index.ts',
+        'ops/index': 'src/ops/index.ts',
         'env/index': 'src/env/index.ts',
         'env/loader': 'src/env/loader.ts',
         'logger/index': 'src/logger/index.ts',

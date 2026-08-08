@@ -14,3 +14,4 @@ export * from './require-permission';
 export * from './require-role';
 export * from './role-guard';
 export * from './one-time-token-auth';
+export * from './ops-token-auth';
