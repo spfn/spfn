@@ -287,13 +287,26 @@ When there is no `app.ts`, `createServer` builds the app in this **fixed order**
 
 ## Infrastructure, jobs, events, websockets, workflows
 
-**DB/Redis** auto-init during step 4 when their env vars exist. Disable selectively:
+**DB/Redis** initialize during step 4 unless turned off. The env vars are **not** sniffed
+first, and the two behave differently when their env var is missing:
+
+| | env var absent |
+|---|---|
+| Database | **boot fails** — `No database configuration found` |
+| Redis | boots in disabled mode, logged, no cache |
+
+So a server that uses no database must say so. Leaving `DATABASE_URL` unset is not how you
+declare it:
 
 ```typescript
 defineServerConfig()
-    .infrastructure({ database: false, redis: true })
+    .infrastructure({ database: false })   // a server with no database declares it
     .build();
 ```
+
+The asymmetry is deliberate. A missing cache costs speed; a missing database means every
+request that touches data fails, and failing at boot beats failing on the first query.
+A component turned off here reports `disabled` to the health endpoint and never degrades it.
 
 To use an externally owned PostgreSQL Drizzle driver such as PGlite, pass a provider. This
 replaces environment-based postgres.js initialization; graceful shutdown invokes `close`
@@ -395,8 +408,16 @@ the server's shutdown sequence — application code uses the four methods above.
 - **Basic** (`detailed: false`, the production default): `{ status, timestamp }`, 200.
 - **Detailed** (`detailed: true`, the dev default): adds
   `services.{database,redis}.status` — `connected` / `error` / `not_initialized` /
-  `unknown`. Any DB `error`/`not_initialized` or Redis `error` ⇒ `status: 'degraded'` and
-  HTTP **503**. Also adds `migrations` (below).
+  `disabled` / `unknown`. Any DB `error`/`not_initialized` or Redis `error` ⇒
+  `status: 'degraded'` and HTTP **503**. Also adds `migrations` (below).
+
+A component turned off with `.infrastructure({ database: false })` reports `disabled`
+and never degrades health — otherwise a server that legitimately has no database would
+answer 503 forever and no readiness probe would ever let it into rotation.
+
+> The endpoint is registered **before** app routes, so an app route on the same path
+> never runs. The server logs a warning naming the path when it sees one. Give the route
+> another path, or turn the built-in endpoint off with `.healthCheck({ enabled: false })`.
 
 ```typescript
 defineServerConfig()

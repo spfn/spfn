@@ -63,7 +63,7 @@ declare module 'hono'
  *   .build();
  *
  * // In route file - skip auth for public routes
- * export const publicRoute = route.get('/health')
+ * export const publicRoute = route.get('/status')
  *   .skip(['auth'])  // Type-safe skip
  *   .handler(async (c) => c.success({ status: 'ok' }));
  *

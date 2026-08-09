@@ -225,7 +225,7 @@ export class RouteBuilder<
      * @example
      * ```ts
      * // Skip specific middlewares
-     * route.get('/health')
+     * route.get('/status')
      *   .skip(['auth', 'rateLimit'])
      *   .handler(async (c) => c.json({ status: 'ok' }));
      *
