@@ -25,10 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 응답 문자열이 바뀐다: 껐을 때 `not_initialized` → `disabled`. health 페이로드를 문자열로 판정하는 곳이 있으면 확인 필요.
 - **내장 health 경로와 겹치는 앱 라우트를 부팅 시 경고** — 내장 health 엔드포인트는 앱 라우트보다 먼저 등록되므로 같은 경로의 앱 라우트는 실행되지 않는다. 이제 라우트 이름과 경로를 지목해 경고한다. 조용히 가려지는 탓에 examples 01·02·03이 실행되지 않는 `/health` 라우트를 배포하고 있었다(제거함).
 - `ServerConfig.infrastructure`의 `@default true if DATABASE_URL exists` 주석이 실제 동작과 달랐다. 자격증명을 살피지 않고 항상 초기화하므로 DB를 쓰지 않는 서버는 `false`를 선언해야 한다(issue #119).
+- **프로덕션 서버가 앱의 `server.config`를 실제로 읽는다** — `spfn build`가 만드는 컴파일 결과의 확장자는 tsup이 앱 `package.json`을 보고 정한다. `"type": "module"`이면 `.js`, 아니면 `.mjs`다. 찾는 목록에 `.mjs`만 있어서, 그 필드를 선언한 앱은 프로덕션에서 **설정 전체를 잃었다** — 미들웨어·라우트·인프라 스위치가 모두 사라지고 기본값으로 떴다. 원본 `src/server/server.config.ts`가 마지막 후보로 남아 있었지만 순수 node는 TypeScript도 `@/` 별칭도 해석하지 못해 대신할 수 없었다. 이제 두 확장자를 모두 찾는다.
+- **설정을 못 읽었으면 경고한다** — `src/server/server.config.ts`가 있는데 아무 설정도 로드되지 않았다면 warn으로 알린다. 그 전에는 debug 레벨이라 프로덕션에서 보이지 않았고, 서버는 조용히 뜬 뒤 없는 미들웨어·없는 라우트로 동작했다.
 
 #### spfn (CLI)
 
 - **스캐폴드가 만들던 `/health` 라우트 제거** — 내장 health 엔드포인트가 앱 라우트보다 먼저 등록되므로 이 라우트는 처음부터 실행된 적이 없었다. 새 앱은 이제 부팅 시 가려짐 경고 없이 뜨고, `GET /health`는 DB·Redis·마이그레이션 상태까지 담은 내장 응답이 답한다. Dockerfile의 HEALTHCHECK와 root 응답의 `/health` 안내는 그대로 유효하다.
+- **프로덕션 엔트리가 앱이 정한 포트를 따른다** — `.spfn/prod-server.mjs`가 포트를 `env.SPFN_PORT`에서 읽었는데 core의 env 스키마에 그 키가 없어 **항상 undefined**였다. 결과적으로 모든 프로덕션 서버가 하드코딩된 8790에 붙었다. `examples/03-auth`는 자기 설정에 8890을 적어두고도 8890을 받은 적이 없다. 이제 `process.env`에서 읽고, 주입된 값이 없으면 앱의 `server.config`가 결정한다. `SPFN_HOST`도 같다.
+  - `spfn start`의 `-p`·`-h`에 있던 commander 기본값(`8790`·`0.0.0.0`)도 걷어냈다. 기본값은 운영자가 입력한 값과 구분되지 않은 채 그대로 `SPFN_PORT`로 전달돼, 플래그를 쓰지 않아도 앱 설정을 덮었다. 이제 플래그를 준 경우에만 전달한다. Dockerfile의 `CMD ["pnpm", "run", "spfn:start"]`가 지나는 경로가 바로 여기다.
+  - 주소를 알리던 `spfn start`의 로그 두 줄을 걷어냈다. 플래그가 없으면 이 프로세스는 어느 주소에 붙을지 모른다. 실제 주소는 서버가 자기 배너로 알린다.
+  - 동작 변화: `server.config`에 `.port()`를 적지 않은 앱은 이제 8790이 아니라 core 기본값을 쓴다. 스캐폴드 템플릿과 모든 예제는 포트를 명시하므로 영향이 없다.
+- **`spfn build`가 확장자를 고정한다** — tsup `outExtension`을 `.mjs`로 지정해 앱 `package.json`의 암묵적 규칙에 기대지 않는다.
+- 프로덕션 엔트리가 넘기던 `routesPath` 제거 — `@spfn/core`가 읽지 않는 죽은 옵션이라, 엔트리가 라우트를 연결하는 것처럼 보이게 했다. 라우트는 앱의 `server.config`가 등록한다.
 - 스캐폴드 example 템플릿 결함 제거: `getExample`의 테스트용 헤더 강제 validation·디버그 로그, root 응답의 미등록 `/teams` 참조.
 - `.gitignore`에 `.env.server`가 누락될 수 있던 분기 수정(독립 체크로 분리).
 - type-check 미사용 심볼 정리(에러 0).

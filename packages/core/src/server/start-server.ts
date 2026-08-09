@@ -50,12 +50,32 @@ const TIMEOUTS = {
     PRODUCTION_ERROR_SHUTDOWN: 10000,
 } as const;
 
+/**
+ * Where a compiled `server.config` can be, in the order it is looked for.
+ *
+ * Both extensions are listed because `spfn build` runs tsup, and tsup picks the
+ * extension from the app's `package.json`: `.mjs` normally, `.js` when the app
+ * declares `"type": "module"`. Only `.mjs` used to be listed, so an app with
+ * that declaration silently lost its entire configuration in production — no
+ * middlewares, no routes, no infrastructure switches — and the raw
+ * `src/server/server.config.ts` fallback cannot stand in, because plain node
+ * resolves neither TypeScript nor the `@/` path aliases the file is written
+ * with.
+ */
 const CONFIG_FILE_PATHS = [
     '.spfn/server/server.config.mjs',
+    '.spfn/server/server.config.js',
     '.spfn/server/server.config',
     'src/server/server.config',
     'src/server/server.config.ts',
 ] as const;
+
+/**
+ * The config the app wrote, as opposed to a config file the build produced.
+ * Its presence means the app meant to configure the server, which is what makes
+ * loading nothing worth reporting.
+ */
+const AUTHORED_CONFIG_PATH = 'src/server/server.config.ts';
 
 // ============================================================================
 // Types
@@ -206,9 +226,15 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
 // Configuration Loading
 // ============================================================================
 
-async function loadAndMergeConfig(config?: ServerConfig): Promise<ServerConfig>
+/**
+ * `cwd` is a parameter so a test can point at a fixture directory without
+ * moving the whole process, which the rest of the suite would notice.
+ */
+export async function loadAndMergeConfig(
+    config?: ServerConfig,
+    cwd: string = process.cwd(),
+): Promise<ServerConfig>
 {
-    const cwd = process.cwd();
     let fileConfig: ServerConfig = {};
     let loadedConfigPath: string | null = null;
 
@@ -236,6 +262,18 @@ async function loadAndMergeConfig(config?: ServerConfig): Promise<ServerConfig>
     if (loadedConfigPath)
     {
         serverLogger.debug(`Loaded configuration from ${loadedConfigPath}`);
+    }
+    else if (existsSync(join(cwd, AUTHORED_CONFIG_PATH)))
+    {
+        // The app wrote a configuration and the server is running without it.
+        // Reported at warn, because the failure is otherwise invisible: the
+        // server starts, and what is missing — middlewares, routes,
+        // infrastructure switches — only shows up as behaviour nobody asked for.
+        serverLogger.warn(
+            `⚠️  ${AUTHORED_CONFIG_PATH} exists but no configuration was loaded, so this server `
+            + 'is running on defaults: no middlewares, no routes and no infrastructure settings '
+            + 'from it. Run "spfn build" so the compiled config lands in .spfn/server/.',
+        );
     }
     else
     {

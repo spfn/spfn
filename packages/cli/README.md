@@ -165,11 +165,16 @@ if `.spfn/server`, `.spfn/prod-server.mjs`, or `.next` are missing.
 |--------|-------------|---------|
 | `--server-only` | Run only the SPFN server | off |
 | `--next-only` | Run only Next.js | off |
-| `-p, --port <port>` | SPFN server port (sets `SPFN_PORT`) | `8790` |
-| `-h, --host <host>` | SPFN server host (sets `SPFN_HOST`) | `0.0.0.0` |
+| `-p, --port <port>` | SPFN server port (sets `SPFN_PORT`) | the app's `server.config` |
+| `-h, --host <host>` | SPFN server host (sets `SPFN_HOST`) | the app's `server.config` |
 | `--allow-pending-migrations` | Start even when migrations are pending (they are listed as a warning) | off |
 
 Next.js is started on `0.0.0.0:3790`. Both run together via `concurrently --kill-others`.
+
+Neither flag has a default value, deliberately. A default is indistinguishable
+from a value the operator typed, and it was forwarded as `SPFN_PORT` either way —
+which overrode the app's own `.port()`. Pass nothing and the configuration
+decides; pass a flag and it wins.
 
 Pending migrations stop the boot unless `--allow-pending-migrations` or
 `SPFN_ALLOW_PENDING_MIGRATIONS=true` is set — see [Database](#spfn-db). `--next-only`

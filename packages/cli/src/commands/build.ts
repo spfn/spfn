@@ -17,6 +17,41 @@ interface BuildOptions
 }
 
 /**
+ * The entry `spfn start` runs in production.
+ *
+ * Exported so its content is under test rather than only under review. Both
+ * lines it carries were wrong at once and neither failed loudly: the port was
+ * read from the validated env object, which does not declare SPFN_PORT, so
+ * every production server listened on a hardcoded 8790 — examples/03-auth asks
+ * for 8890 in its own config and never got it — and a `routesPath` option was
+ * passed that @spfn/core does not read anywhere, which made the entry look like
+ * it wired up routes when the app's server.config is what actually does.
+ */
+export function renderProdServerEntry(): string
+{
+    return `// Load environment variables FIRST (before any imports that depend on them)
+// Use centralized environment loader for standard dotenv priority
+await import('@spfn/core/config');
+
+// Now import server (logger singleton will be created with correct NODE_ENV)
+const { startServer } = await import('@spfn/core/server');
+
+// Read from process.env, not the validated env object: that object carries only
+// the keys the core schema declares, and these two are not among them.
+const port = process.env.SPFN_PORT;
+const host = process.env.SPFN_HOST;
+
+// Only pass what was actually injected. A value passed unconditionally wins over
+// the app's own server.config, which is how a hardcoded default overrode it.
+await startServer({
+    ...(port ? { port: Number(port) } : {}),
+    ...(host ? { host } : {}),
+    debug: false
+});
+`;
+}
+
+/**
  * Build SPFN project for production
  */
 async function buildProject(options: BuildOptions): Promise<void>
@@ -137,6 +172,13 @@ async function buildProject(options: BuildOptions): Promise<void>
                 entry: ['src/server/**/*.ts'],
                 format: ['esm'],
                 outDir: '.spfn/server',
+
+                // Pin the extension. Left to tsup it follows the app's
+                // package.json — `.mjs` normally, `.js` under
+                // `"type": "module"` — and @spfn/core looks the compiled
+                // server.config up by name, so an app that declared that field
+                // shipped a production server running on defaults.
+                outExtension: () => ({ js: '.mjs' }),
                 clean: true,
                 splitting: false,
                 tsconfig: 'src/server/tsconfig.json',
@@ -160,29 +202,8 @@ async function buildProject(options: BuildOptions): Promise<void>
 
             // Generate production server entry point
             const prodServerPath = join(cwd, '.spfn', 'prod-server.mjs');
-            const prodServerContent = `// Load environment variables FIRST (before any imports that depend on them)
-// Use centralized environment loader for standard dotenv priority
-const { env } = await import('@spfn/core/config');
+            const prodServerContent = renderProdServerEntry();
 
-// Now import server (logger singleton will be created with correct NODE_ENV)
-const { startServer } = await import('@spfn/core/server');
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Environment variables: from .env files OR injected by container/kubernetes
-const port = env.SPFN_PORT || '8790';
-const host = env.SPFN_HOST || '0.0.0.0';
-
-await startServer({
-    port: Number(port),
-    host,
-    routesPath: join(__dirname, 'server', 'routes'),
-    debug: false
-});
-`;
             writeFileSync(prodServerPath, prodServerContent);
 
             spinner.succeed(`SPFN server build completed → .spfn/server`);

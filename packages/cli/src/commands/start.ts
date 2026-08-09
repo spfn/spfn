@@ -19,8 +19,12 @@ export const startCommand = new Command('start')
     .description('Start SPFN production server (Next.js + Hono)')
     .option('--server-only', 'Run only SPFN server (skip Next.js)')
     .option('--next-only', 'Run only Next.js (skip SPFN server)')
-    .option('-p, --port <port>', 'Server port', '8790')
-    .option('-h, --host <host>', 'Server host', '0.0.0.0')
+    // No defaults on purpose. A default here is indistinguishable from a value
+    // the operator typed, and it was forwarded as SPFN_PORT either way — which
+    // overrode whatever the app declared in its own server.config. Left unset,
+    // the app's configuration decides and these flags override it.
+    .option('-p, --port <port>', 'Server port (default: the app\'s server.config, then 4000)')
+    .option('-h, --host <host>', 'Server host (default: the app\'s server.config, then localhost)')
     .option('--allow-pending-migrations', 'Start even when migrations are pending (they are listed as a warning)')
     .action(async (options: StartOptions) =>
     {
@@ -74,9 +78,17 @@ export const startCommand = new Command('start')
             process.exit(1);
         }
 
-        // Set environment variables for port/host
-        process.env.SPFN_PORT = options.port;
-        process.env.SPFN_HOST = options.host;
+        // Forward only what was actually asked for. Setting these unconditionally
+        // is what made the app's own server.config unreachable.
+        if (options.port)
+        {
+            process.env.SPFN_PORT = options.port;
+        }
+
+        if (options.host)
+        {
+            process.env.SPFN_HOST = options.host;
+        }
 
         // Refuse a boot whose database is behind the code it is about to serve.
         // Skipped for --next-only: no SPFN server starts, so nothing can drift.
@@ -104,7 +116,10 @@ export const startCommand = new Command('start')
         // Run server only mode
         if (options.serverOnly || !hasNext)
         {
-            logger.info(`Starting SPFN Server (production) on http://${options.host}:${options.port}\n`);
+            // The address is not printed here: without the flags it is the app's
+            // server.config that decides, and this process does not read it. The
+            // server prints its own banner with the address it actually bound.
+            logger.info('Starting SPFN Server (production)\n');
 
             try
             {
@@ -152,7 +167,7 @@ export const startCommand = new Command('start')
 
         console.log(chalk.blue.bold('\n🚀 Starting SPFN production server...\n'));
         logger.info('Next.js: http://0.0.0.0:3790');
-        logger.info(`SPFN API: http://${options.host}:${options.port}\n`);
+        logger.info('SPFN API: announced by the server below\n');
 
         try
         {
