@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [@spfn/core@0.3.0-beta.3, spfn@0.3.0-beta.3, @spfn/auth@0.3.0-beta.3] - 2026-08-09
+
+세 가지 breaking change 가 함께 나간다. 배포 전에 아래 두 문서를 먼저 읽는 것이 좋다:
+
+- health 엔드포인트 이전: [`docs/guides/migration/health-endpoint.md`](docs/guides/migration/health-endpoint.md)
+- 포트·호스트 3층 정리와 `PORT`·`HOST` 제거: 아래 항목과 [`ENV_VARIABLES.md`](ENV_VARIABLES.md)
+
+가장 눈에 띄는 것은 `@spfn/auth` 의 쿠키 이름 접미사다. `PORT` 를 설정해 두던 앱은 **기존 세션이 전부 끊긴다.** 다시 로그인하면 복구되지만, 배포 시점을 고를 때 알고 있어야 한다.
+
+`spfn` CLI 는 `@spfn/core/app-config` 를 쓰므로 core 하한이 `>=0.3.0-beta.3` 으로 올랐다. 나머지 `@spfn/*` 패키지는 범위(`>=0.3.0-beta.1 <0.4.0`)가 이미 이 버전을 포함해 손대지 않았다.
+
 ### Changed
 
 #### @spfn/core
