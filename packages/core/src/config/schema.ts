@@ -339,18 +339,17 @@ export const coreEnvSchema = defineEnvSchema({
     // Server - Core
     // ========================================================================
 
-    PORT: envNumber({
-        description: 'Server port number',
-        default: 4000,
-        examples: [3000, 4000, 8080],
-    }),
-
-    HOST: envString({
-        description: 'Server hostname',
-        default: 'localhost',
-        required: false,
-        examples: ['localhost', '0.0.0.0', '127.0.0.1'],
-    }),
+    // PORT and HOST are deliberately absent.
+    //
+    // They were declared here with defaults of 4000 and 'localhost', and a
+    // schema default is indistinguishable from a value someone set — so
+    // `env.PORT` was never undefined, and the resolution order had to consult
+    // the environment last to avoid it winning every time. That is what made an
+    // injected port unreachable. The server's address now resolves through
+    // `@spfn/core/app-config`: SPFN_PORT, then spfn.config.js, then the
+    // default, with the default existing in exactly one place.
+    //
+    // `PORT` is also Next.js's own variable, and two processes are started.
 
     // ========================================================================
     // Server - Timeout

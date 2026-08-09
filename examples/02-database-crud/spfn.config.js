@@ -7,6 +7,25 @@
  */
 export default {
   /**
+   * Ports the two processes bind.
+   *
+   * This is the only place either number is written. The Dockerfile, the
+   * compose file and `spfn dev` / `spfn start` all read it, so changing a port
+   * here changes it everywhere.
+   *
+   * Overridable per environment with NEXT_PORT and SPFN_PORT.
+   */
+  ports: {
+    next: 3790,
+    server: 8790,
+  },
+
+  /**
+   * Host the SPFN API server binds. A container sets SPFN_HOST=0.0.0.0.
+   */
+  host: 'localhost',
+
+  /**
    * Package manager to use for dependency installation
    * Options: 'npm' | 'yarn' | 'pnpm' | 'bun'
    */

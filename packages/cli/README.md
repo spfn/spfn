@@ -134,9 +134,8 @@ no pre-build needed.
 |--------|-------------|---------|
 | `--server-only` | Run only the SPFN/Hono server (also auto-selected if Next.js isn't a dependency) | off |
 | `--watch` | Restart the server on `src/server` changes (chokidar) | off |
-| `-p, --port <port>` | Server port | from `server.config.ts` / env (`4000` in server-only fallback) |
-| `-H, --host <host>` | Server host | `localhost` |
-| `--routes <path>` | Routes directory path | server default |
+| `-p, --port <port>` | SPFN server port (sets `SPFN_PORT`) | `spfn.config.js` `ports.server`, then `8790` |
+| `-H, --host <host>` | SPFN server host (sets `SPFN_HOST`) | `spfn.config.js` `host`, then `localhost` |
 | `--allow-pending-migrations` | Start even when migrations are pending (they are listed as a warning) | off |
 
 Note: hot reload is **off by default** — pass `--watch` to restart on file changes.
@@ -165,16 +164,19 @@ if `.spfn/server`, `.spfn/prod-server.mjs`, or `.next` are missing.
 |--------|-------------|---------|
 | `--server-only` | Run only the SPFN server | off |
 | `--next-only` | Run only Next.js | off |
-| `-p, --port <port>` | SPFN server port (sets `SPFN_PORT`) | the app's `server.config` |
-| `-h, --host <host>` | SPFN server host (sets `SPFN_HOST`) | the app's `server.config` |
+| `-p, --port <port>` | SPFN server port (sets `SPFN_PORT`) | `spfn.config.js` `ports.server`, then `8790` |
+| `-h, --host <host>` | SPFN server host (sets `SPFN_HOST`) | `spfn.config.js` `host`, then `localhost` |
 | `--allow-pending-migrations` | Start even when migrations are pending (they are listed as a warning) | off |
 
-Next.js is started on `0.0.0.0:3790`. Both run together via `concurrently --kill-others`.
+Both run together via `concurrently --kill-others`.
 
 Neither flag has a default value, deliberately. A default is indistinguishable
 from a value the operator typed, and it was forwarded as `SPFN_PORT` either way —
-which overrode the app's own `.port()`. Pass nothing and the configuration
+which overrode the app's own configuration. Pass nothing and `spfn.config.js`
 decides; pass a flag and it wins.
+
+Next.js is started on the port `spfn.config.js` gives as `ports.next` (`3790` by
+default), overridable with `NEXT_PORT`.
 
 Pending migrations stop the boot unless `--allow-pending-migrations` or
 `SPFN_ALLOW_PENDING_MIGRATIONS=true` is set — see [Database](#spfn-db). `--next-only`

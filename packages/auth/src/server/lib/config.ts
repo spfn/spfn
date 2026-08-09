@@ -9,12 +9,17 @@ import { env } from '@spfn/auth/config';
 import type { SocialProvider } from '../types';
 
 /**
- * Cookie name suffix derived from PORT to isolate sessions across
- * multiple local dev instances running on the same domain (localhost).
+ * Cookie name suffix derived from the server port, so several local dev
+ * instances on the same domain do not overwrite each other's sessions.
+ *
+ * BREAKING: this read `PORT`, which no longer exists — the framework's port is
+ * `SPFN_PORT`, because `PORT` is Next.js's own variable and two processes are
+ * started. An app that had `PORT` set gets different cookie names than before
+ * and its existing sessions stop resolving; one sign-in fixes it.
  */
 function getCookieSuffix(): string
 {
-    const port = process.env.PORT;
+    const port = process.env.SPFN_PORT;
 
     return port ? `_${port}` : '';
 }

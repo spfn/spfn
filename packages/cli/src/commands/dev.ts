@@ -6,6 +6,7 @@ import chokidar from 'chokidar';
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
 import { resolveKeychainEnv } from '../utils/secret-store/index.js';
+import { loadAppConfig, resolvePorts, resolveHost } from '@spfn/core/app-config';
 
 /**
  * Chokidar `ignored` that skips dotfiles by path segments relative to the watch
@@ -57,7 +58,6 @@ export const devCommand = new Command('dev')
     .description('Start SPFN development server (detects and runs Next.js + Hono)')
     .option('-p, --port <port>', 'Server port')
     .option('-H, --host <host>', 'Server host')
-    .option('--routes <path>', 'Routes directory path')
     .option('--server-only', 'Run only Hono server (skip Next.js)')
     .option('--watch', 'Enable hot reload (watch mode)')
     .option('--allow-pending-migrations', 'Start even when migrations are pending (they are listed as a warning)')
@@ -76,6 +76,23 @@ export const devCommand = new Command('dev')
 
         const cwd = process.cwd();
         const serverDir = join(cwd, 'src', 'server');
+
+        // One resolution for both processes: SPFN_PORT / NEXT_PORT, then
+        // spfn.config.js, then the default. A flag on this command sits above
+        // all of it by writing the environment variable the chain reads first.
+        if (options.port)
+        {
+            process.env.SPFN_PORT = String(options.port);
+        }
+
+        if (options.host)
+        {
+            process.env.SPFN_HOST = String(options.host);
+        }
+
+        const appConfig = await loadAppConfig(cwd);
+        const { next: nextPort, server: serverPort } = resolvePorts(appConfig);
+        const serverHost = resolveHost(appConfig);
 
         // Check if src/server exists
         if (!existsSync(serverDir))
@@ -155,12 +172,10 @@ export const devCommand = new Command('dev')
             unlinkSync(readySignal);
         }
 
-        // Server entry
-        const configParts: string[] = [];
-        if (options.port) configParts.push(`port: ${options.port}`);
-        if (options.host) configParts.push(`host: '${options.host}'`);
-        if (options.routes) configParts.push(`routesPath: '${options.routes}'`);
-        configParts.push('debug: true');
+        // Server entry. No address here: the flags were already written into
+        // SPFN_PORT / SPFN_HOST above, and startServer resolves the chain
+        // itself. An address baked in here would be a layer above all of it.
+        const configParts: string[] = ['debug: true'];
 
         const readyFile = join(tempDir, 'server-ready');
         writeFileSync(serverEntry, `
@@ -240,9 +255,7 @@ catch (error)
         if (options.serverOnly || !hasNext)
         {
             const watchMode = options.watch === true;
-            const host = options.host ?? process.env.HOST ?? 'localhost';
-            const port = options.port ?? process.env.PORT ?? '4000';
-            logger.info(`Starting SPFN Server on http://${host}:${port}${watchMode ? ' (watch mode)' : ''}\n`);
+            logger.info(`Starting SPFN Server on http://${serverHost}:${serverPort}${watchMode ? ' (watch mode)' : ''}\n`);
 
             let serverProcess: ExecaChildProcess | null = null;
             let watcherProcess: ExecaChildProcess | null = null;
@@ -425,9 +438,11 @@ catch (error)
         const startNext = () =>
         {
             const nextCmd = pm === 'npm' ? 'npm' : pm;
-            const nextArgs = pm === 'npm'
-                ? ['run', 'spfn:next']
-                : ['run', 'spfn:next'];
+
+            // The port is passed through rather than baked into the script, so
+            // spfn.config.js is the only place the number appears. `--` hands the
+            // flag to next itself instead of to the package manager.
+            const nextArgs = ['run', 'spfn:next', '--', '--port', String(nextPort)];
 
             nextProcess = execa(nextCmd, nextArgs, {
                 cwd,

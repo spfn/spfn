@@ -24,12 +24,15 @@ RUN pnpm prune --prod
 # Environment
 ENV NODE_ENV=production
 
-# Expose ports
-EXPOSE 3790 8890
+# Expose ports. Docker cannot read spfn.config.js, so these two numbers are the
+# one place they are repeated — keep them in step with `ports` in that file, or
+# set NEXT_PORT / SPFN_PORT here and in the compose file instead.
+EXPOSE 3890 8890
 
-# Health check
+# Health check. Falls back to the same default the framework uses, so setting
+# SPFN_PORT alone moves both the server and its probe.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8890/_core/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+  CMD node -e "require('http').get('http://localhost:'+(process.env.SPFN_PORT||8890)+'/_core/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start application
 CMD ["pnpm", "run", "spfn:start"]

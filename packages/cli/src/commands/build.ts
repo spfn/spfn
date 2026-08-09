@@ -19,13 +19,14 @@ interface BuildOptions
 /**
  * The entry `spfn start` runs in production.
  *
- * Exported so its content is under test rather than only under review. Both
- * lines it carries were wrong at once and neither failed loudly: the port was
- * read from the validated env object, which does not declare SPFN_PORT, so
- * every production server listened on a hardcoded 8790 — examples/03-auth asks
- * for 8890 in its own config and never got it — and a `routesPath` option was
- * passed that @spfn/core does not read anywhere, which made the entry look like
- * it wired up routes when the app's server.config is what actually does.
+ * It decides nothing about the address any more. `startServer` resolves that
+ * through `@spfn/core/app-config` — SPFN_PORT, then spfn.config.js, then the
+ * default — and an entry that computed a value of its own would be a fourth
+ * layer sitting above all of them, which is exactly how a hardcoded 8790 came
+ * to override `examples/03-auth` asking for 8890.
+ *
+ * Exported so its content is under test rather than only under review: this is
+ * generated text, so nothing type-checks it.
  */
 export function renderProdServerEntry(): string
 {
@@ -36,18 +37,9 @@ await import('@spfn/core/config');
 // Now import server (logger singleton will be created with correct NODE_ENV)
 const { startServer } = await import('@spfn/core/server');
 
-// Read from process.env, not the validated env object: that object carries only
-// the keys the core schema declares, and these two are not among them.
-const port = process.env.SPFN_PORT;
-const host = process.env.SPFN_HOST;
-
-// Only pass what was actually injected. A value passed unconditionally wins over
-// the app's own server.config, which is how a hardcoded default overrode it.
-await startServer({
-    ...(port ? { port: Number(port) } : {}),
-    ...(host ? { host } : {}),
-    debug: false
-});
+// No address here on purpose: SPFN_PORT / SPFN_HOST and spfn.config.js decide,
+// and startServer reads both.
+await startServer({ debug: false });
 `;
 }
 

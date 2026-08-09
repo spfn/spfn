@@ -5,6 +5,7 @@ import { execa } from 'execa';
 import chalk from 'chalk';
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
+import { loadAppConfig, resolvePorts } from '@spfn/core/app-config';
 
 interface StartOptions
 {
@@ -21,10 +22,10 @@ export const startCommand = new Command('start')
     .option('--next-only', 'Run only Next.js (skip SPFN server)')
     // No defaults on purpose. A default here is indistinguishable from a value
     // the operator typed, and it was forwarded as SPFN_PORT either way — which
-    // overrode whatever the app declared in its own server.config. Left unset,
-    // the app's configuration decides and these flags override it.
-    .option('-p, --port <port>', 'Server port (default: the app\'s server.config, then 4000)')
-    .option('-h, --host <host>', 'Server host (default: the app\'s server.config, then localhost)')
+    // overrode whatever the app declared for itself. Left unset, spfn.config.js
+    // decides and these flags override it.
+    .option('-p, --port <port>', 'SPFN server port (default: spfn.config.js ports.server, then 8790)')
+    .option('-h, --host <host>', 'SPFN server host (default: spfn.config.js host, then localhost)')
     .option('--allow-pending-migrations', 'Start even when migrations are pending (they are listed as a warning)')
     .action(async (options: StartOptions) =>
     {
@@ -79,7 +80,7 @@ export const startCommand = new Command('start')
         }
 
         // Forward only what was actually asked for. Setting these unconditionally
-        // is what made the app's own server.config unreachable.
+        // is what made spfn.config.js unreachable.
         if (options.port)
         {
             process.env.SPFN_PORT = options.port;
@@ -89,6 +90,11 @@ export const startCommand = new Command('start')
         {
             process.env.SPFN_HOST = options.host;
         }
+
+        // The Next.js port comes from the same three layers. Next reads `PORT`
+        // as its own, so it is handed the resolved value as a flag rather than
+        // left to find one.
+        const nextPort = resolvePorts(await loadAppConfig(cwd)).next;
 
         // Refuse a boot whose database is behind the code it is about to serve.
         // Skipped for --next-only: no SPFN server starts, so nothing can drift.
@@ -116,9 +122,7 @@ export const startCommand = new Command('start')
         // Run server only mode
         if (options.serverOnly || !hasNext)
         {
-            // The address is not printed here: without the flags it is the app's
-            // server.config that decides, and this process does not read it. The
-            // server prints its own banner with the address it actually bound.
+            // The server prints its own banner with the address it bound.
             logger.info('Starting SPFN Server (production)\n');
 
             try
@@ -141,11 +145,11 @@ export const startCommand = new Command('start')
         // Run Next.js only mode
         if (options.nextOnly)
         {
-            logger.info('Starting Next.js (production) on http://0.0.0.0:3790\n');
+            logger.info(`Starting Next.js (production) on http://0.0.0.0:${nextPort}\n`);
 
             try
             {
-                await execa('npx', ['next', 'start', '-H', '0.0.0.0', '-p', '3790'], {
+                await execa('npx', ['next', 'start', '-H', '0.0.0.0', '-p', String(nextPort)], {
                     stdio: 'inherit',
                     cwd,
                 });
@@ -162,11 +166,11 @@ export const startCommand = new Command('start')
         // Run both Next.js + Hono server.
         // Each command is a single argv element for concurrently, which spawns it
         // through its own shell — quote the path so spaces in cwd survive.
-        const nextCmd = 'next start -H 0.0.0.0 -p 3790';
+        const nextCmd = `next start -H 0.0.0.0 -p ${nextPort}`;
         const serverCmd = `node "${serverEntry}"`;
 
         console.log(chalk.blue.bold('\n🚀 Starting SPFN production server...\n'));
-        logger.info('Next.js: http://0.0.0.0:3790');
+        logger.info(`Next.js: http://0.0.0.0:${nextPort}`);
         logger.info('SPFN API: announced by the server below\n');
 
         try

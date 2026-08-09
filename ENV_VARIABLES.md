@@ -284,31 +284,39 @@ directly from `process.env` in `packages/core/src/cache/cache-factory.ts`.
 - **Type**: `string` | `number`
 - **Required**: No
 - **Default**: none — unset, the app's own `server.config` decides
-- **Description**: Overrides the port for the production server entry point that `spfn build` generates. Read from `process.env`, not from the validated `env` object, because the core schema does not declare this key. Left unset it is not passed at all, so `server.config` and then `PORT` decide.
+- **Description**: Overrides the SPFN API server's port. Left unset, `spfn.config.js` `ports.server` decides, then the `8790` default. Read from `process.env` — the core env schema does not declare it, on purpose.
 - **Example**: `8791`
-- **Location**: `renderProdServerEntry()` in `packages/cli/src/commands/build.ts`; `spfn start --port` writes it in `packages/cli/src/commands/start.ts`
+- **Location**: `packages/core/src/app-config/index.ts`; `spfn dev --port` / `spfn start --port` write it
 
 ### `SPFN_HOST`
 - **Type**: `string`
 - **Required**: No
 - **Default**: none — unset, the app's own `server.config` decides
-- **Description**: Overrides the host for the generated production server entry point. Same rules as `SPFN_PORT`.
+- **Description**: Overrides the SPFN API server's host. Left unset, `spfn.config.js` `host` decides, then `localhost`. A container sets `0.0.0.0`.
 - **Example**: `localhost`, `0.0.0.0`
-- **Location**: `renderProdServerEntry()` in `packages/cli/src/commands/build.ts`; `spfn start --host` writes it in `packages/cli/src/commands/start.ts`
+- **Location**: `packages/core/src/app-config/index.ts`; `spfn dev --host` / `spfn start --host` write it
 
-### `PORT`
-- **Type**: `number`
+### `NEXT_PORT`
+- **Type**: `string` | `number`
 - **Required**: No
-- **Default**: `4000`
-- **Description**: Port used by `startServer()` when neither the call argument nor the config file sets one. `spfn dev` reads it with its own fallback of `4000`.
-- **Location**: `packages/core/src/config/schema.ts:332`, read at `packages/core/src/server/start-server.ts:242`
+- **Default**: none — unset, `spfn.config.js` `ports.next` decides, then `3790`
+- **Description**: Overrides the Next.js frontend's port. The CLI hands the resolved value to `next` as `-p`, so Next never has to find one of its own.
+- **Example**: `3900`
+- **Location**: `packages/core/src/app-config/index.ts`; passed through by `spfn dev` and `spfn start`
 
-### `HOST`
-- **Type**: `string`
-- **Required**: No
-- **Default**: `localhost`
-- **Description**: Host used by `startServer()` when neither the call argument nor the config file sets one
-- **Location**: `packages/core/src/config/schema.ts:338`, read at `packages/core/src/server/start-server.ts:243`
+### `PORT` / `HOST` — removed
+
+No longer read by anything. They were declared in the core env schema with
+defaults of `4000` and `localhost`, and a schema default is indistinguishable
+from a value someone set, so `env.PORT` was never undefined and the environment
+had to be consulted last. Use `SPFN_PORT` / `SPFN_HOST`, or `spfn.config.js`.
+
+`PORT` is also Next.js's own variable, which is the second reason the framework
+does not claim it.
+
+`@spfn/auth` derived its cookie-name suffix from `PORT` and now uses `SPFN_PORT`
+— an app that had `PORT` set gets different cookie names and one sign-in restores
+the session.
 
 ### Timeouts, proxy trust, rate limiting
 
@@ -397,22 +405,29 @@ NEXT_PUBLIC_SPFN_API_URL
 
 ### Server Port / Host Resolution
 
-One chain, whichever way the server is started. `SPFN_PORT` and `SPFN_HOST` are
-the entry point's overrides, and when they are unset the entry passes nothing,
-so the app's own `server.config` is what decides.
+Three layers, and the same three whichever way the server is started.
 
 ```
-SPFN_PORT > server.config .port() > PORT > 4000
-SPFN_HOST > server.config .host() > HOST > localhost
+SPFN_PORT > spfn.config.js ports.server > 8790
+NEXT_PORT > spfn.config.js ports.next   > 3790
+SPFN_HOST > spfn.config.js host         > localhost
 ```
 
-`spfn start --port` / `--host` write `SPFN_PORT` / `SPFN_HOST`, so a flag sits at
-the top of that chain. Passing no flag now leaves the app's configuration in
-charge — the entry used to pass a hardcoded `8790` unconditionally, which
-overrode it (`examples/03-auth` asks for `8890` and never got it).
+Each default exists in exactly one place, `packages/core/src/app-config`. That is
+the point of the shape: a default declared at an input layer — a CLI option, a
+generated entry file, an env schema — cannot be told apart from a value someone
+supplied, so it silently outranks everything below it. Three separate defects
+came from that, including an env schema default that forced the environment to be
+consulted last and made an injected port unreachable.
 
-Every scaffolded app writes `.port(8790)` into its `server.config`, so `PORT` and
-the `4000` default are only reached by an app that deleted that line.
+`spfn dev --port` / `spfn start --port` write `SPFN_PORT`, so a flag sits at the
+top of the chain by joining it rather than bypassing it.
+
+Two names because two processes are started, and Next.js reads `PORT` as its own.
+`PORT` and `HOST` are no longer part of the core env schema.
+
+`ServerConfig.port()` / `.host()` are deprecated. They still work for one release,
+sitting between `spfn.config.js` and the default, and warn at boot.
 
 ### Cache Mode Detection
 

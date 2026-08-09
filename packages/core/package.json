@@ -99,6 +99,11 @@
             "import": "./dist/config/index.js",
             "require": "./dist/config/index.js"
         },
+        "./app-config": {
+            "types": "./dist/app-config/index.d.ts",
+            "import": "./dist/app-config/index.js",
+            "require": "./dist/app-config/index.js"
+        },
         "./job": {
             "types": "./dist/job/index.d.ts",
             "import": "./dist/job/index.js",

@@ -26,6 +26,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `RequestLogger` 기본 `excludePaths` 에 `/_core/health` 를 넣었다. 없으면 probe 주기마다 로그 한 줄이 쌓인다.
   - 부팅 배너가 답하는 경로를 함께 보고한다(`healthCheck.corePath`, 설정 시 `healthCheck.path`).
   - 예제 02·03 과 CLI 스캐폴드의 Dockerfile `HEALTHCHECK`, root 응답 안내가 `/_core/health` 를 가리킨다.
+#### @spfn/core · spfn (CLI) · @spfn/auth
+
+- **BREAKING: 포트·호스트 설정이 3층으로 정리됐다** — 환경변수 · `spfn.config.js` · 기본값. 그 이상은 없다.
+
+  ```
+  SPFN_PORT > spfn.config.js ports.server > 8790
+  NEXT_PORT > spfn.config.js ports.next   > 3790
+  SPFN_HOST > spfn.config.js host         > localhost
+  ```
+
+  기본값은 `@spfn/core/app-config` 한 곳에만 존재한다. 이게 이 형태의 핵심이다. 입력 층(CLI 옵션·생성된 엔트리·env 스키마)에 둔 기본값은 누가 실제로 준 값과 구분되지 않아 아래 층을 조용히 덮는다. 이 저장소에서 그 원인으로 결함 3개가 나왔다.
+
+  - **`PORT`·`HOST` 를 core env 스키마에서 제거.** 기본값 4000·localhost 때문에 `env.PORT` 가 절대 undefined 가 아니었고, 그래서 해석 순서에서 환경변수를 맨 뒤에 둘 수밖에 없었다. 주입된 포트가 닿지 못한 이유가 이것이다. `PORT` 는 Next.js 자신의 변수이기도 하다.
+  - **이름이 2개인 이유**: 프로세스가 2개다. `NEXT_PORT` 는 Next.js, `SPFN_PORT` 는 SPFN API 서버.
+  - **`spfn.config.js` 를 실제로 읽는다.** `spfn init` 이 만들어 커밋해 왔지만 지금까지 아무도 읽지 않던 파일이다. 두 포트가 한 곳에 나란히 있으므로, 앱이 포트를 바꿀 때 고칠 곳이 한 군데다. 그 전에는 `examples/03-auth` 가 같은 숫자를 7개 파일에 적어두고 손으로 맞췄다.
+  - **`ServerConfig.port()`·`.host()` 폐기.** 한 릴리스 동안 `spfn.config.js` 와 기본값 사이에서 계속 동작하고, 부팅 시 경고한다.
+  - **`spfn dev --routes` 제거** — `@spfn/core` 가 읽지 않던 죽은 옵션.
+  - **`@spfn/auth` 의 쿠키 이름 접미사가 `PORT` 대신 `SPFN_PORT` 를 쓴다.** `PORT` 를 설정해 두던 앱은 쿠키 이름이 바뀌어 **기존 세션이 끊긴다.** 다시 로그인하면 된다.
+  - 스캐폴드 `Dockerfile` 의 HEALTHCHECK 와 compose 의 포트 매핑이 `SPFN_PORT`·`NEXT_PORT` 를 따른다. Docker 는 `spfn.config.js` 를 읽지 못하므로 두 파일만 같은 기본값을 예비로 갖는다.
+  - **`examples/03-auth` 의 Next 포트 불일치 수정.** `spfn.config.js` 는 `ports.next: 3890` 인데 Dockerfile 은 3790 을 열고 compose 도 3790 을 매핑하고 있었다. `spfn start` 가 이제 선언된 값을 넘기므로, 컨테이너 안에서는 3890 에 뜨고 밖으로 열린 것은 3790 이라 프로덕션 compose 로 띄우면 프론트엔드에 닿을 수 없었다. Docker 가 읽지 못하는 숫자가 어긋나도 부팅은 성공하는 종류의 결함이라, 파일 간 숫자를 직접 비교하는 검사(`app-config/__tests__/deployment-files-agree.test.ts`)로 고정했다. 스캐폴드가 만드는 `spfn.config.js` 도 같은 검사가 덮는다.
+  - **`spfn.config.js` 를 불러오지 못하면 경고한다.** 있는데 import 가 실패하는 것은 오타이지 부재가 아니다. 조용히 기본값으로 떨어지면 앱이 지정한 포트 대신 8790 에 뜨고, 증상은 아무도 고르지 않은 포트 하나뿐이다. 부팅은 여전히 막지 않는다.
 
 #### @spfn/core · spfn (CLI)
 

@@ -20,6 +20,7 @@ import { serverLogger } from './logger';
 import { printBanner } from './banner';
 import { createServer } from './create-server';
 import { loadEnv } from '../env/loader';
+import { loadAppConfig, resolveServerAddress } from '../app-config';
 import {
     applyServerTimeouts,
     applyGlobalFetchTimeouts,
@@ -280,12 +281,47 @@ export async function loadAndMergeConfig(
         serverLogger.debug('No configuration file found, using defaults');
     }
 
+    const appConfig = await loadAppConfig(cwd);
+
+    warnOnDeprecatedAddress(config, fileConfig);
+
+    // Three layers and no more: environment, spfn.config.js, default. The
+    // deprecated `.port()` / `.host()` sit between the file and the default
+    // until they are removed, so an app that has not moved yet keeps its
+    // address.
+    const address = resolveServerAddress(appConfig, {
+        port: config?.port ?? fileConfig?.port,
+        host: config?.host ?? fileConfig?.host,
+    });
+
     return {
         ...fileConfig,
         ...config,
-        port: config?.port ?? fileConfig?.port ?? env.PORT,
-        host: config?.host ?? fileConfig?.host ?? env.HOST,
+        port: address.port,
+        host: address.host,
     };
+}
+
+/**
+ * `.port()` and `.host()` moved to `spfn.config.js`, where both ports sit side
+ * by side and every deployment file can read them. They keep working for one
+ * release; this is the only notice an app gets.
+ */
+function warnOnDeprecatedAddress(config?: ServerConfig, fileConfig?: ServerConfig): void
+{
+    const used = [
+        (config?.port ?? fileConfig?.port) !== undefined ? '.port()' : null,
+        (config?.host ?? fileConfig?.host) !== undefined ? '.host()' : null,
+    ].filter(Boolean);
+
+    if (used.length > 0)
+    {
+        serverLogger.warn(
+            `⚠️  ${used.join(' and ')} in server.config is deprecated and will be removed. `
+            + 'Move the address to spfn.config.js — `ports: { next, server }` and `host` — '
+            + 'so the Dockerfile, the compose file and next.config can read the same value.',
+        );
+    }
 }
 
 // ============================================================================

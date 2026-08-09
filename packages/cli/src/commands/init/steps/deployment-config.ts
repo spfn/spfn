@@ -28,11 +28,33 @@ export async function setupDeploymentConfig(
             const configContent = `/**
  * SPFN Configuration
  *
- * This file configures your SPFN application deployment settings.
+ * This file describes how your app is served and deployed. It is committed, so
+ * keep secrets out of it.
  *
  * @type {import('spfn').SpfnConfig}
  */
 export default {
+  /**
+   * Ports the two processes bind.
+   *
+   * This is the only place either number is written. The Dockerfile, the
+   * compose file and \`spfn dev\` / \`spfn start\` all read it, so changing a
+   * port here changes it everywhere.
+   *
+   * Overridable per environment with NEXT_PORT and SPFN_PORT — a container
+   * setting one of those wins over what is written here.
+   */
+  ports: {
+    next: 3790,
+    server: 8790,
+  },
+
+  /**
+   * Host the SPFN API server binds. A container sets SPFN_HOST=0.0.0.0; a
+   * developer machine has no reason to publish its dev server to the network.
+   */
+  host: 'localhost',
+
   /**
    * Package manager to use for dependency installation
    * Options: 'npm' | 'yarn' | 'pnpm' | 'bun'

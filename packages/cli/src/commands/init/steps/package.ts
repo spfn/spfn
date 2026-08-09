@@ -93,7 +93,9 @@ export async function setupPackageJson(
     }
     packageJson.scripts['spfn:dev'] = 'spfn dev';
     packageJson.scripts['spfn:server'] = 'spfn dev --server-only';
-    packageJson.scripts['spfn:next'] = 'next dev --turbo --port 3790';
+    // No port here: `spfn dev` passes the resolved one, so spfn.config.js stays
+    // the only place the number is written.
+    packageJson.scripts['spfn:next'] = 'next dev --turbo';
     packageJson.scripts['spfn:start'] = 'spfn start';
     packageJson.scripts['spfn:build'] = 'spfn build';
     packageJson.scripts['codegen'] = 'spfn codegen run';

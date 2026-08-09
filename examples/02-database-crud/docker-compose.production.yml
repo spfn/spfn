@@ -22,13 +22,20 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3790:3790"  # Next.js
-      - "8790:8790"  # SPFN API
+      - "${NEXT_PORT:-3790}:${NEXT_PORT:-3790}"  # Next.js
+      - "${SPFN_PORT:-8790}:${SPFN_PORT:-8790}"  # SPFN API
     environment:
       # Required: Set these via .env file or environment
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - NODE_ENV=production
+      # Ports: leave unset and spfn.config.js decides. Set either one to
+      # override it for this deployment — the mapping above follows.
+      - NEXT_PORT=${NEXT_PORT:-}
+      - SPFN_PORT=${SPFN_PORT:-}
+      # A container has to bind every interface; a developer machine does not,
+      # which is why localhost is the default and this line is here.
+      - SPFN_HOST=0.0.0.0
       # Optional: Frontend API URL
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8790}
     restart: unless-stopped

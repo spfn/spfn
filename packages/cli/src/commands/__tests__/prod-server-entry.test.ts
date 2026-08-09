@@ -13,23 +13,23 @@ const entry = renderProdServerEntry();
 
 describe('production server entry', () =>
 {
-    it('reads the port from process.env, not the validated env object', () =>
+    it('decides no address of its own', () =>
     {
-        // env.SPFN_PORT is always undefined: the core env schema does not
-        // declare that key, so reading it there pinned the port to a default.
-        expect(entry).toContain('process.env.SPFN_PORT');
-        expect(entry).not.toMatch(/(?<!process\.)env\.SPFN_PORT/);
+        // Any value computed here would be a fourth layer above SPFN_PORT,
+        // spfn.config.js and the default — which is how a hardcoded 8790 came
+        // to override an app asking for 8890. Comments may name the variables;
+        // what must not appear is a read of them.
+        const code = entry.split('\n').filter(line => !line.trimStart().startsWith('//')).join('\n');
+
+        expect(code).not.toContain('process.env');
+        expect(code).not.toMatch(/\bport\b/);
+        expect(code).not.toMatch(/\bhost\b/);
     });
 
-    it('reads the host from process.env for the same reason', () =>
-    {
-        expect(entry).toContain('process.env.SPFN_HOST');
-        expect(entry).not.toMatch(/(?<!process\.)env\.SPFN_HOST/);
-    });
-
-    it('hardcodes no port, so the app\'s own server.config decides', () =>
+    it('hardcodes no port number', () =>
     {
         expect(entry).not.toContain('8790');
+        expect(entry).not.toContain('3790');
     });
 
     it('passes no routesPath — @spfn/core does not read one', () =>

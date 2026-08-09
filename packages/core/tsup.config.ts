@@ -20,6 +20,7 @@ export default defineConfig({
         'env/loader': 'src/env/loader.ts',
         'logger/index': 'src/logger/index.ts',
         'config/index': 'src/config/index.ts',
+        'app-config/index': 'src/app-config/index.ts',
         'job/index': 'src/job/index.ts',
         'event/index': 'src/event/index.ts',
         'event/sse/index': 'src/event/sse/index.ts',

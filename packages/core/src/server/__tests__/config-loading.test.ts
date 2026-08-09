@@ -124,7 +124,7 @@ describe('reporting a configuration that was authored but not loaded', () =>
         const config = await loadAndMergeConfig(undefined, fixture);
 
         expect(config.port).toBe(4325);
-        expect(warn).not.toHaveBeenCalled();
+        expect(warningsAbout(warn, 'running on defaults')).toHaveLength(0);
     });
 
     it('stays quiet for an app that authored no configuration at all', async () =>
@@ -136,3 +136,54 @@ describe('reporting a configuration that was authored but not loaded', () =>
         expect(warn).not.toHaveBeenCalled();
     });
 });
+
+describe('reporting an address that moved to spfn.config.js', () =>
+{
+    it('warns once when a config still carries .port() or .host()', async () =>
+    {
+        const warn = vi.spyOn(serverLogger, 'warn').mockImplementation(() => undefined);
+
+        writeCompiledConfig(
+            'server.config.mjs',
+            "export default { port: 4326, host: '0.0.0.0' };",
+        );
+
+        const config = await loadAndMergeConfig(undefined, fixture);
+
+        // Still honoured — deprecated means one more release, not removed.
+        expect(config.port).toBe(4326);
+        expect(config.host).toBe('0.0.0.0');
+
+        const deprecations = warningsAbout(warn, 'deprecated');
+
+        expect(deprecations).toHaveLength(1);
+        expect(deprecations[0]).toContain('.port() and .host()');
+        expect(deprecations[0]).toContain('spfn.config.js');
+    });
+
+    it('says nothing to an app that carries no address at all', async () =>
+    {
+        const warn = vi.spyOn(serverLogger, 'warn').mockImplementation(() => undefined);
+
+        writeCompiledConfig('server.config.mjs', 'export default { debug: true };');
+
+        await loadAndMergeConfig(undefined, fixture);
+
+        expect(warningsAbout(warn, 'deprecated')).toHaveLength(0);
+    });
+});
+
+/**
+ * Structural, not `ReturnType<typeof vi.spyOn>`: that type carries a construct
+ * signature the logger's overloaded `warn` does not satisfy, so every call site
+ * failed to type-check. All this needs is the recorded arguments.
+ */
+function warningsAbout(
+    warn: { mock: { calls: unknown[][] } },
+    fragment: string,
+): string[]
+{
+    return warn.mock.calls
+        .map(call => String(call[0]))
+        .filter(message => message.includes(fragment));
+}
