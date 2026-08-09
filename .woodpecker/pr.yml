@@ -26,6 +26,35 @@ when:
 steps:
     verify:
         image: node:22
+        # Without this block a step pod carries no resource request at all, which
+        # in Kubernetes is BestEffort: last in line for CPU under contention and
+        # first to be killed when the node runs short of memory. Both failure
+        # modes were observed on the same commit — one run had the website's
+        # static export time out page after page at its 60s limit, the next died
+        # mid-build with no error written at all. The same build takes 28s on a
+        # laptop. Nothing about the code was slow; the pod was simply not asking
+        # for anything.
+        #
+        # `role: build` is the dedicated build pool (c7g.xlarge, 4 vCPU / 8GB,
+        # one on-demand node always up and spot nodes above it). It is tainted,
+        # so the toleration is required alongside the selector — a selector on
+        # its own leaves the pod unschedulable.
+        backend_options: &build_pod
+            kubernetes:
+                resources:
+                    requests:
+                        cpu: "2"
+                        memory: "4Gi"
+                    limits:
+                        cpu: "4"
+                        memory: "7Gi"
+                nodeSelector:
+                    role: build
+                tolerations:
+                    - key: "role"
+                      operator: "Equal"
+                      value: "build"
+                      effect: "NoSchedule"
         commands:
             - corepack enable
             - pnpm install --frozen-lockfile
@@ -55,6 +84,11 @@ steps:
 
     test:
         image: node:22
+        # Same pod shape as `verify`. This step needs the memory just as much:
+        # it runs PostgreSQL and four Redis instances beside the suite, all inside
+        # the pod, so a BestEffort pod would be killed with the databases counted
+        # against it.
+        backend_options: *build_pod
         commands:
             # PostgreSQL and Redis live inside this step's own container rather
             # than in Woodpecker `services`, and the reason is in the tests: the

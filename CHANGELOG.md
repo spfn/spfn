@@ -70,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### 저장소
 
+- **PR 게이트의 파드가 자원을 아무것도 요청하지 않고 있었다** — Woodpecker 는 Kubernetes 백엔드로 돌고, 에이전트 설정에도 `.woodpecker/pr.yml` 에도 스텝 파드의 요청·한도가 없었다. Kubernetes 에서 그것은 BestEffort 등급이다. 경합하면 CPU 를 최소한만 받고, 노드 메모리가 모자라면 가장 먼저 종료된다. 같은 커밋에서 두 증상이 다 나왔다 — 한 번은 website 정적 생성이 페이지마다 60초 제한을 넘겨 실패했고, 다음 실행은 오류 한 줄 없이 빌드 도중 죽었다. 같은 빌드가 노트북에서는 28초다. 느린 코드가 있었던 게 아니라 파드가 아무것도 요구하지 않았다. 두 스텝에 요청 `cpu 2`·`memory 4Gi`, 한도 `cpu 4`·`memory 7Gi` 를 주고 전용 빌드 노드풀(`role: build`, taint 가 있어 toleration 도 함께)로 보낸다. 통과했던 초기 실행들은 노드가 한가했던 것뿐이라 운에 기대고 있었다.
+
 - **예제 01·02 의 `.env.local.example` 이 커밋되지 않고 있었다** — 각 예제의 `.gitignore` 가 `.env*` 를 걸어두고 예외를 주지 않았다(`examples/01-minimal-api/.gitignore:22`, `examples/02-database-crud/.gitignore:37`). 예제 03 만 `!.env.local.example` 예외가 있었다. 그래서 저장소를 클론한 채택자는 두 예제의 env 템플릿을 받지 못했고, "`*.example` env 파일만 커밋된다" 는 규칙이 두 예제에서 지켜지지 않았다. 두 템플릿에는 localhost 자리표시자만 들어 있다.
 - **`pnpm type-check` 가 main 에서 에러로 끝났다** — `turbo.json` 에 `type-check` 태스크 선언이 없어 `Could not find task 'type-check' in project` 로 실패했다. AGENTS.md 가 안내하는 명령이다. 선언을 추가했다.
 
