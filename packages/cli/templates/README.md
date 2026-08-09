@@ -71,13 +71,28 @@ Next.js interceptor, `/login` starter UI, OAuth callback, and route map are alre
 Edit `src/i18n/catalogs.ts` to add application-owned messages. Server components
 and handlers can import `getT` or `getClientMessages` from `@/i18n/server`.
 
-## Agent operations with MCP
+## Operations from the terminal
 
-The SPFN API serves MCP at `http://localhost:8790/mcp`. Connect with the Bearer
-token stored as `SPFN_MCP_API_KEY` in `.env.server`, then replace the starter
-`app_status` tool in `src/server/mcp.ts` with operations from your domain layer.
-Before third-party access, replace the generated operator-key validator with your
-OAuth access-token validator and scope each tool to the resolved operator.
+Operating this app needs no admin dashboard. Ops routes live in
+`src/server/routes/ops.ts`, are written like any other route, and the `spfn ops`
+CLI discovers them from the running server:
+
+```bash
+# 1. Seed an administrator: uncomment SPFN_AUTH_ADMIN_ACCOUNTS in .env.server,
+#    then restart the server so the account is created.
+
+# 2. Issue a token for this machine (stored in the OS keychain on macOS)
+{{pmExec}} spfn ops token issue --name laptop --scopes 'example:read'
+
+# 3. Run the app's own operations
+{{pmExec}} spfn ops list --app http://localhost:8790
+{{pmExec}} spfn ops call countExamples --app http://localhost:8790
+{{pmExec}} spfn ops call listRecentExamples --describe   # usage from the route's schema
+```
+
+Tokens are scoped and revocable (`spfn ops token list` / `revoke`). Add your own
+commands by exporting more `opsRoute` handlers and passing them to
+`createOpsRouter` — no CLI change is needed, the manifest carries them.
 <!-- {{/auth}} -->
 
 ## Deployment

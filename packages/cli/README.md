@@ -2,7 +2,7 @@
 
 `spfn` takes a Next.js idea from prototype to production with a consistent full-stack
 architecture. It can scaffold either a core-only backend or a production baseline with
-authentication, internationalization, and an agent-facing MCP endpoint, then runs the
+authentication, internationalization, and a terminal operations surface, then runs the
 dev/build/start lifecycle, database tooling, RPC codegen, and environment validation.
 
 Consistent is the point rather than a nicety: what it scaffolds is one fixed shape per
@@ -31,7 +31,7 @@ is not supported — see [the root README](../../README.md#what-do-i-need-instal
 ## Usage
 
 ```bash
-# Prototype-to-Production baseline: core + auth + i18n + MCP
+# Prototype-to-Production baseline: core + auth + i18n + ops
 npx spfn@beta create my-app --mode full
 cd my-app
 docker compose up -d            # Postgres + Redis
@@ -71,7 +71,7 @@ pass `--mode full`.
 |--------|-------------|
 | `--pm <manager>` | Force package manager: `npm` \| `pnpm` \| `yarn` \| `bun` |
 | `--shadcn` | Also run `shadcn init` |
-| `--mode <mode>` | `bare` (core only) \| `full` (core, auth, i18n, MCP) |
+| `--mode <mode>` | `bare` (core only) \| `full` (core, auth, i18n, ops) |
 | `--skip-install` | Skip dependency install |
 | `--skip-git` | Skip `git init` |
 | `-y, --yes` | Skip prompts, use defaults |
@@ -86,7 +86,7 @@ already exists). See [Scaffold structure](#scaffold-structure) for what lands on
 
 | Option | Description |
 |--------|-------------|
-| `--mode <mode>` | `bare` (core only) \| `full` (core, auth, i18n, MCP) |
+| `--mode <mode>` | `bare` (core only) \| `full` (core, auth, i18n, ops) |
 | `-y, --yes` | Skip prompts, use defaults |
 
 Generated projects pin `drizzle-orm` and `drizzle-kit` to `1.0.0-rc.4`, matching
@@ -498,24 +498,30 @@ src/
   app/auth/callback/page.tsx         # OAuth session handoff
   i18n/catalogs.ts                   # application-owned en/ko starter messages
   i18n/server.ts                     # configured server-side i18n registry
-  server/mcp.ts                      # authenticated /mcp endpoint + starter app_status tool
-  server/router.ts                   # authRouter + mcpRouter + global authenticate
+  server/routes/ops.ts               # ops routes under /_ops + the manifest `spfn ops` reads
+  server/router.ts                   # authRouter + opsRouter + global authenticate
   server/server.config.ts            # createAuthLifecycle + i18n startup
 next.config.ts                       # /_auth/* callback rewrite
 .env.local                           # generated auth session secret (gitignored)
-.env.server                          # auth keyring + MCP operator key (gitignored)
+.env.server                          # auth keyring (gitignored)
 ```
 
 The full RPC proxy imports the auth interceptor and merges `authRouteMap`. Internal auth
-and MCP keys are generated with cryptographic randomness in ignored local env files;
+keys are generated with cryptographic randomness in ignored local env files;
 `.env.example` contains placeholders only. Add only the provider keys you use, then run
-`pnpm spfn db migrate`. The starter MCP endpoint accepts `SPFN_MCP_API_KEY` as a Bearer
-token for first-party operation; replace that validator with OAuth before third-party access.
+`pnpm spfn db migrate`.
+
+Operating the app is [`spfn ops`](#spfn-ops), not a dashboard: the starter
+`src/server/routes/ops.ts` exposes two read commands, and `spfn ops` discovers them from
+the running server's manifest. Issuing the first token signs in as an administrator, so
+uncomment `SPFN_AUTH_ADMIN_ACCOUNTS` in `.env.server` and restart before
+`spfn ops token issue`. The ops surface adds no dependency — the router comes from
+`@spfn/core/ops` and the tokens from `@spfn/auth`.
 
 `init` also patches `package.json` (scripts: `spfn:dev`, `spfn:server`, `spfn:next`,
 `spfn:build`, `spfn:start`, `codegen`; deps: `@spfn/core`, `spfn`, `drizzle-orm`,
 `@sinclair/typebox`, `concurrently`, etc.; full also adds `@spfn/auth`, `@spfn/i18n`,
-`@spfn/mcp`, auth's `@spfn/notification` peer, and a Node `>=20.0.0` engine when the
+auth's `@spfn/notification` peer, and a Node `>=20.0.0` engine when the
 existing range still permits older Node versions), excludes `src/server` from the root
 `tsconfig.json` (Vercel compat), and adds `.spfn/`, `.env.local`, `.env.server` to
 `.gitignore`.
@@ -621,8 +627,8 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 something with an AI coding agent and now want a real backend under it, `init` is the one.
 
 **`bare` or `full`?**
-`full` is the recommended baseline: core, auth, i18n and MCP wired together, so you get a
-working authenticated app on day one. `bare` is core only — the architecture with nothing
+`full` is the recommended baseline: core, auth, i18n and the ops surface wired together, so
+you get a working authenticated app on day one, operable from the terminal. `bare` is core only — the architecture with nothing
 else decided. Automation should always pass `--mode` explicitly, because a `--yes` run
 without one still produces `bare` for backward compatibility.
 
@@ -637,7 +643,7 @@ pointing at your own PostgreSQL works too. PostgreSQL itself is not optional.
 
 **Which Node version do I need?**
 20 or later, in both modes. `@spfn/core` runs on `@hono/node-server` 2, which declares
-that floor, and full mode's MCP server needs the same.
+that floor, and full mode's `@spfn/auth` needs the same.
 
 **When do I have to run codegen by hand?**
 Whenever routes change outside `spfn dev`, which runs a codegen watcher for you. A stale or
@@ -685,5 +691,6 @@ committed.
 
 - [`@spfn/core`](../core/README.md) — server, route DSL, codegen, db, client runtime.
 - [`@spfn/auth`](../auth/README.md) — what `--mode full` wires in for accounts and roles.
-- [`@spfn/mcp`](../mcp/README.md) — what `--mode full` wires in for operating the app.
+- [`@spfn/mcp`](../mcp/README.md) — an agent-facing MCP endpoint, added on demand with
+  `spfn add @spfn/mcp`.
 - Project root README — framework overview and getting started.

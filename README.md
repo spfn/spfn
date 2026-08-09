@@ -6,8 +6,9 @@
 
 `spfn create --mode full` wires the baseline into one application — **core** (server,
 database, routes, codegen, typed client), **auth** (sessions, social login,
-authorization), **i18n** (translation catalogs), and **mcp** (authenticated agent access
-to your operations). Everything else is installed only when you reach for it.
+authorization), **i18n** (translation catalogs), and **ops** (your own operations, run
+from the terminal with `spfn ops`, instead of an admin dashboard). Everything else is
+installed only when you reach for it.
 
 ## What is SPFN?
 
@@ -92,9 +93,9 @@ subtly wrong is a security incident rather than a bug.
 **So the question is where your tokens go.** Building with an agent puts an explicit price
 on both gates — every prompt, every regeneration, every fix that follows. SPFN's answer is
 that they should cost you close to nothing:
-[`@spfn/auth`](./packages/auth) clears the first, and [`@spfn/mcp`](./packages/mcp) clears
-the second by exposing your operations as tools the agent you already use can run, instead
-of a dashboard you have to build. What is left is the part only you can write.
+[`@spfn/auth`](./packages/auth) clears the first, and the ops surface clears the second by
+running your operations from the terminal you already have open, instead of a dashboard you
+have to build. What is left is the part only you can write.
 
 ---
 
@@ -125,7 +126,7 @@ structure, persistence, and auth to you.
 ## How do I start a new SPFN project?
 
 ```bash
-# Create a new project — full mode wires core, auth, i18n and MCP together
+# Create a new project — full mode wires core, auth, i18n and ops together
 npx spfn@beta create my-app --mode full
 cd my-app
 
@@ -309,19 +310,23 @@ environment variables each provider needs.
 
 ## Can I operate the app without building an admin dashboard?
 
-Yes — that is what [`@spfn/mcp`](./packages/mcp/README.md) is for. Instead of building
-screens for every operational task, expose the operations an operator is allowed to
-perform as MCP tools over authenticated HTTP, and drive them from an agent:
+Yes. Write the operations an operator is allowed to perform as ops routes, and run them
+from the terminal — `spfn ops` reads them from the running app, so nothing is generated
+or configured locally:
 
-```
-customers.list
-orders.refund
-content.publish
-workflow.retry
+```bash
+spfn ops list --app https://api.example.com   # what can this app do?
+spfn ops call refundOrder --param id=42
+spfn ops call listCustomers --describe        # what does it take?
 ```
 
-Each tool uses the same repositories and services as the product, with its own input
-schema and authorization rule. Do not expose tables as generic CRUD — expose operations.
+Each command uses the same repositories and services as the product, with its own input
+schema and authorization rule, and answers only to a scoped, revocable ops token. Do not
+expose tables as generic CRUD — expose operations.
+
+`spfn create --mode full` scaffolds this surface. To drive the same operations from an
+agent instead of a terminal, add [`@spfn/mcp`](./packages/mcp/README.md) with
+`spfn add @spfn/mcp` and expose them as MCP tools too.
 
 ---
 

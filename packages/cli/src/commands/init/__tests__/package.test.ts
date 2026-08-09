@@ -65,7 +65,7 @@ describe('setupPackageJson', () =>
     it('sets the Node 20 floor in bare mode too', async () =>
     {
         // @spfn/core runs on @hono/node-server 2, which declares engines.node >= 20,
-        // so the floor is not something only full mode's @spfn/mcp brings.
+        // so the floor is not something only full mode's @spfn/auth brings.
         testDirectory = await mkdtemp(join(tmpdir(), 'spfn-init-package-bare-node-'));
         const packageJsonPath = join(testDirectory, 'package.json');
         const packageJson: PackageJson = {
@@ -88,7 +88,7 @@ describe('setupPackageJson', () =>
             await readFile(packageJsonPath, 'utf8'),
         ) as PackageJson;
         expect(generated.engines?.node).toBe('>=20.0.0');
-        expect(generated.dependencies?.['@spfn/mcp']).toBeUndefined();
+        expect(generated.dependencies?.['@spfn/auth']).toBeUndefined();
     });
 
     it('adds the Prototype-to-Production dependency set in full mode', async () =>
@@ -117,9 +117,11 @@ describe('setupPackageJson', () =>
             '@spfn/core': 'beta',
             '@spfn/auth': 'beta',
             '@spfn/i18n': 'beta',
-            '@spfn/mcp': 'beta',
             '@spfn/notification': 'beta',
         });
+        // The ops surface ships inside core and auth, so full mode installs no
+        // package for it — and no longer installs the MCP server it replaced.
+        expect(generated.dependencies?.['@spfn/mcp']).toBeUndefined();
         expect(generated.engines?.node).toBe('>=20.0.0');
     });
 

@@ -71,9 +71,12 @@ SPFN_AUTH_TOKEN_ENCRYPTION_KEYS=v1:replace-with-a-base64-encoded-32-byte-key
 # SPFN_AUTH_NAVER_CLIENT_ID=your-naver-client-id
 # SPFN_AUTH_NAVER_CLIENT_SECRET=your-naver-client-secret
 
-# Full scaffold: MCP operator endpoint
-SPFN_MCP_URL=http://localhost:8790
-SPFN_MCP_API_KEY=replace-with-a-random-operator-key
+# Full scaffold: ops CLI (spfn ops)
+# Ops commands need no variable of their own — they authenticate with a token
+# issued by \`spfn ops token issue\`, and issuing one signs in as an administrator.
+# Uncomment to seed that administrator on the next server start, then remove the
+# password once the account exists.
+# SPFN_AUTH_ADMIN_ACCOUNTS=[{"email":"admin@example.com","password":"replace-with-a-strong-password","role":"admin"}]
 `;
 
 // .env.example — committed reference, derived from the two templates above so its
@@ -139,9 +142,12 @@ SPFN_AUTH_TOKEN_ENCRYPTION_KEYS=v1:${randomSecret('base64')}
 # SPFN_AUTH_NAVER_CLIENT_ID=your-naver-client-id
 # SPFN_AUTH_NAVER_CLIENT_SECRET=your-naver-client-secret
 
-# Full scaffold: MCP operator endpoint
-SPFN_MCP_URL=http://localhost:8790
-SPFN_MCP_API_KEY=${randomSecret('base64url')}
+# Full scaffold: ops CLI (spfn ops)
+# Ops commands need no variable of their own — they authenticate with a token
+# issued by \`spfn ops token issue\`, and issuing one signs in as an administrator.
+# Uncomment to seed that administrator on the next server start, then remove the
+# password once the account exists.
+# SPFN_AUTH_ADMIN_ACCOUNTS=[{"email":"admin@example.com","password":"replace-with-a-strong-password","role":"admin"}]
 `;
 }
 
@@ -211,7 +217,7 @@ export default defineConfig({
  *
  * .env.local is loaded by Next.js (and also the SPFN backend), so it holds URLs
  * plus secrets Next.js itself needs, such as auth cookie encryption. .env.server
- * is loaded ONLY by the SPFN backend and holds DB, OAuth, and MCP secrets. Both
+ * is loaded ONLY by the SPFN backend and holds DB and OAuth secrets. Both
  * files are gitignored; secrets are never prefixed NEXT_PUBLIC_.
  */
 function generateEnvFiles(cwd: string, mode: ScaffoldMode): void

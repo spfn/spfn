@@ -2,12 +2,12 @@
  * Prototype-to-Production application router.
  *
  * Auth protects application routes by default. Public routes opt out with
- * `.skip(['auth'])`; the MCP router owns its Bearer-token boundary.
+ * `.skip(['auth'])`; the ops router owns its own ops-token boundary.
  */
 import { authRouter, authenticate } from '@spfn/auth/server';
 import { defineRouter } from '@spfn/core/route';
-import { mcpRouter } from './mcp';
 import { getRoot } from './routes/root';
+import { opsRouter } from './routes/ops';
 import {
     listExamples,
     getExample,
@@ -24,7 +24,7 @@ export const appRouter = defineRouter({
     updateExample,
     deleteExample,
 })
-    .packages([authRouter, mcpRouter])
+    .packages([authRouter, opsRouter])
     .use([authenticate]);
 
 export type AppRouter = typeof appRouter;

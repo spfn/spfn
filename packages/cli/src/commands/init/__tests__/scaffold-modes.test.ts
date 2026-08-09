@@ -41,15 +41,15 @@ describe('scaffold modes', () =>
         const envExample = await readFile(join(directory, '.env.example'), 'utf8');
 
         expect(router).not.toContain('@spfn/auth');
-        expect(router).not.toContain('mcpRouter');
+        expect(router).not.toContain('opsRouter');
         expect(proxy).toContain('createRpcProxy({ routeMap: routeMap })');
         expect(proxy).not.toContain('authRouteMap');
         expect(envExample).not.toContain('SPFN_AUTH_SESSION_SECRET');
-        await expect(readFile(join(directory, 'src/server/mcp.ts'), 'utf8'))
+        await expect(readFile(join(directory, 'src/server/routes/ops.ts'), 'utf8'))
             .rejects.toThrow();
     });
 
-    it('scaffolds auth, i18n, and MCP as a working full baseline', async () =>
+    it('scaffolds auth, i18n, and the ops surface as a working full baseline', async () =>
     {
         const directory = await scaffold('full');
         const router = await readFile(join(directory, 'src/server/router.ts'), 'utf8');
@@ -62,17 +62,20 @@ describe('scaffold modes', () =>
         const serverEnv = await readFile(join(directory, '.env.server'), 'utf8');
         const envExample = await readFile(join(directory, '.env.example'), 'utf8');
 
-        expect(router).toContain('.packages([authRouter, mcpRouter])');
+        expect(router).toContain('.packages([authRouter, opsRouter])');
         expect(router).toContain('.use([authenticate])');
         expect(serverConfig).toContain('.lifecycle(createAuthLifecycle())');
         expect(serverConfig).toContain("import '@/i18n/server'");
         expect(proxy).toContain("import '@spfn/auth/nextjs/api'");
         expect(proxy).toContain('{ ...routeMap, ...authRouteMap }');
-        const mcp = await readFile(join(directory, 'src/server/mcp.ts'), 'utf8');
-        expect(mcp).toContain("name: 'app_status'");
-        expect(mcp).toContain('env.SPFN_MCP_API_KEY!');
+        const ops = await readFile(join(directory, 'src/server/routes/ops.ts'), 'utf8');
+        expect(ops).toContain("from '@spfn/core/ops'");
+        expect(ops).toContain('createOpsRouter(');
+        expect(ops).toContain('auth: opsTokenAuth');
+        // Ops needs no env variable, so full mode keeps the core env template
+        // instead of shipping a profile-specific one.
         expect(await readFile(join(directory, 'src/server/config/env.config.ts'), 'utf8'))
-            .toContain('SPFN_MCP_API_KEY: envSecret');
+            .toContain('defineEnvSchema({');
         expect(await readFile(join(directory, 'src/i18n/catalogs.ts'), 'utf8'))
             .toContain('LocaleCatalogs');
         expect(await readFile(join(directory, 'src/app/auth/callback/page.tsx'), 'utf8'))
@@ -81,10 +84,15 @@ describe('scaffold modes', () =>
             .toContain('getProviderOAuthUrl');
         expect(localEnv).toMatch(/SPFN_AUTH_SESSION_SECRET=.{32,}/);
         expect((await stat(join(directory, '.env.local'))).mode & 0o777).toBe(0o600);
-        expect(serverEnv).toMatch(/SPFN_MCP_API_KEY=.{32,}/);
-        expect(envExample).toContain('SPFN_MCP_API_KEY=replace-with-a-random-operator-key');
+        expect(serverEnv).not.toContain('SPFN_MCP_API_KEY');
+        // The ops surface needs no variable — only the administrator that issues
+        // the first token, offered commented out so no privileged account is
+        // seeded without the operator saying so.
+        expect(serverEnv).toContain('# SPFN_AUTH_ADMIN_ACCOUNTS=');
+        expect(envExample).toContain('# SPFN_AUTH_ADMIN_ACCOUNTS=');
+        expect(serverEnv).toMatch(/SPFN_AUTH_VERIFICATION_TOKEN_SECRET=.{32,}/);
         expect(envExample).not.toContain(
-            serverEnv.match(/SPFN_MCP_API_KEY=(.+)/)?.[1] ?? 'generated-key-not-found',
+            serverEnv.match(/SPFN_AUTH_VERIFICATION_TOKEN_SECRET=(.+)/)?.[1] ?? 'generated-secret-not-found',
         );
     });
 

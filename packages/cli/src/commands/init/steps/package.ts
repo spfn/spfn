@@ -48,7 +48,7 @@ export async function setupPackageJson(
     packageJson.dependencies['concurrently'] = '^9.2.1';
 
     // Node 20 is the floor in both modes: @spfn/core runs on @hono/node-server 2,
-    // which declares engines.node >= 20. Full mode's @spfn/mcp needs the same.
+    // which declares engines.node >= 20. Full mode's @spfn/auth needs the same.
     packageJson.engines = packageJson.engines || {};
     const existingNodeRange = packageJson.engines.node;
     if (!existingNodeRange || !requiresNode20OrNewer(existingNodeRange))
@@ -62,12 +62,12 @@ export async function setupPackageJson(
 
     // The full profile is the Prototype-to-Production baseline. Auth's
     // notification peer is installed explicitly so a fresh pnpm scaffold has a
-    // single, compatible SPFN dependency graph.
+    // single, compatible SPFN dependency graph. The ops surface needs no package
+    // of its own: `@spfn/core/ops` carries the router and `@spfn/auth` the tokens.
     if (mode === 'full')
     {
         packageJson.dependencies['@spfn/auth'] = spfnTag;
         packageJson.dependencies['@spfn/i18n'] = spfnTag;
-        packageJson.dependencies['@spfn/mcp'] = spfnTag;
         packageJson.dependencies['@spfn/notification'] = spfnTag;
     }
 

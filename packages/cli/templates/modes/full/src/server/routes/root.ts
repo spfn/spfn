@@ -10,6 +10,6 @@ export const getRoot = route.get('/')
             health: '/_core/health',
             examples: '/examples',
             auth: '/_auth',
-            mcp: '/mcp',
+            ops: '/_ops',
         },
     }));

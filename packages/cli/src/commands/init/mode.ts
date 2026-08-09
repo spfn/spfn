@@ -37,7 +37,7 @@ export async function selectScaffoldMode(options: ModeSelectionOptions): Promise
         choices: [
             {
                 title: 'full (recommended)',
-                description: 'Core, auth, i18n, and MCP — ready for Prototype to Production',
+                description: 'Core, auth, i18n, and ops CLI — ready for Prototype to Production',
                 value: 'full',
             },
             {
