@@ -17,7 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `@spfn/core`: env loader가 server 레이어에서 `.env.server`만 로드(`.env.server.local` 제거). loader 로딩 규칙 단위 테스트 추가.
   - `spfn` (CLI): `create`/`init`이 `.env.server.local.example`을 생성하지 않고 `.gitignore`에 `.env.server`를 추가. `env:init` 및 런타임 로딩에서도 `.env.server.local` 제거.
 
+### Added
+
+#### 저장소
+
+- **풀 리퀘스트에 기계 검사가 생겼다** (`.woodpecker/pr.yml`) — 그 전에는 하나도 없었다. GitHub 쪽 두 워크플로가 `pull_request` 트리거를 선언하고 있지만, PR 은 Gitea 에 열리고 GitHub 는 미러라 그 트리거는 발화하지 않는다. 실제로 도는 것은 main push 뿐이라 **병합 뒤** 검사다. 이제 PR 에서 `pnpm build` · `lint` · `type-check` · `check:versions` · `check:exports` 와 예제 부팅 스모크가 돈다.
+  - **예제가 처음으로 CI 에 들어왔다.** `examples/01·02·03` 에 `type-check` 스크립트가 없어 turbo 가 닿지 못했다. `next build` 는 프론트엔드만 컴파일하고 SPFN 서버는 건드리지 않는다. 그래서 부팅조차 못 하는 예제가 main 에 남아 있었다(issue #119).
+  - `scripts/smoke-example-01.mjs` 가 예제 01 을 실제로 띄워 `GET /greeting`·`GET /health` 응답과 가려짐 경고 부재를 확인한다. DB·캐시·시크릿이 필요 없어 모든 PR 에서 돌릴 수 있다. 이 스크립트는 첫 실행에서 프로덕션 설정 로딩 결함을 잡았다.
+  - **`pnpm test` 도 게이트에서 돈다.** PostgreSQL 과 Redis 4대를 test 스텝 컨테이너 안에서 `scripts/test-services.sh` 로 띄운다. Woodpecker `services` 를 쓰지 않는 이유는 테스트 쪽에 있다 — 캐시 통합 스위트가 `redis://localhost:6479`~`:6482` 를 env 오버라이드 없이 하드코딩하고 있어, 자기 호스트명을 받는 service 컨테이너로는 닿지 못한다. 전부 localhost 에 두면 CI 가 로컬 스크립트를 그대로 호출할 수 있어 로컬과 CI 가 어긋나지 않는다.
+  - 검사는 두 스텝으로 나뉜다. lint 오류가 전체 스위트를 기다리지 않고 1분 안에 보고되게 하려는 것이다. 스텝은 워크스페이스 볼륨을 공유하므로 `verify` 가 만든 `dist/` 는 `test` 에서도 그대로 있다.
+- **`pnpm setup:examples`** (`scripts/seed-example-env.mjs`) — 예제마다 커밋된 `.env.local.example` 을 `.env.local` 로 복사한다. 이미 있는 `.env.local` 은 건드리지 않는다.
+  - **새로 클론한 저장소는 `pnpm build` 가 실패했다.** 루트 빌드가 예제까지 닿고, 예제의 `next build` 가 페이지 데이터를 수집하면서 환경변수를 검증하는데 거기서 `SPFN_API_URL` 이 필수다. 그 값은 gitignore 대상인 `.env.local` 에만 있었다. 파일 하나가 없어서 `01-minimal-api` 빌드가 깨지고, turbo 가 남은 빌드를 취소하고, `@spfn/auth` 의 `dist/` 가 생기지 않고, auth 테스트 46개 파일 중 34개가 `Cannot find package '@spfn/auth/config'` 로 실패했다. AGENTS.md 가 안내하는 검증 명령이 새 클론에서 돌지 않았다는 뜻이다.
+
 ### Fixed
+
+#### 저장소
+
+- **예제 01·02 의 `.env.local.example` 이 커밋되지 않고 있었다** — 각 예제의 `.gitignore` 가 `.env*` 를 걸어두고 예외를 주지 않았다(`examples/01-minimal-api/.gitignore:22`, `examples/02-database-crud/.gitignore:37`). 예제 03 만 `!.env.local.example` 예외가 있었다. 그래서 저장소를 클론한 채택자는 두 예제의 env 템플릿을 받지 못했고, "`*.example` env 파일만 커밋된다" 는 규칙이 두 예제에서 지켜지지 않았다. 두 템플릿에는 localhost 자리표시자만 들어 있다.
+- **`pnpm type-check` 가 main 에서 에러로 끝났다** — `turbo.json` 에 `type-check` 태스크 선언이 없어 `Could not find task 'type-check' in project` 로 실패했다. AGENTS.md 가 안내하는 명령이다. 선언을 추가했다.
 
 #### @spfn/core
 

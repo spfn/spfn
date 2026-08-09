@@ -4,6 +4,12 @@ name: Check version floors
 # names an older floor invites an install the packages do not support — and for Next.js
 # that older floor carried CVE-2025-66478. Five READMEs drifted that way unnoticed
 # because nothing read them. This does.
+#
+# It does not gate, though. Pull requests are opened on Gitea and GitHub is a
+# mirror, so the `pull_request` trigger below has nothing to fire on — in practice
+# this runs on the main push, after merge. The gate is .woodpecker/pr.yml, which
+# runs `pnpm check:versions` on the pull request itself. This stays as the
+# post-merge check on main and as the manual re-run.
 
 on:
   push:

@@ -10,7 +10,8 @@
         "spfn:dev": "spfn dev",
         "spfn:server": "spfn dev --server-only",
         "spfn:next": "next dev --turbo --port 3790",
-        "codegen": "spfn codegen run"
+        "codegen": "spfn codegen run",
+        "type-check": "tsc --noEmit"
     },
     "dependencies": {
         "@sinclair/typebox": "^0.34.0",

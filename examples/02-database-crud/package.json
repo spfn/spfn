@@ -1,41 +1,42 @@
 {
-  "name": "02-database-crud",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "spfn:dev": "spfn dev",
-    "spfn:server": "spfn dev --server-only",
-    "spfn:next": "next dev --turbo --port 3790",
-    "spfn:start": "spfn start",
-    "spfn:build": "spfn build",
-    "codegen": "spfn codegen run"
-  },
-  "dependencies": {
-    "@sinclair/typebox": "^0.34.0",
-    "@spfn/core": "workspace:*",
-    "concurrently": "^9.2.1",
-    "drizzle-orm": "1.0.0-rc.4",
-    "drizzle-typebox": "^0.3.3",
-    "next": "16.2.11",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "spfn": "workspace:*"
-  },
-  "devDependencies": {
-    "@svgr/webpack": "^8.1.0",
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20.11.0",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "babel-plugin-react-compiler": "1.0.0",
-    "dotenv": "^17.2.3",
-    "drizzle-kit": "1.0.0-rc.4",
-    "tailwindcss": "^4",
-    "tsup": "^8.5.0",
-    "tsx": "^4.20.6",
-    "typescript": "^5"
-  }
+    "name": "02-database-crud",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "spfn:dev": "spfn dev",
+        "spfn:server": "spfn dev --server-only",
+        "spfn:next": "next dev --turbo --port 3790",
+        "spfn:start": "spfn start",
+        "spfn:build": "spfn build",
+        "codegen": "spfn codegen run",
+        "type-check": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@sinclair/typebox": "^0.34.0",
+        "@spfn/core": "workspace:*",
+        "concurrently": "^9.2.1",
+        "drizzle-orm": "1.0.0-rc.4",
+        "drizzle-typebox": "^0.3.3",
+        "next": "16.2.11",
+        "react": "19.2.3",
+        "react-dom": "19.2.3",
+        "spfn": "workspace:*"
+    },
+    "devDependencies": {
+        "@svgr/webpack": "^8.1.0",
+        "@tailwindcss/postcss": "^4",
+        "@types/node": "^20.11.0",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "babel-plugin-react-compiler": "1.0.0",
+        "dotenv": "^17.2.3",
+        "drizzle-kit": "1.0.0-rc.4",
+        "tailwindcss": "^4",
+        "tsup": "^8.5.0",
+        "tsx": "^4.20.6",
+        "typescript": "^5"
+    }
 }

@@ -1,0 +1,98 @@
+# primitives CI — the gate a pull request has to pass.
+#
+# Until this file existed the repository had no pull-request check at all. Two
+# workflows on the GitHub side declare `pull_request` triggers, but pull requests
+# live on Gitea and GitHub is only a mirror, so those triggers never fire — they
+# run on the main push instead, which is to say after merge. They report; they
+# do not gate.
+#
+# What that cost: examples/01-minimal-api sat in main unable to boot (issue #119)
+# while every package test passed, because nothing ever ran an example. `next
+# build` compiles the frontend and never touches the SPFN server. The smoke step
+# below is that missing run, and it found a second defect — a production build
+# silently dropping the app's entire server.config — on its first execution.
+#
+# Two steps, not one, because the second needs services and the first must not
+# wait for them: a lint error should report in a minute rather than after a full
+# suite. Steps share the workspace volume, so `dist/` built in `verify` is still
+# there in `test`.
+#
+# Measured on a developer machine with turbo's cache disabled, which is the state
+# a fresh checkout is always in: build 59s, lint 6s, type-check 46s, the two
+# checks 1s, the smoke 4s, the suite 198s.
+when:
+    event: pull_request
+
+steps:
+    verify:
+        image: node:22
+        commands:
+            - corepack enable
+            - pnpm install --frozen-lockfile
+
+            # An example's `next build` collects page data, which validates the
+            # environment, and `SPFN_API_URL` is required there. It comes from
+            # `.env.local`, which is gitignored — so without this the build fails
+            # at 01-minimal-api, turbo cancels the rest, @spfn/auth never
+            # produces dist/, and 34 of its test files fail on a missing
+            # self-import. Seeding from the committed template is also the check
+            # that the template is complete, since it is what an adopter follows.
+            - pnpm setup:examples
+
+            # Build first: several checks import @spfn/core subpaths whose
+            # exports point at dist/, and a fresh checkout has none.
+            - pnpm build
+
+            - pnpm lint
+            - pnpm type-check
+            - pnpm check:versions
+            - pnpm check:exports
+
+            # Boot examples/01-minimal-api and check it answers what its README
+            # promises. It needs no database, no cache and no secrets, which is
+            # what lets it run before the services are up.
+            - node scripts/smoke-example-01.mjs
+
+    test:
+        image: node:22
+        commands:
+            # PostgreSQL and Redis live inside this step's own container rather
+            # than in Woodpecker `services`, and the reason is in the tests: the
+            # cache suite hardcodes redis://localhost:6479 through :6482 with no
+            # environment override, so a service container — which gets its own
+            # hostname — is unreachable from them. Keeping everything on
+            # localhost also lets CI call scripts/test-services.sh unchanged,
+            # which is what stops the local shape and the CI recipe from
+            # drifting apart.
+            #
+            # Four Redis instances, not one: :6479 plain, :6480 → :6481 a
+            # replication pair the cache tests need as a pair, :6482
+            # password-protected. The script waits for the replication link
+            # rather than for both ports to listen — a per-port health check
+            # passes while the replica is still catching up.
+            - apt-get update
+            - apt-get install -y --no-install-recommends postgresql postgresql-contrib redis-server
+
+            # `pg_ctlcluster` rather than `service postgresql start`: it comes
+            # from postgresql-common itself, so it does not depend on the image
+            # carrying a sysvinit `service` wrapper. The version is read from
+            # disk because it follows whatever Debian ships.
+            #
+            # pg_hba is rewritten to `trust` because this container is thrown
+            # away at the end of the step. Trust means the server does not check
+            # a password, and a client that sends one anyway still connects — so
+            # the roles scripts/test-services.sh creates keep working unchanged
+            # and nothing has to juggle a superuser password.
+            - PGVER=$(ls /etc/postgresql | head -n1)
+            - printf '%s\n' 'local all all trust' 'host all all 127.0.0.1/32 trust' > "/etc/postgresql/$PGVER/main/pg_hba.conf"
+            - pg_ctlcluster "$PGVER" main start
+            - PGUSER=postgres ./scripts/test-services.sh start
+
+            - corepack enable
+
+            # `--concurrency=1` is not a throttle to relax when a run feels slow.
+            # The packages share one PostgreSQL and one Redis, and both turbo and
+            # vitest would otherwise fan out across more workers than the machine
+            # has cores; a run that starves itself times out before its
+            # assertions get to run.
+            - pnpm test

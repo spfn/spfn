@@ -31,6 +31,7 @@ Requires Node ≥ 20 and pnpm (see `packageManager` in `package.json`). From the
 git clone <your fork>
 cd spfn
 pnpm install            # install all workspace deps
+pnpm setup:examples     # give each example the .env.local its build needs
 pnpm build              # build every package (turbo; runs a circular-dep check first)
 pnpm test               # run all tests (vitest)
 pnpm lint               # eslint — house style (Allman, 4-space, semicolons)
@@ -39,6 +40,15 @@ pnpm audit              # known vulnerabilities in the production dependency gra
 pnpm audit:all          # the same, including build tooling
 pnpm check:versions     # docs and peer ranges name the same Next.js floor
 ```
+
+`pnpm setup:examples` is not optional before your first `pnpm build`. The root build
+reaches the examples, an example's `next build` collects page data, and collecting it
+validates the environment — where `SPFN_API_URL` is required. That value lives in
+`.env.local`, which is gitignored, so a fresh clone has none and the build fails at
+`examples/01-minimal-api`. Turbo then cancels the remaining builds, `@spfn/auth` never
+produces `dist/`, and 34 of its test files fail on a missing self-import. The script
+copies each example's committed `.env.local.example` and leaves an existing `.env.local`
+alone.
 
 Per package (run inside `packages/<name>/`):
 
