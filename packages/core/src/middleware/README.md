@@ -116,7 +116,7 @@ export default defineServerConfig()
 Notes (from `create-server.ts`):
 
 - The auto-applied `RequestLogger()` is called with **no options**, so it uses the
-  defaults below (excludes `/health`, `/ping`, `/favicon.ico`). To customize excludePaths
+  defaults below (excludes `/_core/health`, `/health`, `/ping`, `/favicon.ico`). To customize excludePaths
   etc., disable it (`middleware.logger: false`) and add your own via `config.use`.
 - `config.middleware.onError` is the **only** `ErrorHandlerOption` exposed through the
   builder; `includeStack` / `enableLogging` fall back to their defaults under auto-config.
@@ -275,7 +275,7 @@ Per-request logging middleware. Register with **`app.use()`**.
 
 | Option | Type | Default |
 |--------|------|---------|
-| `excludePaths` | `string[]` | `['/health', '/ping', '/favicon.ico']` |
+| `excludePaths` | `string[]` | `['/_core/health', '/health', '/ping', '/favicon.ico']` |
 | `sensitiveFields` | `string[]` | `['password', 'token', 'apiKey', 'secret', 'authorization']` |
 | `slowRequestThreshold` | `number` (ms) | `1000` |
 
@@ -609,7 +609,7 @@ interface OnErrorContext {
 }
 
 interface RequestLoggerOptions {
-    excludePaths?: string[];        // default: ['/health', '/ping', '/favicon.ico']
+    excludePaths?: string[];        // default: ['/_core/health', '/health', '/ping', '/favicon.ico']
     sensitiveFields?: string[];     // default: ['password','token','apiKey','secret','authorization']
     slowRequestThreshold?: number;  // default: 1000 (ms)
 }

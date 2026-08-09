@@ -18,7 +18,11 @@ export interface RequestLoggerOptions
      *
      * Supports exact match and prefix match (e.g., '/health' excludes '/health/db').
      *
-     * @default ['/health', '/ping', '/favicon.ico']
+     * `/_core/health` is where the built-in health endpoint always answers, so a
+     * readiness probe usually points there rather than at `/health`. Leaving it
+     * out of the default fills the log with one line per probe interval.
+     *
+     * @default ['/_core/health', '/health', '/ping', '/favicon.ico']
      *
      * @example
      * ```typescript
@@ -57,7 +61,7 @@ export interface RequestLoggerOptions
 export type RequestLoggerConfig = RequestLoggerOptions;
 
 const DEFAULT_CONFIG: Required<RequestLoggerConfig> = {
-    excludePaths: ['/health', '/ping', '/favicon.ico'],
+    excludePaths: ['/_core/health', '/health', '/ping', '/favicon.ico'],
     sensitiveFields: ['password', 'token', 'apiKey', 'secret', 'authorization'],
     slowRequestThreshold: 1000,
 };

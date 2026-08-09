@@ -9,12 +9,17 @@
  * server. This script is that missing run, and it needs no database, no Redis
  * and no secrets, which is why it can gate every pull request.
  *
- * It asserts three things, each one a defect that actually shipped:
+ * It asserts four things, each one a defect that actually shipped, or the fix
+ * for one:
  *   1. the server starts at all                     (issue #119)
- *   2. GET /health answers 200                      (503 forever when the
+ *   2. GET /_core/health answers 200                (503 forever when the
  *                                                    database was absent on
  *                                                    purpose)
- *   3. no route is shadowed at boot                 (examples shipped a
+ *   3. GET /health answers 410 naming the new path  (the endpoint moved; a bare
+ *                                                    404 would leave an operator
+ *                                                    whose probe broke with
+ *                                                    nothing to search for)
+ *   4. no route is shadowed at boot                 (examples shipped a
  *                                                    /health route that never
  *                                                    ran)
  */
@@ -27,6 +32,11 @@ import { existsSync } from 'node:fs';
 const EXAMPLE_DIR = join(process.cwd(), 'examples', '01-minimal-api');
 const PORT = process.env.SMOKE_PORT ?? '8795';
 const BASE = `http://127.0.0.1:${PORT}`;
+
+// Where the built-in health endpoint answers. `/health` is not it any more:
+// @spfn/core registers nothing there, and the path belongs to the app.
+const HEALTH_PATH = '/_core/health';
+const LEGACY_HEALTH_PATH = '/health';
 const BOOT_TIMEOUT_MS = 90_000;
 const POLL_INTERVAL_MS = 500;
 
@@ -157,7 +167,7 @@ async function waitForBoot()
 
         try
         {
-            const response = await fetch(`${BASE}/health`);
+            const response = await fetch(`${BASE}${HEALTH_PATH}`);
 
             if (response.ok)
             {
@@ -166,11 +176,11 @@ async function waitForBoot()
                 return;
             }
 
-            throw new Error(`GET /health answered ${response.status}`);
+            throw new Error(`GET ${HEALTH_PATH} answered ${response.status}`);
         }
         catch (error)
         {
-            if (error.message.startsWith('GET /health answered'))
+            if (error.message.startsWith(`GET ${HEALTH_PATH} answered`))
             {
                 throw error;
             }
@@ -195,9 +205,26 @@ async function assertContract()
         `body was ${JSON.stringify(body)}`,
     );
 
-    const health = await fetch(`${BASE}/health`);
+    const health = await fetch(`${BASE}${HEALTH_PATH}`);
 
-    check('GET /health answers 200', health.ok, `got ${health.status}`);
+    check(`GET ${HEALTH_PATH} answers 200`, health.ok, `got ${health.status}`);
+
+    // The endpoint moved, and the old path has to say where it went. A readiness
+    // probe failure surfaces neither a response body nor a status text to an
+    // operator, so this is the difference between a searchable answer and a 404.
+    const moved = await fetch(`${BASE}${LEGACY_HEALTH_PATH}`);
+    const movedBody = moved.status === 410 ? await moved.json() : null;
+
+    check(
+        `GET ${LEGACY_HEALTH_PATH} answers 410`,
+        moved.status === 410,
+        `got ${moved.status}`,
+    );
+    check(
+        `GET ${LEGACY_HEALTH_PATH} names the new path`,
+        movedBody?.movedTo === HEALTH_PATH,
+        `body was ${JSON.stringify(movedBody)}`,
+    );
 
     check(
         'no app route is shadowed at boot',

@@ -5,6 +5,7 @@
  */
 
 export { createServer } from './create-server';
+export { CORE_NAMESPACE, CORE_HEALTH_PATH } from './namespace';
 export { startServer } from './start-server';
 export { validateServerConfig } from './validation';
 export { printBanner } from './banner';

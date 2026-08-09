@@ -39,9 +39,10 @@ unset. Set `SPFN_API_URL` in a `.env.local` only if you move the API server.
 Open `http://localhost:3790` and you'll see the live JSON returned by the `greeting`
 route. Try the API directly too: `curl 'http://localhost:8790/greeting?name=You'`.
 
-`GET /health` answers as well, and it is not one of the app's routes — the server
-serves it itself. That is why the app defines only `greeting`: a route registered on
-`/health` would be shadowed by the built-in endpoint.
+`GET /_core/health` answers as well, and it is not one of the app's routes — the server
+serves it itself. `/_core/` belongs to `@spfn/core`, which is why a probe pointed there
+answers no matter what the app declares. `GET /health` is not served: it answers 410 with
+the address above, and the path is free for the app to use.
 
 ## Next step
 

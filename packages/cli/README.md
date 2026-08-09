@@ -585,7 +585,7 @@ docker compose -f docker-compose.production.yml up --build -d
 
 The Dockerfile (`node:22-alpine`) installs with `pnpm --frozen-lockfile`, runs
 `pnpm run spfn:build`, prunes dev deps, exposes `3790`/`8790`, health-checks
-`http://localhost:8790/health`, and starts via `pnpm run spfn:start`.
+`http://localhost:8790/_core/health`, and starts via `pnpm run spfn:start`.
 
 Run migrations against the target DB before/with deploy:
 
@@ -600,7 +600,7 @@ the gate is one that never served the 500s. If a rollout has to proceed anyway, 
 logged as a warning instead.
 
 A readiness probe can catch the same drift on a cluster the local gate never sees. When
-detailed health is on, `GET /health` carries a `migrations` object with per-package
+detailed health is on, `GET /_core/health` carries a `migrations` object with per-package
 applied/pending counts — assert `migrations.pending === 0` in the probe to hold a
 drifted pod out of rotation. Reporting drift does not, by itself, change the overall
 health `status`.

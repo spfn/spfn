@@ -14,7 +14,7 @@ export const getRoot = route.get('/')
             version: '1.0.0',
             status: 'running',
             endpoints: {
-                health: '/health',
+                health: '/_core/health',
                 examples: '/examples',
             },
             message: 'Welcome to SPFN! Visit /examples for usage examples.',

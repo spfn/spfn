@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+#### @spfn/core
+
+- **BREAKING: 내장 health 엔드포인트가 `/_core/health` 로 옮겨가고, `/health` 는 더 이상 등록되지 않는다.** `/_core/` 는 `@spfn/core` 소유이고 그 안의 경로는 앱 라우트보다 먼저 등록돼 앱이 가져갈 수 없다. readiness probe·Dockerfile `HEALTHCHECK`·업타임 모니터·로드밸런서는 여기를 가리켜야 한다 — 앱이 무엇을 선언하든 답이 바뀌지 않는 유일한 주소다. `/_auth/`·`/_ops/` 와 같은 규칙이고, 그 두 곳에는 가려짐 결함이 한 번도 없었다.
+    - **마이그레이션**: [`docs/guides/migration/health-endpoint.md`](docs/guides/migration/health-endpoint.md). probe 경로를 `/_core/health` 로 옮기는 것이 기본이고, 경로를 바꿀 수 없는 배포는 `.healthCheck({ path: '/health' })` 로 옛 주소를 되살린다.
+    - `/health` 로 오는 `GET` 은 **한 릴리스 동안 410** 과 새 주소를 답하고, 첫 요청에 서버가 경고를 한 번 남긴다. readiness probe 실패는 운영자에게 응답 본문도 상태 문구도 보여주지 않아서, 404 하나로는 검색할 단서가 남지 않는다. 다음 릴리스에서 제거된다.
+    - 앱이 `GET /health` 를 선언했다면 안내는 나가지 않는다. 그 경로는 이제 앱 것이다.
+    - `healthCheck.enabled: false` 인 앱은 안내도 받지 않는다. 그 설정에서는 예전에도 `/health` 가 404 였으니 옮겨간 것이 없다.
+  - `CORE_NAMESPACE`·`CORE_HEALTH_PATH`·`LEGACY_HEALTH_PATH` 를 `@spfn/core/server` 에서 내보낸다.
+  - **`healthCheck.path` 는 이제 명시적 opt-in 이고 기본값이 없다.** 설정하면 `/_core/health` 와 **함께** 답하는 두번째 주소가 열린다. 옮기는 것이 아니다. 예전에는 이 값이 `/health` 로 기본 설정돼 앱이 그 경로에 선언한 라우트를 통째로 삼켰다.
+  - **내장 주소는 전부 `lifecycle.beforeRoutes` 훅보다 먼저 등록된다.** Hono 미들웨어는 자기 뒤에 등록된 핸들러만 감싸므로, 앱이 그 훅에서 추가한 전역 인증 가드가 probe 를 막지 못한다. 훅의 문서화된 용도가 바로 `app.use('/*', globalMiddleware())` 다.
+  - 설정한 `path` 에 앱 라우트가 겹치면 그 라우트가 실행되지 않는다고 warn 한다. 앱 라우트가 `/_core/` 안에 있을 때도 같다.
+  - **프록시 가드가 health 경로 전부를 자동 예외에 넣는다.** 넣지 않으면 strict 모드에서 probe 가 403 을 받는다 — probe 는 RPC 프록시를 지나지 않아 서명이 없다. 파드가 rotation 에 들어가지 못하면서 이유를 아무도 말해주지 않는 실패다. `/health` 안내도 예외에 들어간다. 막히면 운영자가 410 을 읽지 못한다.
+  - `RequestLogger` 기본 `excludePaths` 에 `/_core/health` 를 넣었다. 없으면 probe 주기마다 로그 한 줄이 쌓인다.
+  - 부팅 배너가 답하는 경로를 함께 보고한다(`healthCheck.corePath`, 설정 시 `healthCheck.path`).
+  - 예제 02·03 과 CLI 스캐폴드의 Dockerfile `HEALTHCHECK`, root 응답 안내가 `/_core/health` 를 가리킨다.
+
 #### @spfn/core · spfn (CLI)
 
 - **BREAKING: `.env.server.local` 폐지** — 서버 전용 환경변수를 `.env.server` 단일 파일로 통합. `.env.server`는 이제 gitignored(시크릿 포함)이며, committed 템플릿은 `.env.server.example`을 사용. 서버 시크릿을 `.env.server.local`에 두던 프로젝트는 `.env.server`로 이전해야 함(둘 다 gitignored).

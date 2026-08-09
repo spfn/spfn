@@ -167,7 +167,7 @@ EXPOSE 3790 8790
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8790/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+  CMD node -e "require('http').get('http://localhost:8790/_core/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start application
 CMD ["pnpm", "run", "spfn:start"]
@@ -467,16 +467,53 @@ services:
   app:
     # ... other config
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3790/api/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8790/_core/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 ```
 
-When detailed health is enabled, the SPFN server's `/health` also reports migration state
-per function package, so a readiness probe can catch drift the local boot gate never sees
-— a pod that came up before a migration ran, for instance:
+Port 8790 is the SPFN server, not 3790. This example used to probe
+`http://localhost:3790/api/health` — a Next.js path that no example or scaffold ever
+creates, so the container would have stayed unhealthy forever. The frontend's readiness is
+not what a probe wants to know either: the SPFN server is what holds the database and
+cache connections that health reports on.
+
+### Which health path a probe should use
+
+Point new manifests at **`/_core/health`**. That path belongs to `@spfn/core`, is
+registered before your app's routes, and cannot be claimed by a route you declare — so
+what answers it never depends on what your app happens to define.
+
+**`/health` is gone**, and this is a breaking change — a deployment probing it must move.
+`@spfn/core` registers nothing there any more:
+
+| Your app | `GET /health` answered by | `GET /_core/health` |
+|---|---|---|
+| declares no `GET /health` | **410**, naming `/_core/health` | the built-in endpoint |
+| declares `GET /health` | your route, like any other | the built-in endpoint |
+| set `healthCheck.path: '/health'` | the built-in endpoint | the built-in endpoint |
+| set `healthCheck.enabled: false` | nothing (404) | nothing (404) |
+
+Two ways to migrate, and the first is the one to prefer:
+
+1. **Move the probe** to `/_core/health` — in the `readinessProbe.httpGet.path` of your
+   manifest, the `HEALTHCHECK` of your Dockerfile, and your load balancer's target group.
+   No path an app declares can take it, so it stays true through every later release.
+2. **Restore the old address** with `.healthCheck({ path: '/health' })` when the probe path
+   is frozen somewhere you cannot reach. The built-in then answers on both.
+
+The 410 is a signpost for one release and is removed after that. It carries the new
+address in its body and the server logs a warning the first time it is hit, because a
+readiness probe failure surfaces neither to an operator — a Kubernetes event says the
+probe failed and stops there.
+
+`healthCheck.path` adds an address; it never moves `/_core/health`.
+
+When detailed health is enabled, the SPFN server's health response also reports migration
+state per function package, so a readiness probe can catch drift the local boot gate never
+sees — a pod that came up before a migration ran, for instance:
 
 ```json
 {

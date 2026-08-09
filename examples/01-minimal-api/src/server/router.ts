@@ -10,8 +10,9 @@
 import { defineRouter } from '@spfn/core/route';
 import { getGreeting } from './routes/greeting';
 
-// One route. `GET /health` is not here on purpose: the server serves it itself,
-// and an app route on that path would be shadowed by it.
+// One route. Health is not here on purpose: the server serves it itself, at
+// `/_core/health`, which no app route can claim. `/health` is free for an app to
+// use and answers 410 with that address while nothing declares it.
 export const appRouter = defineRouter({
     getGreeting,
 });

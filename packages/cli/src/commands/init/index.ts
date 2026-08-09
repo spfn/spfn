@@ -78,7 +78,7 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
     console.log(`  ${mode === 'full' ? '4' : '3'}. Run: ` + chalk.cyan(`${getRunCommand(pm)} spfn:dev`));
     console.log(`  ${mode === 'full' ? '5' : '4'}. Visit:`);
     console.log('     - Next.js: ' + chalk.cyan('http://localhost:3790'));
-    console.log('     - API:     ' + chalk.cyan('http://localhost:8790/health'));
+    console.log('     - API:     ' + chalk.cyan('http://localhost:8790/_core/health'));
     if (mode === 'full')
     {
         console.log('     - MCP:     ' + chalk.cyan('http://localhost:8790/mcp'));

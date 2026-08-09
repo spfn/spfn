@@ -489,7 +489,9 @@ export interface ServerConfig
 
     /**
      * Health check endpoint configuration
-     * Provides monitoring endpoints for Kubernetes probes and load balancers
+     *
+     * The endpoint answers at `/_core/health`, which no app route can take from
+     * it. Point Kubernetes probes and load balancers there.
      */
     healthCheck?: {
         /**
@@ -500,9 +502,19 @@ export interface ServerConfig
         enabled?: boolean;
 
         /**
-         * Health check endpoint path
-         * @default '/health'
-         * @env HEALTH_CHECK_PATH
+         * An additional path to answer on, for a deployment whose probe path is
+         * fixed somewhere you cannot change it.
+         *
+         * BREAKING (@spfn/core 0.4): unset, the endpoint answers at
+         * `/_core/health` and nowhere else. It used to default to `/health` and
+         * swallow any app route declared there. `/health` now belongs to your
+         * app; set this to `'/health'` to have the built-in answer there again.
+         *
+         * The path is registered before app routes, so an app route on the same
+         * path will not run and the server says so at boot.
+         *
+         * @default undefined — `/_core/health` only
+         * @example '/health'
          */
         path?: string;
 

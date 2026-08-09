@@ -256,9 +256,13 @@ describe('Server Helpers', () =>
                     errorHandler: true,
                     custom: 0,
                 },
+                // No `path`: unconfigured, the endpoint answers at corePath and
+                // nowhere else, and the banner must not name a path nothing is
+                // listening on.
                 healthCheck: {
                     enabled: true,
-                    path: '/health',
+                    corePath: '/_core/health',
+                    path: undefined,
                     detailed: expect.any(Boolean),
                 },
                 hooks: {
@@ -360,8 +364,12 @@ describe('Server Helpers', () =>
 
             const startupConfig = buildStartupConfig(config, timeouts);
 
+            // A configured path is an additional address, not a move. The banner
+            // reports /_core/health either way, because that is where the
+            // endpoint answers regardless of configuration.
             expect(startupConfig.healthCheck).toEqual({
                 enabled: true,
+                corePath: '/_core/health',
                 path: '/api/health',
                 detailed: true,
             });

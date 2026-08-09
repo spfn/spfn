@@ -17,6 +17,7 @@ import { createSSEHandler } from '../event/sse/handler';
 import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
 import { wireEventRouterCache } from '../event/cache-transport';
 import { createHealthCheckHandler, resolveEndpointMiddlewares } from './helpers';
+import { CORE_NAMESPACE, CORE_HEALTH_PATH, LEGACY_HEALTH_PATH } from './namespace';
 import { serverLogger } from './logger';
 
 import type { ServerConfig, AppFactory } from './types';
@@ -129,14 +130,24 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
         config.use.forEach(mw => app.use('*', mw));
     }
 
-    // 4. Health check endpoint
-    registerHealthCheckEndpoint(app, config);
+    // 4. Built-in health endpoint — before app routes and before the
+    //    beforeRoutes hook, on purpose. Hono answers with whichever handler was
+    //    registered first, and a middleware only wraps handlers registered after
+    //    it, so this position is what keeps a probe unauthenticated and keeps
+    //    the path unclaimable by an app.
+    registerCoreHealthEndpoint(app, config);
 
     // 5. beforeRoutes hook from config
     await executeBeforeRoutesHook(app, config);
 
     // 6. Load routes
-    await loadAppRoutes(app, config);
+    const appRoutes = await loadAppRoutes(app, config);
+
+    // 6.5 Where /health went — after app routes, so an app that declares that
+    //     path keeps it. A signpost, not an endpoint.
+    registerMovedHealthSignpost(app, config, appRoutes);
+    warnOnShadowedOptInPath(config, appRoutes);
+    warnOnCoreNamespaceRoutes(appRoutes);
 
     // 7. Register SSE endpoint (if events router provided)
     await registerSSEEndpoint(app, config);
@@ -217,7 +228,17 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
     // can't send custom headers), and WebSocket upgrades. The SSE *token* endpoint
     // (POST) is deliberately NOT skipped — it goes through the proxy like any RPC
     // call and mints credentials, so it must stay guarded.
-    const autoSkip = [config?.healthCheck?.path ?? '/health'];
+    // Every path health answers on, not just one: a probe reaches the server
+    // directly and carries no proxy signature, so in strict mode a guard that
+    // does not skip it rejects every readiness check — the pod would never enter
+    // rotation and nothing would say why. /health is in the list while the
+    // signpost lives there, because an operator whose probe broke needs to read
+    // the 410 rather than a rejection.
+    const autoSkip = [CORE_HEALTH_PATH, LEGACY_HEALTH_PATH];
+    if (config?.healthCheck?.path)
+    {
+        autoSkip.push(config.healthCheck.path);
+    }
     if (config?.events)
     {
         autoSkip.push(config.eventsConfig?.path ?? '/events/stream');
@@ -298,54 +319,175 @@ function applyOutboundFetch(config?: ServerConfig): void
     setDefaultSafeFetchPolicy(policy);
 }
 
-function resolveHealthCheck(config?: ServerConfig): { enabled: boolean; path: string; detailed: boolean }
+function resolveHealthCheck(config?: ServerConfig): { enabled: boolean; path?: string; detailed: boolean }
 {
     const healthCheckConfig = config?.healthCheck ?? {};
 
     return {
         enabled: healthCheckConfig.enabled !== false,
-        path: healthCheckConfig.path ?? '/health',
+        // No default. An unset `path` means the endpoint answers at
+        // CORE_HEALTH_PATH and nowhere else — a default here is what used to put
+        // it on /health without anyone asking.
+        path: healthCheckConfig.path,
         detailed: healthCheckConfig.detailed ?? process.env.NODE_ENV === 'development',
     };
 }
 
-function registerHealthCheckEndpoint(app: Hono, config?: ServerConfig): void
+/**
+ * The built-in health endpoint, at the one path an app cannot take from it.
+ *
+ * A readiness probe's path is fixed in places this repository cannot change —
+ * `readinessProbe.httpGet.path` in a GitOps manifest, `HEALTHCHECK` in a
+ * Dockerfile, a load balancer's console — and a version bump migrates none of
+ * them. So the endpoint needs an address that is true regardless of what the app
+ * declares, which is what {@link CORE_HEALTH_PATH} is: registered before app
+ * routes, and inside a namespace an app declaring it is declaring something it
+ * does not own. `/_auth` and `/_ops` already work that way and neither has ever
+ * had a shadowing defect.
+ *
+ * Deliberately without middleware, and registered before the `beforeRoutes`
+ * hook. Named middlewares attach per route inside `registerRoutes`, and a Hono
+ * middleware only wraps handlers registered after it — so an app that adds a
+ * global guard in that hook, which is what the hook is documented for, cannot
+ * close the endpoint a probe depends on.
+ *
+ * A configured `healthCheck.path` is registered here too, beside the canonical
+ * one, for a deployment whose probe path is frozen somewhere this repository
+ * cannot reach. It is an opt-in and never a default: the endpoint used to land
+ * on `/health` because a default put it there, which is how an app route on
+ * that path came to be swallowed whole.
+ */
+function registerCoreHealthEndpoint(app: Hono, config?: ServerConfig): void
 {
     const { enabled, path, detailed } = resolveHealthCheck(config);
 
-    if (enabled)
-    {
-        app.get(path, createHealthCheckHandler(detailed, config?.infrastructure));
-        serverLogger.debug(`Health check endpoint enabled at ${path}`);
-    }
-}
-
-/**
- * The built-in health endpoint is registered before app routes, so Hono answers
- * it first and an app route on the same path never runs. Silent shadowing is
- * how examples/01-minimal-api ended up shipping a route nobody could reach.
- */
-function warnOnShadowedRoutes(routes: RegisteredRoute[], config?: ServerConfig): void
-{
-    const healthCheck = resolveHealthCheck(config);
-
-    if (!healthCheck.enabled)
+    if (!enabled)
     {
         return;
     }
 
-    const shadowed = routes.filter(r => r.method === 'GET' && r.path === healthCheck.path);
+    const handler = createHealthCheckHandler(detailed, config?.infrastructure);
 
-    if (shadowed.length > 0)
+    app.get(CORE_HEALTH_PATH, handler);
+    serverLogger.debug(`Health check endpoint enabled at ${CORE_HEALTH_PATH}`);
+
+    if (path && path !== CORE_HEALTH_PATH)
     {
-        const names = shadowed.map(r => r.name).join(', ');
-
-        serverLogger.warn(
-            `⚠️  ${names} never runs: GET ${healthCheck.path} is served by the built-in health `
-            + 'check, which is registered before app routes. Move the route to another path, or '
-            + 'turn the built-in endpoint off with .healthCheck({ enabled: false }).',
-        );
+        app.get(path, handler);
+        serverLogger.debug(`Health check endpoint also answering at ${path}, as configured`);
     }
+}
+
+/**
+ * `/health` — gone, and saying so where the request arrives.
+ *
+ * A readiness probe that starts failing shows its operator neither a response
+ * body nor a status text: a Kubernetes event says the probe failed and stops
+ * there. So the 410 body is for whoever runs `curl`, and the warning is what
+ * reaches a log aggregator — once per server, because a probe interval would
+ * otherwise turn it into a stream.
+ *
+ * After app routes, so an app that declares `GET /health` keeps it and never
+ * sees this. A signpost is also the one thing here that a `beforeRoutes`
+ * middleware may safely wrap: nothing depends on its answer.
+ */
+function registerMovedHealthSignpost(
+    app: Hono,
+    config: ServerConfig | undefined,
+    appRoutes: RegisteredRoute[],
+): void
+{
+    const { enabled, path } = resolveHealthCheck(config);
+
+    // Disabled means /health was already a 404 before this change, so nothing
+    // moved and there is nothing to point at.
+    if (!enabled || path === LEGACY_HEALTH_PATH)
+    {
+        return;
+    }
+
+    if (appRoutes.some(r => r.method === 'GET' && r.path === LEGACY_HEALTH_PATH))
+    {
+        return;
+    }
+
+    let warned = false;
+
+    app.get(LEGACY_HEALTH_PATH, (c) =>
+    {
+        if (!warned)
+        {
+            warned = true;
+
+            serverLogger.warn(
+                `⚠️  GET ${LEGACY_HEALTH_PATH} is answering 410: @spfn/core no longer serves it. `
+                + `Point your readiness probe, Dockerfile HEALTHCHECK and load balancer at `
+                + `${CORE_HEALTH_PATH}, or restore this path with `
+                + `healthCheck({ path: '${LEGACY_HEALTH_PATH}' }). This notice is removed in the `
+                + 'next release.',
+            );
+        }
+
+        return c.json({
+            error: 'health endpoint moved',
+            movedTo: CORE_HEALTH_PATH,
+            detail: `@spfn/core no longer serves ${LEGACY_HEALTH_PATH}. Point your readiness probe, `
+                + `Dockerfile HEALTHCHECK and load balancer at ${CORE_HEALTH_PATH}, or restore this `
+                + `path with healthCheck({ path: '${LEGACY_HEALTH_PATH}' }).`,
+        }, 410);
+    });
+}
+
+/**
+ * An app route on the opt-in health path never runs — the built-in is registered
+ * before app routes, which is what makes it reachable in the first place.
+ *
+ * Only an app that asked for the second path can reach this, so it reports a
+ * contradiction the app stated rather than a trap the framework set.
+ */
+function warnOnShadowedOptInPath(config: ServerConfig | undefined, appRoutes: RegisteredRoute[]): void
+{
+    const { enabled, path } = resolveHealthCheck(config);
+
+    if (!enabled || !path || path === CORE_HEALTH_PATH)
+    {
+        return;
+    }
+
+    const shadowed = appRoutes.filter(r => r.method === 'GET' && r.path === path);
+
+    if (shadowed.length === 0)
+    {
+        return;
+    }
+
+    serverLogger.warn(
+        `⚠️  ${shadowed.map(r => r.name).join(', ')} never runs: GET ${path} is served by the `
+        + 'built-in health endpoint, which healthCheck({ path }) asked for and which is registered '
+        + 'before app routes. Drop that option, or move the route to a path your app owns.',
+    );
+}
+
+/**
+ * An app route inside `/_core/` never runs, and saying so is the whole point of
+ * having the namespace: the paths in it are registered before app routes
+ * precisely so nothing can take them.
+ */
+function warnOnCoreNamespaceRoutes(appRoutes: RegisteredRoute[]): void
+{
+    const inside = appRoutes.filter(r => r.path === CORE_NAMESPACE || r.path.startsWith(`${CORE_NAMESPACE}/`));
+
+    if (inside.length === 0)
+    {
+        return;
+    }
+
+    const names = inside.map(r => `${r.name} (${r.method} ${r.path})`).join(', ');
+
+    serverLogger.warn(
+        `⚠️  ${names} never runs: ${CORE_NAMESPACE}/ belongs to @spfn/core and its endpoints are `
+        + 'registered before app routes. Move the route to a path your app owns.',
+    );
 }
 
 async function executeBeforeRoutesHook(app: Hono, config?: ServerConfig): Promise<void>
@@ -356,7 +498,7 @@ async function executeBeforeRoutesHook(app: Hono, config?: ServerConfig): Promis
     }
 }
 
-async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void>
+async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<RegisteredRoute[]>
 {
     const debug = isDebugMode(config);
 
@@ -365,12 +507,16 @@ async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void>
     {
         const routes = registerRoutes(app, config.routes, config.middlewares);
         logRegisteredRoutes(routes, debug);
-        warnOnShadowedRoutes(routes, config);
+
+        return routes;
     }
-    else if (debug)
+
+    if (debug)
     {
         serverLogger.warn('⚠️  No routes configured. Use defineServerConfig().routes() to register routes.');
     }
+
+    return [];
 }
 
 /**

@@ -21,7 +21,7 @@ docker compose up -d
 Then open:
 
 - Next.js — http://localhost:3790
-- API health — http://localhost:8790/health
+- API health — http://localhost:8790/_core/health
 
 ## Project structure
 

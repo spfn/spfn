@@ -292,8 +292,8 @@ export default defineServerConfig()
 
 All three log the pending list as a warning rather than silently continuing.
 
-**A readiness probe sees the same thing.** When detailed health is on, `GET /health`
-carries a `migrations` object beside `services`:
+**A readiness probe sees the same thing.** When detailed health is on,
+`GET /_core/health` carries a `migrations` object beside `services`:
 
 ```json
 {
@@ -317,6 +317,45 @@ deployment out of rotation. A probe that wants that asserts `migrations.pending 
 
 The serverless path (`createServerlessApp`) has no boot to gate — run
 `spfn db migrate` as a deploy step there, as you already do for seeding.
+
+---
+
+## Which path does the health endpoint answer on?
+
+`/_core/health`. That is the whole answer — `@spfn/core` registers nothing on `/health`.
+
+`/_core/` belongs to `@spfn/core` the way `/_auth/` belongs to `@spfn/auth`: the endpoints
+in it are registered before your routes, so no route you declare can take one. That is
+what makes `/_core/health` the right target for a readiness probe, a Dockerfile
+`HEALTHCHECK` or an uptime monitor — the answer does not depend on what your app defines.
+
+```typescript
+// the endpoint answers at /_core/health, and nowhere else
+export default defineServerConfig().build();
+
+// an additional address, for a probe path you cannot change
+export default defineServerConfig().healthCheck({ path: '/health' }).build();
+
+// off → nothing answers anywhere
+export default defineServerConfig().healthCheck({ enabled: false }).build();
+```
+
+`healthCheck.path` adds a second address. It never moves `/_core/health`, and it is
+registered before your routes like the canonical one — so an app route on the same path
+will not run, and the server says so at boot.
+
+**`/health` is yours now.** Declare `GET /health` and it behaves like any other route of
+yours. Declare nothing there and, for one release, a `GET` answers **410** naming
+`/_core/health`, and the server warns once the first time it is hit — a readiness probe
+failure shows an operator neither a response body nor a status text, so a bare 404 would
+leave them nothing to search for. Upgrading an existing deployment?
+[docs/guides/migration/health-endpoint.md](../../docs/guides/migration/health-endpoint.md).
+
+Every built-in health address is registered before the `lifecycle.beforeRoutes` hook, and
+a Hono middleware only wraps handlers registered after it. So a global guard your app adds
+in that hook — which is what the hook is documented for — cannot close the endpoint a
+probe depends on, and a probe reaches it unauthenticated. An app with `src/server/app.ts`
+(level 3) wires its own server and gets no health endpoint at all.
 
 ---
 

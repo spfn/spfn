@@ -5,6 +5,7 @@ import { getDatabase, migrationTargets } from '@spfn/core/db';
 import { getCache } from '@spfn/core/cache';
 import { env } from '@spfn/core/config';
 import { getMigrationSnapshot } from './migration-gate';
+import { CORE_HEALTH_PATH } from './namespace';
 import { getShutdownManager } from './shutdown-manager';
 import type { NamedMiddleware, Router } from '@spfn/core/route';
 import type { ServerConfig } from './types';
@@ -67,6 +68,9 @@ interface StartupConfig
     };
     healthCheck: {
         enabled: boolean;
+        /** Where the endpoint always answers, whatever the app declares. */
+        corePath?: string;
+        /** The compatibility path — `/health` unless the app configured another. */
         path?: string;
         detailed?: boolean;
     };
@@ -400,7 +404,10 @@ export function buildStartupConfig(
     const middlewareConfig = config.middleware ?? {};
     const healthCheckConfig = config.healthCheck ?? {};
     const healthCheckEnabled = healthCheckConfig.enabled !== false;
-    const healthCheckPath = healthCheckConfig.path ?? '/health';
+    // No fallback: an unset path means the endpoint answers at CORE_HEALTH_PATH
+    // and nowhere else, and the banner has to show that rather than a path
+    // nothing is listening on.
+    const healthCheckPath = healthCheckConfig.path;
     const healthCheckDetailed = healthCheckConfig.detailed ?? (env.NODE_ENV === 'development');
 
     return {
@@ -412,6 +419,7 @@ export function buildStartupConfig(
         },
         healthCheck: healthCheckEnabled ? {
             enabled: true,
+            corePath: CORE_HEALTH_PATH,
             path: healthCheckPath,
             detailed: healthCheckDetailed,
         } : { enabled: false },

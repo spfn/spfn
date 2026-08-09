@@ -7,7 +7,7 @@ export const getRoot = route.get('/')
         version: '1.0.0',
         status: 'running',
         endpoints: {
-            health: '/health',
+            health: '/_core/health',
             examples: '/examples',
             auth: '/_auth',
             mcp: '/mcp',

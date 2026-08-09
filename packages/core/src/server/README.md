@@ -262,12 +262,15 @@ When there is no `app.ts`, `createServer` builds the app in this **fixed order**
 3. cors(config.cors)               (if middleware.cors !== false && cors !== false)
 4. proxyGuard                      (if proxyGuard.mode !== 'off')
 5. config.use[*]                   (raw custom middleware, in array order)
-6. health-check route              (GET config.healthCheck.path, default /health)
+6. built-in health                 (GET /_core/health — unclaimable, always here;
+                                    plus config.healthCheck.path when set)
 7. lifecycle.beforeRoutes(app)
 8. registerRoutes(app, routes, middlewares)
-9. SSE endpoint                    (if .events(): GET /events/stream [+ POST token])
-10. lifecycle.afterRoutes(app)
-11. app.onError(ErrorHandler(...)) (if middleware.errorHandler !== false)
+9. /health signpost                (GET /health → 410 naming /_core/health, for one
+                                    release, and only if no app route declared GET on it)
+10. SSE endpoint                   (if .events(): GET /events/stream [+ POST token])
+11. lifecycle.afterRoutes(app)
+12. app.onError(ErrorHandler(...)) (if middleware.errorHandler !== false)
 ```
 
 - Each built-in is opt-out via `.middleware({ logger: false, cors: false, errorHandler: false })`.
@@ -402,8 +405,12 @@ the server's shutdown sequence — application code uses the four methods above.
 
 ## Health check
 
-`GET /health` (path/enabled/detailed configurable). During shutdown it returns 503
-`{ status: 'shutting_down' }` immediately (k8s readiness signal).
+`GET /_core/health`, always — that path belongs to `@spfn/core`, is registered before app
+routes and cannot be claimed by one, which is what makes it the right target for a probe.
+`GET /health` answers too (path configurable), unless the app declares a `GET` on it, in
+which case the app's route wins and the built-in stays at `/_core/health`. `enabled: false`
+turns off both. During shutdown it returns 503 `{ status: 'shutting_down' }` immediately
+(k8s readiness signal).
 
 - **Basic** (`detailed: false`, the production default): `{ status, timestamp }`, 200.
 - **Detailed** (`detailed: true`, the dev default): adds
@@ -415,15 +422,18 @@ A component turned off with `.infrastructure({ database: false })` reports `disa
 and never degrades health — otherwise a server that legitimately has no database would
 answer 503 forever and no readiness probe would ever let it into rotation.
 
-> The endpoint is registered **before** app routes, so an app route on the same path
-> never runs. The server logs a warning naming the path when it sees one. Give the route
-> another path, or turn the built-in endpoint off with `.healthCheck({ enabled: false })`.
+The endpoint answers at `/_core/health`. `path` adds a second address for a probe path
+you cannot change — it does not move the canonical one.
 
 ```typescript
 defineServerConfig()
     .healthCheck({ path: '/api/health', detailed: true })
     .build();
 ```
+
+> Both addresses are registered **before** app routes, so an app route on the configured
+> path never runs. The server logs a warning naming the route when it sees one. Drop the
+> `path` option, or move the route to a path your app owns.
 
 ### `migrations` in the detailed payload
 
