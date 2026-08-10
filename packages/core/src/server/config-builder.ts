@@ -367,6 +367,18 @@ export class ServerConfigBuilder
     }
 
     /**
+     * Supply the clock used by the built-in `GET /_core/time` capability.
+     * Production servers normally keep the default `Date.now()` clock; this is
+     * exposed so tests can assert an exact wire value without replacing globals.
+     */
+    serverTime(serverTime: ServerConfig['serverTime']): this
+    {
+        this.config.serverTime = serverTime;
+
+        return this;
+    }
+
+    /**
      * Configure infrastructure initialization
      */
     infrastructure(infrastructure: ServerConfig['infrastructure']): this
