@@ -11,7 +11,7 @@
  * calling the helper.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import { and, desc, eq } from 'drizzle-orm';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '../helpers/db';
@@ -293,6 +293,27 @@ describe.skipIf(!dbAvailable)('Email normalization', () =>
             expect((await normalizeStoredEmails()).conflicts).toHaveLength(1);
         });
 
+        it('handles ids past the range of a 32-bit integer', async () =>
+        {
+            // `users.id` is bigserial, and a sequence reaches these values on
+            // rolled-back inserts too. A conflict list cast to int[] would make
+            // the whole statement fail, and the failure is only logged — so no
+            // legacy row would ever be repaired on such an install.
+            const db = getTestDb();
+            const big = 3_000_000_000;
+            await db.insert(users).values([
+                { id: big, email: 'Huge@Example.com', status: 'active', roleId: userRoleId },
+                { id: big + 1, email: 'HUGE@example.com', status: 'active', roleId: userRoleId },
+            ]);
+            const safe = await insertRaw('Small@Example.com');
+
+            const result = await normalizeStoredEmails();
+
+            expect(result.conflicts).toEqual([[big, big + 1]]);
+            expect(result.normalized).toBe(1);
+            expect((await usersRepository.findById(safe.id))?.email).toBe('small@example.com');
+        });
+
         it('rewrites every safe row in one pass', async () =>
         {
             const ids = [];
@@ -306,6 +327,64 @@ describe.skipIf(!dbAvailable)('Email normalization', () =>
 
             const stored = await Promise.all(ids.map(id => usersRepository.findById(id)));
             expect(stored.map(row => row?.email)).toEqual(ids.map((_, i) => `bulk${i}@example.com`));
+        });
+    });
+
+    describe('admin seeding while addresses disagree', () =>
+    {
+        const ADMIN_ENV = ['SPFN_AUTH_ADMIN_EMAIL', 'SPFN_AUTH_ADMIN_PASSWORD'] as const;
+
+        afterEach(() =>
+        {
+            for (const key of ADMIN_ENV)
+            {
+                delete process.env[key];
+            }
+        });
+
+        /** Run the startup hook the way a booting server does. */
+        async function boot()
+        {
+            const { createAuthLifecycle } = await import('@/server/lifecycle');
+
+            await createAuthLifecycle().afterInfrastructure!();
+        }
+
+        it('does not create a second admin when the existing one is stored in mixed case', async () =>
+        {
+            const db = getTestDb();
+            await db.insert(users).values({
+                email: 'Admin@Example.com',
+                status: 'active',
+                roleId: userRoleId,
+            });
+            // A second row folding onto the same address, so the backfill leaves
+            // both alone and the admin stays unreachable by canonical lookup.
+            await db.insert(users).values({
+                email: 'ADMIN@example.com',
+                status: 'active',
+                roleId: userRoleId,
+            });
+
+            process.env.SPFN_AUTH_ADMIN_EMAIL = 'admin@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORD = PASSWORD;
+
+            await boot();
+
+            const rows = await db.select().from(users);
+            // Seeding is skipped, not answered by creating a third privileged
+            // account holding the configured password.
+            expect(rows.filter(r => r.email?.toLowerCase() === 'admin@example.com')).toHaveLength(2);
+        });
+
+        it('seeds the admin once the addresses agree', async () =>
+        {
+            process.env.SPFN_AUTH_ADMIN_EMAIL = 'Fresh.Admin@Example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORD = PASSWORD;
+
+            await boot();
+
+            expect(await usersRepository.findByEmail('fresh.admin@example.com')).not.toBeNull();
         });
     });
 

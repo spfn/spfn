@@ -92,7 +92,12 @@ export async function registerService(
     params: RegisterParams,
 ): Promise<RegisterResult>
 {
-    const { email, phone, verificationToken, password, publicKey, keyId, fingerprint, algorithm, metadata } = params;
+    const { email, verificationToken, password, publicKey, keyId, fingerprint, algorithm, metadata } = params;
+    // Trimmed once, here, so the token comparison, the duplicate check and the
+    // stored row all mean the same number. Trimming at the comparison alone
+    // would let a padded number past a check it used to fail and then store the
+    // padding, and `findByPhone` matches the raw column.
+    const phone = params.phone?.trim();
 
     // Validate verification token
     const tokenPayload = validateVerificationToken(verificationToken);
@@ -112,10 +117,10 @@ export async function registerService(
     // the verification step normalized it, so a user who retypes their address
     // with different capitalization here would otherwise be told the token is
     // for a different address than the one they just proved.
-    // The phone is trimmed on both sides too: the verification step stores the
-    // target trimmed, so comparing an untrimmed one here would refuse a code the
-    // caller just proved.
-    const providedTarget = email ? normalizeEmail(email) : phone?.trim();
+    // The phone is compared trimmed too: the verification step stores the target
+    // trimmed, so comparing an untrimmed one here would refuse a code the caller
+    // just proved.
+    const providedTarget = email ? normalizeEmail(email) : phone;
     if (tokenPayload.target !== providedTarget)
     {
         throw new VerificationTokenTargetMismatchError();

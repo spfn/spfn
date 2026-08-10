@@ -236,9 +236,11 @@ export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLif
             // folding a row onto, between the conflict check and the rewrite.
             // Refusing to boot on that would take the service down to fix
             // something the next boot retries anyway.
+            let addressesAreCanonical = false;
+
             try
             {
-                await normalizeStoredEmails();
+                addressesAreCanonical = (await normalizeStoredEmails()).conflicts.length === 0;
             }
             catch (error)
             {
@@ -249,7 +251,25 @@ export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLif
                 );
             }
 
-            await ensureAdminExists();
+            // Admin seeding decides whether an account exists by looking it up
+            // under the canonical address. While any row is still stored in
+            // another form that lookup can miss an admin that is right there,
+            // and seeding would answer by creating a second privileged account
+            // holding the configured password — the unique constraint does not
+            // stop it, because the two stored strings differ. Skipped until the
+            // addresses agree; it runs on the boot after the operator settles
+            // the conflict.
+            if (addressesAreCanonical)
+            {
+                await ensureAdminExists();
+            }
+            else
+            {
+                authLogger.setup.warn(
+                    'Admin account seeding skipped: stored email addresses are not all in canonical form, so an '
+                    + 'existing admin could be missed and duplicated. Resolve the reported email conflicts.',
+                );
+            }
             initOneTimeTokenManager(options.oneTimeToken);
         },
     };

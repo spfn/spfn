@@ -216,6 +216,12 @@ export class UsersRepository extends BaseRepository
      * The excluded ids travel as a single array parameter, so the count of
      * conflicts cannot run into the protocol's limit on bind parameters.
      *
+     * One statement also means all or nothing. `users.email` is unique, so if an
+     * instance still running the old code registers a canonical address in the
+     * moment between the conflict query and this update, the update aborts and
+     * nothing is folded on this boot. The next boot sees that pair as a conflict
+     * and folds everything else, so the repair is deferred rather than lost.
+     *
      * `lower(btrim(...))` is the SQL spelling of `normalizeEmail`. The two agree
      * on every address this package's validation accepts (ASCII, no interior
      * whitespace); an address outside that set — reachable only by an app
@@ -227,17 +233,27 @@ export class UsersRepository extends BaseRepository
      */
     async normalizeEmailsExcept(excludedIds: number[]): Promise<number>
     {
+        // `bigint[]`, matching the bigserial primary key. Cast to `int[]` this
+        // fails outright once an install's id sequence passes 2^31 — which a
+        // sequence reaches on rolled-back inserts too, not only on live rows.
         const keepConflicts = excludedIds.length > 0
-            ? sql` AND NOT (${users.id} = ANY(string_to_array(${excludedIds.join(',')}, ',')::int[]))`
+            ? sql` AND NOT (${users.id} = ANY(string_to_array(${excludedIds.join(',')}, ',')::bigint[]))`
             : sql``;
+        const pending = sql`${users.email} IS NOT NULL AND ${users.email} <> lower(btrim(${users.email}))${keepConflicts}`;
 
-        const result = await this.db
+        // Counted rather than returned. `RETURNING` would hand back one row per
+        // rewritten address, which is the transfer this method exists to avoid.
+        const [counted] = await this.db
+            .select({ rows: sql<number>`count(*)` })
+            .from(users)
+            .where(pending);
+
+        await this.db
             .update(users)
             .set({ email: sql`lower(btrim(${users.email}))` })
-            .where(sql`${users.email} IS NOT NULL AND ${users.email} <> lower(btrim(${users.email}))${keepConflicts}`)
-            .returning({ id: users.id });
+            .where(pending);
 
-        return result.length;
+        return Number(counted?.rows ?? 0);
     }
 
     /**
