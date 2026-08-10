@@ -377,7 +377,7 @@ describe.skipIf(!dbAvailable)('Email normalization', () =>
             expect(rows.filter(r => r.email?.toLowerCase() === 'admin@example.com')).toHaveLength(2);
         });
 
-        it('seeds the admin once the addresses agree', async () =>
+        it('seeds the admin on a clean install', async () =>
         {
             process.env.SPFN_AUTH_ADMIN_EMAIL = 'Fresh.Admin@Example.com';
             process.env.SPFN_AUTH_ADMIN_PASSWORD = PASSWORD;
@@ -385,6 +385,24 @@ describe.skipIf(!dbAvailable)('Email normalization', () =>
             await boot();
 
             expect(await usersRepository.findByEmail('fresh.admin@example.com')).not.toBeNull();
+        });
+
+        it('seeds the admin even while unrelated accounts are in conflict', async () =>
+        {
+            const db = getTestDb();
+            // Two ordinary accounts the backfill cannot settle. They say nothing
+            // about whether the configured admin exists, and must not decide it.
+            await db.insert(users).values([
+                { email: 'Bob@example.com', status: 'active', roleId: userRoleId },
+                { email: 'BOB@example.com', status: 'active', roleId: userRoleId },
+            ]);
+
+            process.env.SPFN_AUTH_ADMIN_EMAIL = 'admin@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORD = PASSWORD;
+
+            await boot();
+
+            expect(await usersRepository.findByEmail('admin@example.com')).not.toBeNull();
         });
     });
 

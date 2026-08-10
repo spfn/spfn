@@ -236,11 +236,9 @@ export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLif
             // folding a row onto, between the conflict check and the rewrite.
             // Refusing to boot on that would take the service down to fix
             // something the next boot retries anyway.
-            let addressesAreCanonical = false;
-
             try
             {
-                addressesAreCanonical = (await normalizeStoredEmails()).conflicts.length === 0;
+                await normalizeStoredEmails();
             }
             catch (error)
             {
@@ -251,25 +249,14 @@ export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLif
                 );
             }
 
-            // Admin seeding decides whether an account exists by looking it up
-            // under the canonical address. While any row is still stored in
-            // another form that lookup can miss an admin that is right there,
-            // and seeding would answer by creating a second privileged account
-            // holding the configured password — the unique constraint does not
-            // stop it, because the two stored strings differ. Skipped until the
-            // addresses agree; it runs on the boot after the operator settles
-            // the conflict.
-            if (addressesAreCanonical)
-            {
-                await ensureAdminExists();
-            }
-            else
-            {
-                authLogger.setup.warn(
-                    'Admin account seeding skipped: stored email addresses are not all in canonical form, so an '
-                    + 'existing admin could be missed and duplicated. Resolve the reported email conflicts.',
-                );
-            }
+            // Unconditional, and safe to be: admin seeding looks an account up
+            // in whatever form it was stored, so it recognizes an admin this
+            // backfill has not reached and skips it rather than making a second
+            // one. Making it wait on the backfill instead would mean a failure
+            // over here — or a capitalization clash between two unrelated
+            // ordinary accounts — leaves an install with no administrator and
+            // nothing but a log line saying so.
+            await ensureAdminExists();
             initOneTimeTokenManager(options.oneTimeToken);
         },
     };

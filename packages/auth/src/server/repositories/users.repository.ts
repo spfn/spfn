@@ -71,6 +71,31 @@ export class UsersRepository extends BaseRepository
     }
 
     /**
+     * 이메일로 사용자 조회 — 저장된 형태와 무관하게 찾는다.
+     *
+     * `findByEmail` asks whether a row holds this exact address; this asks
+     * whether any row *is* this address, whatever form it was written in. The
+     * difference matters to a caller that answers "no" by creating an account:
+     * a lookup that misses a row stored in another form would make a second
+     * account for a person who already has one, and the unique constraint
+     * cannot object because the two stored strings differ.
+     *
+     * Folding in the predicate means no index on `email` applies, so this is for
+     * the few addresses a caller decides about — admin seeding — not for a
+     * request path. Write primary: the answer decides whether to insert.
+     */
+    async findByEmailInAnyStoredForm(email: string)
+    {
+        const result = await this.db
+            .select()
+            .from(users)
+            .where(sql`lower(btrim(${users.email})) = ${normalizeEmail(email)}`)
+            .limit(1);
+
+        return result[0] ?? null;
+    }
+
+    /**
      * 전화번호로 사용자 조회
      * Read replica 사용
      */

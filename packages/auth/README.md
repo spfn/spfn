@@ -1252,9 +1252,11 @@ treat as different people.
 differ only by capitalization, both are left exactly as they are and their user ids are
 logged as an error: which one is the real account, and what becomes of the other's data, is
 not a question the package can answer for you. Until you resolve it, the mixed-case one
-cannot sign in, and **admin seeding is skipped** — an admin looked up under the canonical
-address could be missed while it is stored in another form, and seeding would answer that by
-creating a second privileged account holding the configured password.
+cannot sign in.
+
+Admin seeding is unaffected either way. It recognizes a configured admin in whatever form
+the address was stored, so an account the backfill has not reached is skipped rather than
+duplicated into a second privileged row holding the configured password.
 
 ## Pitfalls & anti-patterns
 

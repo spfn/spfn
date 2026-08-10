@@ -196,8 +196,11 @@ export async function ensureAdminExists(): Promise<void>
 
         try
         {
-            // Check if account already exists
-            const existing = await usersRepository.findByEmail(account.email);
+            // Whatever form the address was stored in, not only the canonical
+            // one. This branch answers "no" by creating a privileged account, so
+            // a lookup that misses an admin stored as `Admin@Example.com` would
+            // make a second one holding the configured password.
+            const existing = await usersRepository.findByEmailInAnyStoredForm(account.email);
 
             if (existing)
             {
