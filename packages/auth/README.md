@@ -154,6 +154,8 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_OAUTH_SUCCESS_URL` | `.env.server` | — | default `/auth/callback` |
 | `SPFN_AUTH_OAUTH_ERROR_URL` | `.env.server` | — | default `/auth/error?error={error}` |
 | `SPFN_AUTH_RESERVED_USERNAMES` / `_USERNAME_MIN_LENGTH` / `_USERNAME_MAX_LENGTH` | `.env.server` | — | username rules |
+| `SPFN_AUTH_SIGNUP_LINK_TTL_MINUTES` / `_SETUP_TTL_MINUTES` | `.env.server` | — | defaults `30` / `15` — see [Verified-email signup](#verified-email-signup) |
+| `SPFN_AUTH_SIGNUP_CONFIRM_PATH` | `.env.server` | — | default `/signup/confirm`; the page in your app the emailed link opens |
 | `NEXT_PUBLIC_SPFN_API_URL` / `NEXT_PUBLIC_SPFN_APP_URL` | `.env.local` | — | browser-facing URLs for OAuth redirects |
 
 Read validated values via `import { env } from '@spfn/auth/config'` (a proxy validated at
@@ -178,6 +180,9 @@ routes use `.skip(['auth'])`; the rest require `Authorization: Bearer <client-si
 | `sendVerificationCode` | POST `/_auth/codes` | public | send 6-digit OTP |
 | `verifyCode` | POST `/_auth/codes/verify` | public | verify OTP → verification token |
 | `register` | POST `/_auth/register` | public | create user + register public key |
+| `requestSignupLink` | POST `/_auth/signup/email` | public | email a one-time signup confirmation link — see [Verified-email signup](#verified-email-signup) |
+| `confirmSignupLink` | POST `/_auth/signup/email/confirm` | public | exchange the link for a password-setup session |
+| `completeSignup` | POST `/_auth/signup/password` | setup session | set the password, which creates the account and signs in |
 | `login` | POST `/_auth/login` | public | password login + new session key |
 | `logout` | POST `/_auth/logout` | yes | revoke current key |
 | `rotateKey` | POST `/_auth/keys/rotate` | yes | rotate public key before 90-day expiry |
@@ -204,6 +209,83 @@ Auth uses **asymmetric, client-signed JWTs**: the client generates an ES256/RS25
 sends the public key on register/login, signs request JWTs locally, and the server verifies
 with the stored public key (`keyId` carried in the JWT). The server never holds a private key.
 Keys expire after 90 days — rotate with `rotateKey`.
+
+### Verified-email signup
+
+A second way in, alongside the six-digit code. The address is proven before a password
+exists, so nothing is stored for someone who never confirms.
+
+```
+request  → a one-time link is emailed
+confirm  → the link becomes a short-lived, HttpOnly password-setup session
+password → the account is created, the device registered, the user signed in
+```
+
+The six-digit-code path (`sendVerificationCode` → `verifyCode` → `register`) is unchanged.
+Offer whichever suits your product, or both.
+
+**1 — request the link.** The response is identical whether or not the address already has
+an account, so it cannot be used to probe for accounts. When one exists, the owner gets a
+"you already have an account" notice instead of a usable link.
+
+```typescript
+await authApi.requestSignupLink.call({
+    body: { email: 'user@example.com', returnPath: '/welcome' },   // returnPath optional
+});
+// → { success: true, expiresAt }
+```
+
+Calling it again is how a resend works: it invalidates the previous link and any setup
+session opened from it. `returnPath` must be a path inside your app — absolute URLs,
+`//host`, and `..` are refused, so the link cannot become an open redirect.
+
+**2 — the page the link opens.** The email points at a page in *your* app
+(`SPFN_AUTH_SIGNUP_CONFIRM_PATH`, default `/signup/confirm`), not at an API route. That page
+reads the token from the query string and posts it:
+
+```typescript
+'use client';
+
+const token = useSearchParams().get('token');
+
+const { email, returnPath } = await authApi.confirmSignupLink.call({ body: { token } });
+
+// Drop the token from the URL so it does not linger in history or a Referer header.
+window.history.replaceState({}, '', window.location.pathname);
+```
+
+The setup session comes back as an HttpOnly cookie — the proxy interceptor moves it there
+and strips it from the response body, so page script never holds it. Serve this page with
+`Referrer-Policy: no-referrer`.
+
+**3 — set the password.** This is the step that creates the account. The setup cookie
+authorizes it; the device keypair is injected by the interceptor exactly as it is for
+`register`.
+
+```typescript
+await authApi.completeSignup.call({ body: { password } });
+// → { userId, publicId, email }  + session cookie, same as register
+```
+
+Creating the user, registering the device key, and marking the setup session used all commit
+together. A password that fails the strength policy leaves the session usable, so the user
+retypes rather than requesting a fresh email.
+
+**Settings.**
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `SPFN_AUTH_SIGNUP_LINK_TTL_MINUTES` | `30` | how long the emailed link works |
+| `SPFN_AUTH_SIGNUP_SETUP_TTL_MINUTES` | `15` | how long the password-setup session works |
+| `SPFN_AUTH_SIGNUP_CONFIRM_PATH` | `/signup/confirm` | the page in your app the link opens |
+
+The link URL is built on `NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL`, the same resolution the
+OAuth callbacks use. Delivery uses the `signup-link` template in `@spfn/notification` —
+override it there to change the copy.
+
+**What is stored.** Only SHA-256 hashes of the link token and the setup secret, in
+`spfn_auth.signup_link_tokens`. Neither credential is recoverable from the database, and
+both are one-time: a link opens one setup session, and a setup session sets one password.
 
 ### Registered devices (key management)
 

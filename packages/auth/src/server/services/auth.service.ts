@@ -92,11 +92,13 @@ export async function registerService(
     params: RegisterParams,
 ): Promise<RegisterResult>
 {
-    const { email, verificationToken, password, publicKey, keyId, fingerprint, algorithm, metadata } = params;
+    const { email, verificationToken } = params;
     // Trimmed once, here, so the token comparison, the duplicate check and the
     // stored row all mean the same number. Trimming at the comparison alone
     // would let a padded number past a check it used to fail and then store the
-    // padding, and `findByPhone` matches the raw column.
+    // padding, and `findByPhone` matches the raw column. The trimmed value is
+    // what `createVerifiedAccount` receives below, so the check and the row
+    // downstream see it too.
     const phone = params.phone?.trim();
 
     // Validate verification token
@@ -131,6 +133,42 @@ export async function registerService(
     if (tokenPayload.targetType !== providedTargetType)
     {
         throw new VerificationTokenTargetMismatchError();
+    }
+
+    return await createVerifiedAccount({ ...params, phone });
+}
+
+/**
+ * Create an account whose owner has already been proven.
+ *
+ * Everything after the proof: the existence check, the app's pre-registration
+ * policy, the password hash, the user row, the device key, and the register
+ * event. It does NOT decide whether the caller proved ownership — each entry
+ * point does that in its own way and then arrives here.
+ *
+ * Two entry points share it today: `/_auth/register`, which proves ownership
+ * with a six-digit-code verification token, and the verified-email signup
+ * flow, which proves it with a confirmed link and its setup session. Keeping
+ * one body means an account is created identically either way — the same
+ * duplicate refusal, the same policy hook, the same event — instead of two
+ * paths that drift.
+ *
+ * Call it inside a transaction. The user row and the device key must land
+ * together or not at all.
+ */
+export async function createVerifiedAccount(
+    params: Omit<RegisterParams, 'verificationToken'>,
+): Promise<RegisterResult>
+{
+    const { email, phone, password, publicKey, keyId, fingerprint, algorithm, metadata } = params;
+
+    // The device key is injected by the proxy interceptor, so its absence means
+    // the request did not come through one. Refusing here keeps that a 400: left
+    // unchecked, the undefined keyId reaches the key lookup and surfaces as a
+    // driver-level 500 that names a column list instead of the problem.
+    if (!publicKey || !keyId || !fingerprint)
+    {
+        throw new ValidationError({ message: 'Device key material is required to register' });
     }
 
     // Check if user already exists

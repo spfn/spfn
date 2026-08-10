@@ -13,6 +13,7 @@ export * from './user-profiles';
 export * from './user-public-keys';
 export * from './user-social-accounts';
 export * from './verification-codes';
+export * from './signup-link-tokens';
 export * from './user-invitations';
 export * from './account-deletion-requests';
 

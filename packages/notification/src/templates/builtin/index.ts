@@ -5,3 +5,4 @@
 export { verificationCodeTemplate } from './verification-code';
 export { welcomeTemplate } from './welcome';
 export { accountExistsTemplate } from './account-exists';
+export { signupLinkTemplate } from './signup-link';
