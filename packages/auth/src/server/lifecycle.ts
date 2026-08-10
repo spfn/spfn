@@ -9,7 +9,7 @@ import type { SSETokenStore } from '@spfn/core/event/sse';
 import type { PurgeStrategy } from './types';
 import type { AccountDeletionPurgeUser } from './lib/deletion-config';
 import { ensureAdminExists } from './setup';
-import { initializeAuth } from './services';
+import { initializeAuth, normalizeStoredEmails } from './services';
 import { initOneTimeTokenManager } from './lib/one-time-token';
 import { configureDeletion } from './lib/deletion-config';
 
@@ -224,6 +224,10 @@ export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLif
         afterInfrastructure: async () =>
         {
             await initializeAuth(options);
+            // Before any account is looked up: the repository folds addresses to
+            // canonical form now, so a row still stored in mixed case would not
+            // be found by its owner.
+            await normalizeStoredEmails();
             await ensureAdminExists();
             initOneTimeTokenManager(options.oneTimeToken);
         },

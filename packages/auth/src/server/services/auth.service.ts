@@ -18,7 +18,7 @@ import {
 import { usersRepository, keysRepository } from '../repositories';
 import { runBeforeRegister } from '../lib/config';
 import { type KeyAlgorithmType, type KeyPlatformType } from '../types';
-import { hashPassword, verifyPassword, getDummyPasswordHash } from '../helpers';
+import { hashPassword, verifyPassword, getDummyPasswordHash, normalizeEmail } from '../helpers';
 import { validateVerificationToken } from './verification.service';
 import { registerPublicKeyService, revokeKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
@@ -107,8 +107,12 @@ export async function registerService(
         throw new VerificationTokenPurposeMismatchError({ expected: 'registration', actual: tokenPayload.purpose });
     }
 
-    // Verify that token target matches provided email/phone
-    const providedTarget = email || phone;
+    // Verify that token target matches provided email/phone.
+    // Compared in canonical form on both sides: the token carries the address as
+    // the verification step normalized it, so a user who retypes their address
+    // with different capitalization here would otherwise be told the token is
+    // for a different address than the one they just proved.
+    const providedTarget = email ? normalizeEmail(email) : phone;
     if (tokenPayload.target !== providedTarget)
     {
         throw new VerificationTokenTargetMismatchError();

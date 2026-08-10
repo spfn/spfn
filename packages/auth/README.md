@@ -1239,6 +1239,19 @@ authorization.
 The environment, seeded on startup by `createAuthLifecycle()`. Seeded accounts are email
 verified, active, and required to change their password on first login.
 
+**Is `Foo@Example.com` the same account as `foo@example.com`?**
+Yes. Addresses are trimmed and lower-cased on the way in and on the way out, so one person
+who capitalizes differently on different days reaches one account instead of creating a
+second. Nothing else is folded — Gmail's dot and `+` rules are that provider's delivery
+behaviour, not an internet rule, and applying them would merge addresses other providers
+treat as different people.
+
+`createAuthLifecycle()` brings existing rows into the same form on startup. If two accounts
+differ only by capitalization, both are left exactly as they are and their user ids are
+logged as an error: which one is the real account, and what becomes of the other's data, is
+not a question the package can answer for you. Until you resolve it, the mixed-case one
+cannot sign in.
+
 ## Pitfalls & anti-patterns
 
 - **"relation \"auth.users\" does not exist" — tables come from bundled migrations, not push.**

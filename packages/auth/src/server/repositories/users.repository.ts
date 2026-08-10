@@ -5,11 +5,12 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { BaseRepository } from '@spfn/core/db';
 import { EntityNotFoundError, NotFoundError } from '@spfn/core/errors';
 
 import { rolePermissions, roles, NewUser, users, permissions } from '../entities';
+import { normalizeEmail, normalizeOptionalEmail } from '../helpers/email';
 
 /**
  * Users Repository 클래스
@@ -63,7 +64,7 @@ export class UsersRepository extends BaseRepository
         const result = await this.readDb
             .select()
             .from(users)
-            .where(eq(users.email, email))
+            .where(eq(users.email, normalizeEmail(email)))
             .limit(1);
 
         return result[0] ?? null;
@@ -172,7 +173,46 @@ export class UsersRepository extends BaseRepository
      */
     async create(data: NewUser)
     {
-        return await this._create(users, data);
+        return await this._create(users, { ...data, email: normalizeOptionalEmail(data.email) });
+    }
+
+    /**
+     * Rows whose stored address is not in canonical form.
+     *
+     * Compared in the database rather than by reading every row, so an install
+     * that has nothing to fix pays for an empty result instead of a full table
+     * transfer. Write primary: the caller is about to rewrite these rows and a
+     * replica could still be showing the pre-fix state.
+     */
+    async findNonCanonicalEmails(): Promise<{ id: number; email: string }[]>
+    {
+        const result = await this.db
+            .select({ id: users.id, email: users.email })
+            .from(users)
+            .where(sql`${users.email} IS NOT NULL AND ${users.email} <> lower(btrim(${users.email}))`);
+
+        return result as { id: number; email: string }[];
+    }
+
+    /**
+     * Which of the given addresses are already stored.
+     *
+     * Used to tell a safe rewrite from one that would collide with an account
+     * that already holds the canonical form.
+     */
+    async findExistingEmails(emails: string[]): Promise<string[]>
+    {
+        if (emails.length === 0)
+        {
+            return [];
+        }
+
+        const result = await this.db
+            .select({ email: users.email })
+            .from(users)
+            .where(inArray(users.email, emails));
+
+        return result.map(row => row.email).filter((email): email is string => email !== null);
     }
 
     /**
@@ -181,9 +221,15 @@ export class UsersRepository extends BaseRepository
      */
     async updateById(id: number, data: Partial<NewUser>)
     {
+        // `'email' in data` rather than a truthiness check: setting it to null
+        // (unlinking an address) is a real update and must not be dropped.
+        const patch = 'email' in data
+            ? { ...data, email: normalizeOptionalEmail(data.email) }
+            : data;
+
         const result = await this.db
             .update(users)
-            .set(data)
+            .set(patch)
             .where(eq(users.id, id))
             .returning();
 

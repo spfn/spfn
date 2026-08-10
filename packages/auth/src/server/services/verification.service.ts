@@ -10,6 +10,7 @@ import { InvalidVerificationCodeError } from '@spfn/auth/errors';
 import jwt from 'jsonwebtoken';
 import { sendEmail, sendSMS } from '@spfn/notification/server';
 import { authLogger } from '../logger';
+import { normalizeEmail } from '../helpers/email';
 import { verificationCodesRepository, usersRepository } from '../repositories';
 import type { VerificationTargetType, VerificationPurpose } from '../routes/schema';
 
@@ -44,6 +45,26 @@ export interface VerificationTokenPayload
     targetType: VerificationTargetType;
     purpose: VerificationPurpose;
     codeId: number;
+}
+
+/**
+ * Canonical form of a verification target.
+ *
+ * A code is stored under the target it was sent to and looked up by the target
+ * typed at the verify step, both by exact match. Without this, a user who typed
+ * their address one way to request the code and another way to enter it gets a
+ * valid code refused as invalid — the address is the lookup key, so the two
+ * spellings address different rows.
+ *
+ * Phone numbers are already canonical (E.164 is validated on the way in) and
+ * have no case, so only email is folded.
+ *
+ * @param target - Email address or E.164 phone number as supplied
+ * @param targetType - Which of the two it is
+ */
+function normalizeVerificationTarget(target: string, targetType: VerificationTargetType): string
+{
+    return targetType === 'email' ? normalizeEmail(target) : target.trim();
 }
 
 /**
@@ -348,7 +369,8 @@ export async function sendVerificationCodeService(
     params: SendVerificationCodeParams,
 ): Promise<SendVerificationCodeResult>
 {
-    const { target, targetType, purpose } = params;
+    const { targetType, purpose } = params;
+    const target = normalizeVerificationTarget(params.target, targetType);
 
     // Registration to an already-registered target: don't send a usable signup code
     // (the account exists). Notify the owner instead — but return the SAME response
@@ -411,7 +433,8 @@ export async function sendVerificationCodeService(
  */
 export async function verifyCodeService(params: VerifyCodeParams)
 {
-    const { target, targetType, code, purpose } = params;
+    const { targetType, code, purpose } = params;
+    const target = normalizeVerificationTarget(params.target, targetType);
 
     // Validate the verification code
     const validation = await validateVerificationCode(target, code, purpose);

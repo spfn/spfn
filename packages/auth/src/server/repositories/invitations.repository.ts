@@ -12,6 +12,7 @@ import { users } from '../entities/users';
 import { roles } from '../entities/roles';
 import type { InvitationStatus } from '../types';
 import { userInvitations, NewInvitation } from '../entities/user-invitations';
+import { normalizeEmail } from '../helpers/email';
 
 /**
  * Invitations Repository 클래스
@@ -56,7 +57,7 @@ export class InvitationsRepository extends BaseRepository
             .from(userInvitations)
             .where(
                 and(
-                    eq(userInvitations.email, email),
+                    eq(userInvitations.email, normalizeEmail(email)),
                     eq(userInvitations.status, 'pending'),
                 ),
             )
@@ -92,7 +93,9 @@ export class InvitationsRepository extends BaseRepository
      */
     async create(data: NewInvitation)
     {
-        return await this._create(userInvitations, data);
+        // Stored canonical, so the duplicate-invitation check and the account
+        // this invitation later becomes agree on what address it is for.
+        return await this._create(userInvitations, { ...data, email: normalizeEmail(data.email) });
     }
 
     /**

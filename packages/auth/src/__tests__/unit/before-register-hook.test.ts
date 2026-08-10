@@ -70,7 +70,15 @@ vi.mock('../../server/repositories', () => ({
 vi.mock('../../server/services/verification.service', () => ({ validateVerificationToken }));
 vi.mock('../../server/services/key.service', () => ({ registerPublicKeyService }));
 vi.mock('../../server/services/role.service', () => ({ getRoleByName }));
-vi.mock('../../server/helpers', () => ({ hashPassword, verifyPassword, getDummyPasswordHash }));
+// normalizeEmail is the real one: the services compare a token's target against
+// the supplied address in canonical form, so a stub would make the comparison
+// pass or fail for reasons unrelated to the hook under test.
+vi.mock('../../server/helpers', async (importOriginal) =>
+{
+    const actual = await importOriginal<typeof import('../../server/helpers')>();
+
+    return { ...actual, hashPassword, verifyPassword, getDummyPasswordHash };
+});
 vi.mock('../../server/events', () => events);
 
 import { registerService } from '../../server/services/auth.service';

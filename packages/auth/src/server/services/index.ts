@@ -70,6 +70,10 @@ export {
     initializeAuth,
 } from './rbac.service';
 
+// Stored email normalization (startup backfill)
+export { normalizeStoredEmails } from './email-normalization.service';
+export type { EmailNormalizationResult } from './email-normalization.service';
+
 // Permission Service
 export {
     getUserPermissions,
