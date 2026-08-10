@@ -4,12 +4,12 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.8.0",
-  "supportedRange": ">=0.8.0 <0.9.0",
-  "exporterVersion": "@spfn/auth/contract-bundle@5.0.0",
+  "contractVersion": "0.9.0",
+  "supportedRange": ">=0.9.0 <0.10.0",
+  "exporterVersion": "@spfn/auth/contract-bundle@5.1.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
   "operationAuthClasses": {
-    "none": "the unproven class: the operation is accepted with neither proof headers nor a session header, because it is called before any key exists to sign with (enrollment and login)",
+    "none": "the unproven class: the operation is accepted with neither proof headers nor a session header, because it is called before any proof can be minted (clock synchronization, enrollment and login)",
     "clientProofV1": "the operation is admitted by the clientProofV1 admission order; requiresSession states whether the session header travels",
     "rule": "an operation whose authProfile is not none refuses an unproven call exactly as it refuses any failed admission; nothing is downgraded to anonymous handling"
   },
@@ -25,6 +25,25 @@
     "ttlDays": 90,
     "rotationOperation": "auth.keys.rotate",
     "rule": "a registered public key expires ttlDays after registration; an expired or revoked key is refused at the revocation step (SESSION_REVOKED, non-disclosing), so the client rotates its key via the rotation operation before the TTL runs out"
+  },
+  "clockSynchronization": {
+    "appliesTo": "clientProofV1",
+    "operation": "core.time",
+    "source": { "package": "@spfn/core", "routeContractSince": "0.3.0" },
+    "phase": "before minting the first proof in each client process",
+    "epochField": "serverTimeMillis",
+    "requestBody": "none",
+    "responseBody": "the ServerTimeResponse type as plain JSON",
+    "unavailableBehavior": "failClosed",
+    "fallbackClock": "prohibited",
+    "failureRule": "when core.time is unavailable or its response cannot be decoded, the client does not mint or send a proof; it never silently falls back to an unsynchronized device wall clock",
+    "persistenceRule": "the synchronization requirement is process-local; this contract specifies no persistent offset, retry sleep, or device-specific margin",
+    "admissionBoundaries": [
+      { "serverNowMinusIssuedAtMillis": 0, "outcome": "accept" },
+      { "serverNowMinusIssuedAtMillis": -1, "outcome": "PROOF_EXPIRED" },
+      { "serverNowMinusIssuedAtMillis": 300000, "outcome": "accept" },
+      { "serverNowMinusIssuedAtMillis": 300001, "outcome": "PROOF_EXPIRED" }
+    ]
   },
   "nativeEnrollment": {
     "appliesTo": "auth.oauth.native",
@@ -129,6 +148,10 @@
     "rule": "a field type outside this grammar is a contract error, not something to guess at: a consumer that does not recognise a container or decimal spelling reads it as a type name and fails at compile time"
   },
   "types": [
+    {
+      "name": "ServerTimeResponse",
+      "fields": [{ "name": "serverTimeMillis", "type": "integer", "optional": false }]
+    },
     {
       "name": "HandshakeRequest",
       "fields": [
@@ -306,6 +329,16 @@
   ],
   "enums": [{ "name": "KeyAlgorithm", "values": ["ES256", "RS256"] }],
   "operations": [
+    {
+      "id": "core.time",
+      "method": "GET",
+      "path": "/_core/time",
+      "authProfile": "none",
+      "requiresSession": false,
+      "responseType": "ServerTimeResponse",
+      "summary": "Returns the server epoch used to timestamp clientProofV1 proofs.",
+      "since": "0.9.0"
+    },
     {
       "id": "auth.clientProof.handshake",
       "method": "POST",

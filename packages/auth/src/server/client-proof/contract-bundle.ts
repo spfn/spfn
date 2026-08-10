@@ -5,23 +5,32 @@
  * export is produced here rather than transcribed in the consumer. Two kinds of
  * value go into it:
  *
- * - **Derived.** Operations, wire headers, proof-input fields, replay window and
- *   HTTP statuses are read from the modules that implement them. Changing the
- *   server changes the export.
- * - **Declared.** Type shapes, error summaries and the prose that describes the
- *   canonicalization and admission rules are written here. They are not derived
- *   from anything: no runtime value carries them. `contract-export.test.ts`
- *   runs the real decoders and encoders against every declaration, so a
- *   declaration that stops describing the server fails the suite.
+ * - **Derived.** Operations, wire headers, proof-input fields, replay window,
+ *   HTTP statuses and core.time's response shape are read from the modules that
+ *   implement them. Changing the server changes the export.
+ * - **Declared.** The remaining type shapes, error summaries and prose that
+ *   describes canonicalization and admission are written here. No runtime value
+ *   carries them. `contract-export.test.ts` runs the real decoders and encoders
+ *   against every declaration, so one that stops describing the server fails.
  *
  * @module server/client-proof/contract-bundle
  */
 import { createHash } from 'node:crypto';
 
+import {
+    CORE_TIME_OPERATION_ID,
+    ServerTimeResponseSchema,
+} from '@spfn/core/server';
+
 import { KEY_TTL_DAYS } from '../lib/key-policy';
 import { KEY_ALGORITHM } from '../types';
 import { CLIENT_PROOF_CONTENT_TYPE, CLIENT_PROOF_HEADERS } from './admission';
-import { AUTH_SURFACE_OPERATIONS, CONTRACT_OPERATIONS } from './contract-types';
+import {
+    AUTH_SURFACE_OPERATIONS,
+    CONTRACT_OPERATIONS,
+    CORE_PREREQUISITE_OPERATIONS,
+    IMPORTED_CORE_TIME_CONTRACT,
+} from './contract-types';
 import {
     CLIENT_PROOF_PROFILE,
     DEFAULT_REPLAY_WINDOW_MILLIS,
@@ -165,20 +174,26 @@ import { CLIENT_IDENTITY_HEADERS, CLIENT_KINDS, SERVER_CONTRACT_HEADERS } from '
  * replaced by the fact behind them: the server sends codes outside the list, and
  * the body carries fields beside the error object. Breaking, because removing a
  * declaration changes what a generated consumer is built from.
+ *
+ * 0.9.0 imports core.time as the bodyless, unproven prerequisite a client uses
+ * to establish the server epoch before minting its first proof in a process.
+ * It also states fail-closed behavior when synchronization is unavailable and
+ * pins all four time-admission boundaries. Breaking because operation request
+ * types were previously mandatory and every generated call therefore carried a
+ * body; the supported range moves so an older generator cannot guess at GET.
  */
-export const CONTRACT_VERSION = '0.8.0';
+export const CONTRACT_VERSION = '0.9.0';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
 /**
  * Under 0.x the minor carries breaking changes, so the range stops at 0.9.0.
  *
- * 0.8.0 moves the floor with it, for the same reason 0.7.0 did. A consumer
- * generated against 0.7.x was generated from declarations this bundle no longer
- * carries, so it is refused CONTRACT_UNSUPPORTED rather than left reading a field
- * that is gone. No such consumer is deployed.
+ * 0.9.0 moves the floor because it adds a bodyless GET operation. A consumer
+ * generated against 0.8.x requires requestType on every operation and would
+ * have to guess how to send core.time, so it is refused CONTRACT_UNSUPPORTED.
  */
-export const CONTRACT_SUPPORTED_RANGE = '>=0.8.0 <0.9.0';
+export const CONTRACT_SUPPORTED_RANGE = '>=0.9.0 <0.10.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
@@ -192,7 +207,7 @@ export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
  * lost `integerVersusNumber`, where 4.1.0 was a minor for availability fields that
  * were purely added.
  */
-export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@5.0.0';
+export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@5.1.0';
 
 /**
  * The scalars the grammar admits.
@@ -309,8 +324,40 @@ function optional(name: string, type: FieldDeclaration['type']): FieldDeclaratio
 }
 
 /**
+ * Translate the imported core response schema into this bundle's deliberately
+ * small type grammar. A core change outside that grammar fails export here
+ * rather than leaving auth to publish a plausible but different response.
+ */
+function coreTimeResponseDeclaration(): TypeDeclaration
+{
+    if (ServerTimeResponseSchema.type !== 'object'
+        || ServerTimeResponseSchema.additionalProperties !== false)
+    {
+        throw new Error('core.time response must remain a closed object');
+    }
+
+    const requiredFields = new Set(ServerTimeResponseSchema.required);
+    const fields = Object.entries(ServerTimeResponseSchema.properties).map(([name, schema]) =>
+    {
+        if (schema.type !== 'integer')
+        {
+            throw new Error(`core.time response field ${name} is outside the mobile type grammar`);
+        }
+
+        return {
+            name,
+            type: 'integer' as const,
+            optional: !requiredFields.has(name),
+        };
+    });
+
+    return { name: 'ServerTimeResponse', fields };
+}
+
+/**
  * The contract types.
  *
+ * `ServerTimeResponse` is translated from core's exported TypeBox schema above.
  * The clientProofV1 request types mirror the decoders in `contract-types.ts`
  * and the response types mirror the encoders. Neither reads this table — the
  * conformance vectors are what hold the two in agreement.
@@ -323,6 +370,7 @@ function optional(name: string, type: FieldDeclaration['type']): FieldDeclaratio
  * consumer generated from this contract never needs to send them.
  */
 export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
+    coreTimeResponseDeclaration(),
     {
         name: 'HandshakeRequest',
         fields: [
@@ -674,7 +722,7 @@ export function buildMobileContractBundle(): MobileContractBundle
         operationAuthClasses: {
             none:
                 'the unproven class: the operation is accepted with neither proof headers nor a session header, '
-                + 'because it is called before any key exists to sign with (enrollment and login)',
+                + 'because it is called before any proof can be minted (clock synchronization, enrollment and login)',
             [CLIENT_PROOF_PROFILE]:
                 'the operation is admitted by the clientProofV1 admission order; requiresSession states whether '
                 + 'the session header travels',
@@ -711,6 +759,32 @@ export function buildMobileContractBundle(): MobileContractBundle
                 'a registered public key expires ttlDays after registration; an expired or revoked key is refused '
                 + 'at the revocation step (SESSION_REVOKED, non-disclosing), so the client rotates its key via the '
                 + 'rotation operation before the TTL runs out',
+        },
+        clockSynchronization: {
+            appliesTo: CLIENT_PROOF_PROFILE,
+            operation: CORE_TIME_OPERATION_ID,
+            source: {
+                package: '@spfn/core',
+                routeContractSince: IMPORTED_CORE_TIME_CONTRACT.sourceSince,
+            },
+            phase: 'before minting the first proof in each client process',
+            epochField: 'serverTimeMillis',
+            requestBody: 'none',
+            responseBody: 'the ServerTimeResponse type as plain JSON',
+            unavailableBehavior: 'failClosed',
+            fallbackClock: 'prohibited',
+            failureRule:
+                'when core.time is unavailable or its response cannot be decoded, the client does not mint or send '
+                + 'a proof; it never silently falls back to an unsynchronized device wall clock',
+            persistenceRule:
+                'the synchronization requirement is process-local; this contract specifies no persistent offset, '
+                + 'retry sleep, or device-specific margin',
+            admissionBoundaries: [
+                { serverNowMinusIssuedAtMillis: 0, outcome: 'accept' },
+                { serverNowMinusIssuedAtMillis: -1, outcome: 'PROOF_EXPIRED' },
+                { serverNowMinusIssuedAtMillis: DEFAULT_REPLAY_WINDOW_MILLIS, outcome: 'accept' },
+                { serverNowMinusIssuedAtMillis: DEFAULT_REPLAY_WINDOW_MILLIS + 1, outcome: 'PROOF_EXPIRED' },
+            ],
         },
         nativeEnrollment: {
             appliesTo: 'auth.oauth.native',
@@ -895,7 +969,11 @@ export function buildMobileContractBundle(): MobileContractBundle
             name: declaration.name,
             values: [...declaration.values],
         })),
-        operations: [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS].map((operation) => ({ ...operation })),
+        operations: [
+            ...CORE_PREREQUISITE_OPERATIONS,
+            ...CONTRACT_OPERATIONS,
+            ...AUTH_SURFACE_OPERATIONS,
+        ].map((operation) => ({ ...operation })),
         errorEnvelope: {
             shape: '{"error":{"code":<string>,"message":<string>,"requestId":<string>}}',
             additionalFields:

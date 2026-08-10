@@ -193,6 +193,40 @@ describe('admission order is unchanged by the asymmetric revision', () =>
         expect(refusal?.code).toBe('PROOF_EXPIRED');
     });
 
+    it.each([
+        ['exact server time', 0, null],
+        ['one millisecond in the future', -1, 'PROOF_EXPIRED'],
+        ['replay-window lower boundary', 300_000, null],
+        ['one millisecond beyond the replay window', 300_001, 'PROOF_EXPIRED'],
+    ] as const)('%s has the contract admission result', (_, ageMillis, expectedCode) =>
+    {
+        const input = {
+            ...INPUT,
+            nonce: `nonce-boundary-${ageMillis}`,
+            issuedAtMillis: BigInt(NOW - ageMillis),
+        };
+        const state = new ClientProofState({ publicKeys: TEST_PUBLIC_KEYS, clock: new TestClock(NOW) });
+        const refusal = admitWith(state, input, signClientProof(input, TEST_PRIVATE_KEY_PKCS8_B64));
+
+        expect(refusal?.code ?? null).toBe(expectedCode);
+    });
+
+    it('a future refusal does not spend the nonce before that timestamp becomes current', () =>
+    {
+        const clock = new TestClock(NOW);
+        const state = new ClientProofState({ publicKeys: TEST_PUBLIC_KEYS, clock });
+        const input = {
+            ...INPUT,
+            nonce: 'nonce-future-not-spent',
+            issuedAtMillis: BigInt(NOW + 1),
+        };
+        const proof = signClientProof(input, TEST_PRIVATE_KEY_PKCS8_B64);
+
+        expect(admitWith(state, input, proof)?.code).toBe('PROOF_EXPIRED');
+        clock.advance(1);
+        expect(admitWith(state, input, proof)).toBeNull();
+    });
+
     it('a spent nonce answers PROOF_REPLAYED before the signature check', () =>
     {
         const state = new ClientProofState({ publicKeys: TEST_PUBLIC_KEYS, clock: new TestClock(NOW) });

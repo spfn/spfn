@@ -18,6 +18,12 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import {
+    CORE_TIME_OPERATION_ID,
+    CORE_TIME_ROUTE,
+    ServerTimeResponseSchema,
+} from '@spfn/core/server';
+
 import { CLIENT_PROOF_CONTENT_TYPE, CLIENT_PROOF_HEADERS } from '../admission';
 import type { CanonicalValue } from '../canonical-json';
 import {
@@ -31,6 +37,7 @@ import { KEY_TTL_DAYS } from '../../lib/key-policy';
 import {
     AUTH_SURFACE_OPERATIONS,
     CONTRACT_OPERATIONS,
+    CORE_PREREQUISITE_OPERATIONS,
     ContractTypeError,
     decodeEchoRequest,
     decodeHandshakeRequest,
@@ -147,7 +154,11 @@ describe('the committed export matches the assembler', () =>
 
 describe('operations describe the routes the server answers', () =>
 {
-    const ALL_OPERATIONS = [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS];
+    const ALL_OPERATIONS = [
+        ...CORE_PREREQUISITE_OPERATIONS,
+        ...CONTRACT_OPERATIONS,
+        ...AUTH_SURFACE_OPERATIONS,
+    ];
 
     it('the bundle carries exactly the implemented operations', () =>
     {
@@ -158,7 +169,10 @@ describe('operations describe the routes the server answers', () =>
     {
         for (const operation of ALL_OPERATIONS)
         {
-            expect(declaredTypes.map((type) => type.name)).toContain(operation.requestType);
+            if (operation.requestType !== undefined)
+            {
+                expect(declaredTypes.map((type) => type.name)).toContain(operation.requestType);
+            }
             expect(declaredTypes.map((type) => type.name)).toContain(operation.responseType);
         }
     });
@@ -178,12 +192,17 @@ describe('operations describe the routes the server answers', () =>
 
     // 서명은 본문 바이트를 덮는다. 주소에 값이 끼면 클라이언트와 서버가 같은 문자열을
     // 만들어야 하는데 그 정규화 규칙이 없다 — 그래서 모든 operation이 POST이고 인자는 본문에 있다.
-    it('every operation is POST with its arguments in the body', () =>
+    it('proof-bearing operations remain POST with arguments in the body; core.time is bodyless GET', () =>
     {
         for (const operation of [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS])
         {
             expect(operation.method).toBe('POST');
+            expect(operation.requestType).toBeDefined();
         }
+
+        expect(CORE_PREREQUISITE_OPERATIONS).toHaveLength(1);
+        expect(CORE_PREREQUISITE_OPERATIONS[0].method).toBe('GET');
+        expect(CORE_PREREQUISITE_OPERATIONS[0]).not.toHaveProperty('requestType');
 
         const proven = AUTH_SURFACE_OPERATIONS.filter(op => op.authProfile === 'clientProofV1');
         for (const operation of proven)
@@ -201,14 +220,19 @@ describe('operations describe the routes the server answers', () =>
         }
     });
 
-    // I2 — the unproven class is stated, and covers exactly the enrollment ops.
-    it('I2: exactly the three enrollment operations are the unproven class, and the bundle states it', () =>
+    // I2 — the unproven class is stated and covers clock sync plus enrollment.
+    it('I2: core time and the three enrollment operations are the unproven class', () =>
     {
-        const unproven = [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS]
+        const unproven = ALL_OPERATIONS
             .filter((operation) => operation.authProfile === 'none')
             .map((operation) => operation.id)
             .sort();
-        expect(unproven).toEqual(['auth.enroll.login', 'auth.enroll.oauthNative', 'auth.enroll.register']);
+        expect(unproven).toEqual([
+            'auth.enroll.login',
+            'auth.enroll.oauthNative',
+            'auth.enroll.register',
+            'core.time',
+        ]);
 
         const classes = bundle.operationAuthClasses as Record<string, string>;
         expect(classes.none).toContain('neither proof headers nor a session header');
@@ -241,6 +265,74 @@ describe('operations describe the routes the server answers', () =>
         {
             expect(operation.authProfile).toBe('clientProofV1');
         }
+    });
+});
+
+describe('clientProofV1 clock synchronization imports the core contract', () =>
+{
+    const operation = CORE_PREREQUISITE_OPERATIONS[0];
+    const policy = bundle.clockSynchronization as {
+        appliesTo: string;
+        operation: string;
+        source: { package: string; routeContractSince: string };
+        phase: string;
+        epochField: string;
+        requestBody: string;
+        responseBody: string;
+        unavailableBehavior: string;
+        fallbackClock: string;
+        failureRule: string;
+        admissionBoundaries: { serverNowMinusIssuedAtMillis: number; outcome: string }[];
+    };
+
+    it('derives the operation identity, transport and admission from @spfn/core', () =>
+    {
+        expect(operation).toMatchObject({
+            id: CORE_TIME_OPERATION_ID,
+            method: CORE_TIME_ROUTE.method,
+            path: CORE_TIME_ROUTE.path,
+            authProfile: CORE_TIME_ROUTE.contract?.auth,
+            requiresSession: CORE_TIME_ROUTE.contract?.requiresSession,
+            responseType: 'ServerTimeResponse',
+        });
+        expect(CORE_TIME_ROUTE.contract?.response).toBe(ServerTimeResponseSchema);
+        expect(policy.operation).toBe(operation.id);
+        expect(policy.source).toEqual({
+            package: '@spfn/core',
+            routeContractSince: CORE_TIME_ROUTE.contract?.since,
+        });
+    });
+
+    it('derives the response declaration from the imported closed schema', () =>
+    {
+        expect(typeNamed('ServerTimeResponse')).toEqual({
+            name: 'ServerTimeResponse',
+            fields: [{ name: 'serverTimeMillis', type: 'integer', optional: false }],
+        });
+        expect(ServerTimeResponseSchema.additionalProperties).toBe(false);
+    });
+
+    it('requires process-first synchronization and fails closed without a wall-clock fallback', () =>
+    {
+        expect(policy.appliesTo).toBe('clientProofV1');
+        expect(policy.phase).toBe('before minting the first proof in each client process');
+        expect(policy.epochField).toBe('serverTimeMillis');
+        expect(policy.requestBody).toBe('none');
+        expect(policy.responseBody).toContain('plain JSON');
+        expect(policy.unavailableBehavior).toBe('failClosed');
+        expect(policy.fallbackClock).toBe('prohibited');
+        expect(policy.failureRule).toContain('does not mint or send a proof');
+        expect(policy.failureRule).toContain('never silently falls back');
+    });
+
+    it('exports the complete four-cell admission boundary table', () =>
+    {
+        expect(policy.admissionBoundaries).toEqual([
+            { serverNowMinusIssuedAtMillis: 0, outcome: 'accept' },
+            { serverNowMinusIssuedAtMillis: -1, outcome: 'PROOF_EXPIRED' },
+            { serverNowMinusIssuedAtMillis: 300_000, outcome: 'accept' },
+            { serverNowMinusIssuedAtMillis: 300_001, outcome: 'PROOF_EXPIRED' },
+        ]);
     });
 });
 
@@ -285,6 +377,7 @@ describe('every operation records when it became available', () =>
      * | auth.clientProof.handshake, echo.send, items.list | 50013456 | 0.1.0 |
      * | auth.enroll.{register,login,oauthNative}, auth.keys.rotate | c041ef48 | 0.3.0 |
      * | auth.keys.{list,revoke,revokeAll} | ee286775 | 0.4.1 |
+     * | core.time | issue #146 | 0.9.0 |
      */
     const RECORDED_HISTORY: Record<string, string> = {
         'auth.clientProof.handshake': '0.1.0',
@@ -297,6 +390,7 @@ describe('every operation records when it became available', () =>
         'auth.keys.list': '0.4.1',
         'auth.keys.revoke': '0.4.1',
         'auth.keys.revokeAll': '0.4.1',
+        'core.time': '0.9.0',
     };
 
     it('every exported operation carries a since', () =>
@@ -906,18 +1000,17 @@ describe('declared proof rules match the implementation', () =>
         replayWindowMillis: number;
     };
 
-    it('the contract line is the revision that takes client policy out of the error envelope', () =>
+    it('the contract line is the revision that adds process-first clock synchronization', () =>
     {
-        expect(bundle.contractVersion).toBe('0.8.0');
+        expect(bundle.contractVersion).toBe('0.9.0');
     });
 
-    it('the supported range moves with the removed envelope declarations', () =>
+    it('the supported range moves with the bodyless GET operation', () =>
     {
-        // 0.8.0은 errorEnvelope에서 unknownCodePolicy와 unknownCodeRule을 없앤다.
-        // 선언이 사라지면 소비자의 생성 코드가 달라지므로 breaking이고, 0.x에서
-        // minor가 breaking을 나르므로 범위도 같이 올라간다 — 0.7.x 소비자가 남아
-        // 있으면 안 된다.
-        expect(bundle.supportedRange).toBe('>=0.8.0 <0.9.0');
+        // 0.8.x generator는 모든 operation에 requestType이 있다고 가정한다.
+        // core.time을 bodyless GET으로 읽으려면 생성 코드가 달라지므로 breaking이고,
+        // 0.x에서 minor가 breaking을 나르므로 범위도 같이 올라간다.
+        expect(bundle.supportedRange).toBe('>=0.9.0 <0.10.0');
     });
 
     it('states the rule that binds a native id_token to the key it enrolls', () =>

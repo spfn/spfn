@@ -10,6 +10,11 @@
  *
  * @module server/client-proof/contract-types
  */
+import {
+    CORE_TIME_OPERATION_ID,
+    CORE_TIME_ROUTE,
+} from '@spfn/core/server';
+
 import type { CanonicalObject, CanonicalValue } from './canonical-json';
 
 export interface ContractOperation
@@ -24,8 +29,9 @@ export interface ContractOperation
         | 'auth.keys.rotate'
         | 'auth.keys.list'
         | 'auth.keys.revoke'
-        | 'auth.keys.revokeAll';
-    method: 'POST';
+        | 'auth.keys.revokeAll'
+        | typeof CORE_TIME_OPERATION_ID;
+    method: 'GET' | 'POST';
     path: string;
 
     /**
@@ -36,7 +42,8 @@ export interface ContractOperation
      */
     authProfile: 'clientProofV1' | 'none';
     requiresSession: boolean;
-    requestType: string;
+    /** Absent only when the operation has no request body. */
+    requestType?: string;
     responseType: string;
     summary: string;
 
@@ -70,6 +77,51 @@ export interface ContractOperation
      */
     removedIn?: string;
 }
+
+function importCoreTimeContract()
+{
+    const { method, path, contract } = CORE_TIME_ROUTE;
+    if (method !== 'GET'
+        || typeof path !== 'string'
+        || contract?.auth !== 'none'
+        || contract.requiresSession !== false
+        || typeof contract.since !== 'string')
+    {
+        throw new Error('core.time does not match the clientProofV1 synchronization prerequisite');
+    }
+
+    return {
+        id: CORE_TIME_OPERATION_ID,
+        method,
+        path,
+        authProfile: contract.auth,
+        requiresSession: contract.requiresSession,
+        sourceSince: contract.since,
+    } as const;
+}
+
+/** Validated projection of the imported core route contract. */
+export const IMPORTED_CORE_TIME_CONTRACT = importCoreTimeContract();
+
+/**
+ * The core capability clientProofV1 needs before the client can mint a proof.
+ *
+ * Transport and admission fields come from core's exported route contract so
+ * auth cannot silently restate a different path or policy. `since` is the
+ * mobile-contract history, not core's package-contract history.
+ */
+export const CORE_PREREQUISITE_OPERATIONS: readonly ContractOperation[] = [
+    {
+        id: IMPORTED_CORE_TIME_CONTRACT.id,
+        method: IMPORTED_CORE_TIME_CONTRACT.method,
+        path: IMPORTED_CORE_TIME_CONTRACT.path,
+        authProfile: IMPORTED_CORE_TIME_CONTRACT.authProfile,
+        requiresSession: IMPORTED_CORE_TIME_CONTRACT.requiresSession,
+        responseType: 'ServerTimeResponse',
+        summary: 'Returns the server epoch used to timestamp clientProofV1 proofs.',
+        since: '0.9.0',
+    },
+];
 
 export const CONTRACT_OPERATIONS: readonly ContractOperation[] = [
     {
