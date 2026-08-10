@@ -8,11 +8,15 @@
  *
  * Runs once at startup and records that it ran, so a healthy install pays one
  * small metadata read per boot rather than a scan of the users table.
+ *
+ * The work itself stays in the database — one query to find the addresses two
+ * rows would share, one statement to fold the rest. Nothing proportional to the
+ * table is carried through the application, which is what keeps a legacy
+ * install's first boot from turning into a row-at-a-time migration.
  */
 
 import { authLogger } from '../logger';
 import { authMetadataRepository, usersRepository } from '../repositories';
-import { normalizeEmail } from '../helpers/email';
 
 /**
  * Metadata key marking the backfill complete.
@@ -32,29 +36,14 @@ export interface EmailNormalizationResult
 }
 
 /**
- * Group the rows that are not canonical by what they would become.
- */
-function groupByCanonicalForm(rows: { id: number; email: string }[]): Map<string, number[]>
-{
-    const groups = new Map<string, number[]>();
-
-    for (const row of rows)
-    {
-        const canonical = normalizeEmail(row.email);
-        groups.set(canonical, [...(groups.get(canonical) ?? []), row.id]);
-    }
-
-    return groups;
-}
-
-/**
  * Rewrite stored addresses to canonical form, skipping anything that would
  * collide.
  *
  * A collision means two accounts differ only by capitalization. Which of them is
  * the real one, and what happens to the other's data, is not a question this can
- * answer — so both are left exactly as they are and their ids are reported. The
- * alternative, merging or deleting one, destroys an account on a guess.
+ * answer — so every row in the group is left exactly as it is and all of their
+ * ids are reported. The alternative, merging or deleting one, destroys an
+ * account on a guess.
  *
  * @returns what was rewritten and what was left for an operator
  */
@@ -65,35 +54,10 @@ export async function normalizeStoredEmails(): Promise<EmailNormalizationResult>
         return { normalized: 0, conflicts: [] };
     }
 
-    const pending = await usersRepository.findNonCanonicalEmails();
-
-    if (pending.length === 0)
-    {
-        await authMetadataRepository.set(BACKFILL_KEY, 'done');
-
-        return { normalized: 0, conflicts: [] };
-    }
-
-    const groups = groupByCanonicalForm(pending);
-    const canonicalForms = [...groups.keys()];
-    const alreadyTaken = new Set(await usersRepository.findExistingEmails(canonicalForms));
-
-    const conflicts: number[][] = [];
-    let normalized = 0;
-
-    for (const [canonical, ids] of groups)
-    {
-        // Two rows folding onto each other, or onto a row that already holds the
-        // canonical form.
-        if (ids.length > 1 || alreadyTaken.has(canonical))
-        {
-            conflicts.push(ids);
-            continue;
-        }
-
-        await usersRepository.updateById(ids[0], { email: canonical });
-        normalized++;
-    }
+    // Found before anything is rewritten, so a group is judged against the table
+    // as it stands rather than against rows this run has already moved.
+    const conflicts = await usersRepository.findEmailConflictGroups();
+    const normalized = await usersRepository.normalizeEmailsExcept(conflicts.flat());
 
     if (normalized > 0)
     {

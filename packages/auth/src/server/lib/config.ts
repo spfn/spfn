@@ -7,6 +7,7 @@
 import { env } from '@spfn/auth/config';
 
 import type { SocialProvider } from '../types';
+import { normalizeOptionalEmail } from '../helpers/email';
 
 /**
  * Cookie name suffix derived from the server port, so several local dev
@@ -132,6 +133,12 @@ export interface BeforeRegisterContext
     channel: RegisterChannel;
     /** Social provider — only set when channel is 'oauth' */
     provider?: SocialProvider;
+    /**
+     * Canonical form of the address — trimmed and lower-cased, the same form
+     * the account is stored under. A policy keyed on the address (a denylist, a
+     * domain allowlist) therefore matches whatever capitalization the person
+     * typed, instead of being walked past by `Blocked@Example.com`.
+     */
     email?: string;
     /**
      * Whether the email is verified — only set when channel is 'oauth'.
@@ -233,6 +240,11 @@ export function getAuthConfig(): AuthConfig
  * Single entry point for every registration channel so a new channel cannot
  * forget the configured-check. Callers invoke this right before creating the
  * user row.
+ *
+ * The address is folded here rather than at each call site, for the same reason
+ * the check itself lives here: three channels supply it, and a policy that sees
+ * a different spelling depending on which one the person came through is a
+ * policy that can be walked past.
  */
 export async function runBeforeRegister(context: BeforeRegisterContext): Promise<void>
 {
@@ -240,7 +252,7 @@ export async function runBeforeRegister(context: BeforeRegisterContext): Promise
 
     if (beforeRegister)
     {
-        await beforeRegister(context);
+        await beforeRegister({ ...context, email: normalizeOptionalEmail(context.email) });
     }
 }
 

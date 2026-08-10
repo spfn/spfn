@@ -827,6 +827,8 @@ Notes:
   seeding in `initializeAuth()`.
 - OAuth signups have no client-typed fields unless you pass `metadata` at OAuth start — decide
   per channel (reject, or allow and collect during onboarding).
+- `email` arrives trimmed and lower-cased, the same form the account is stored under, so a
+  denylist or domain allowlist keyed on the address is not walked past by capitalizing it.
 - On the `oauth` channel `email` is the provider-reported address and may be **unverified**
   (the created account then stores `email` as `null`). The context carries
   `emailVerified` — an email-based allow/block policy must check it before trusting `email`.

@@ -112,7 +112,10 @@ export async function registerService(
     // the verification step normalized it, so a user who retypes their address
     // with different capitalization here would otherwise be told the token is
     // for a different address than the one they just proved.
-    const providedTarget = email ? normalizeEmail(email) : phone;
+    // The phone is trimmed on both sides too: the verification step stores the
+    // target trimmed, so comparing an untrimmed one here would refuse a code the
+    // caller just proved.
+    const providedTarget = email ? normalizeEmail(email) : phone?.trim();
     if (tokenPayload.target !== providedTarget)
     {
         throw new VerificationTokenTargetMismatchError();

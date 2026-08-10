@@ -9,6 +9,7 @@ import type { SSETokenStore } from '@spfn/core/event/sse';
 import type { PurgeStrategy } from './types';
 import type { AccountDeletionPurgeUser } from './lib/deletion-config';
 import { ensureAdminExists } from './setup';
+import { authLogger } from './logger';
 import { initializeAuth, normalizeStoredEmails } from './services';
 import { initOneTimeTokenManager } from './lib/one-time-token';
 import { configureDeletion } from './lib/deletion-config';
@@ -227,7 +228,27 @@ export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLif
             // Before any account is looked up: the repository folds addresses to
             // canonical form now, so a row still stored in mixed case would not
             // be found by its owner.
-            await normalizeStoredEmails();
+            //
+            // Reported rather than thrown. The backfill repairs old rows; it is
+            // not what makes this instance able to serve, and a rolling deploy
+            // can fail it for reasons that resolve themselves — an instance
+            // still running the old code can register the very address this is
+            // folding a row onto, between the conflict check and the rewrite.
+            // Refusing to boot on that would take the service down to fix
+            // something the next boot retries anyway.
+            try
+            {
+                await normalizeStoredEmails();
+            }
+            catch (error)
+            {
+                authLogger.service.error(
+                    'Stored email normalization did not complete. Addresses stay as they are, so an account '
+                    + 'stored in mixed case cannot sign in until a later boot succeeds.',
+                    { error },
+                );
+            }
+
             await ensureAdminExists();
             initOneTimeTokenManager(options.oneTimeToken);
         },

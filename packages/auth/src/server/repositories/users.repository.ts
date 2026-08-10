@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { eq, and, inArray, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { BaseRepository } from '@spfn/core/db';
 import { EntityNotFoundError, NotFoundError } from '@spfn/core/errors';
 
@@ -177,42 +177,67 @@ export class UsersRepository extends BaseRepository
     }
 
     /**
-     * Rows whose stored address is not in canonical form.
+     * User ids grouped by an address two or more rows share once folded.
      *
-     * Compared in the database rather than by reading every row, so an install
-     * that has nothing to fix pays for an empty result instead of a full table
-     * transfer. Write primary: the caller is about to rewrite these rows and a
-     * replica could still be showing the pre-fix state.
+     * The whole comparison happens in the database and only the colliding groups
+     * come back, so the size of the answer is the size of the problem rather
+     * than the size of the table. `users.email` is unique, so a group of more
+     * than one can only be rows that differ by capitalization or padding —
+     * exactly the ones a rewrite cannot decide between.
+     *
+     * Every member id is returned, including a row already holding the
+     * canonical form, because the operator has to compare the accounts against
+     * each other to settle which is real.
+     *
+     * Write primary: the caller is about to rewrite rows and a replica could
+     * still be showing the pre-fix state.
      */
-    async findNonCanonicalEmails(): Promise<{ id: number; email: string }[]>
+    async findEmailConflictGroups(): Promise<number[][]>
     {
-        const result = await this.db
-            .select({ id: users.id, email: users.email })
+        const rows = await this.db
+            .select({ ids: sql<number[]>`array_agg(${users.id} ORDER BY ${users.id})` })
             .from(users)
-            .where(sql`${users.email} IS NOT NULL AND ${users.email} <> lower(btrim(${users.email}))`);
+            .where(sql`${users.email} IS NOT NULL`)
+            .groupBy(sql`lower(btrim(${users.email}))`)
+            .having(sql`count(*) > 1`);
 
-        return result as { id: number; email: string }[];
+        return rows.map(row => row.ids.map(Number));
     }
 
     /**
-     * Which of the given addresses are already stored.
+     * Fold every stored address to canonical form, leaving the given ids alone.
      *
-     * Used to tell a safe rewrite from one that would collide with an account
-     * that already holds the canonical form.
+     * One statement rather than a row at a time: the rewrite is the same
+     * expression the detection uses, so the database can do it in place. A
+     * legacy install with a large users table therefore pays one update instead
+     * of a round trip per row on the boot path, and no list of addresses is ever
+     * carried through the application.
+     *
+     * The excluded ids travel as a single array parameter, so the count of
+     * conflicts cannot run into the protocol's limit on bind parameters.
+     *
+     * `lower(btrim(...))` is the SQL spelling of `normalizeEmail`. The two agree
+     * on every address this package's validation accepts (ASCII, no interior
+     * whitespace); an address outside that set — reachable only by an app
+     * writing to the repository directly — may fold differently in a database
+     * whose collation lower-cases non-ASCII letters.
+     *
+     * @param excludedIds - Rows to leave untouched, normally the conflict groups
+     * @returns How many rows were rewritten
      */
-    async findExistingEmails(emails: string[]): Promise<string[]>
+    async normalizeEmailsExcept(excludedIds: number[]): Promise<number>
     {
-        if (emails.length === 0)
-        {
-            return [];
-        }
+        const keepConflicts = excludedIds.length > 0
+            ? sql` AND NOT (${users.id} = ANY(string_to_array(${excludedIds.join(',')}, ',')::int[]))`
+            : sql``;
 
         const result = await this.db
-            .select({ email: users.email })
-            .from(users)
-            .where(inArray(users.email, emails));
+            .update(users)
+            .set({ email: sql`lower(btrim(${users.email}))` })
+            .where(sql`${users.email} IS NOT NULL AND ${users.email} <> lower(btrim(${users.email}))${keepConflicts}`)
+            .returning({ id: users.id });
 
-        return result.map(row => row.email).filter((email): email is string => email !== null);
+        return result.length;
     }
 
     /**

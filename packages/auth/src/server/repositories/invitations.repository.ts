@@ -285,9 +285,15 @@ export class InvitationsRepository extends BaseRepository
      */
     async updateById(id: number, data: Partial<NewInvitation>)
     {
+        // Folded like `create`, or correcting an invitation's address would
+        // write a row `findPendingByEmail` can no longer see.
+        const patch = 'email' in data && typeof data.email === 'string'
+            ? { ...data, email: normalizeEmail(data.email) }
+            : data;
+
         const result = await this.db
             .update(userInvitations)
-            .set(data)
+            .set(patch)
             .where(eq(userInvitations.id, id))
             .returning();
 

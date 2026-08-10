@@ -249,13 +249,16 @@ describe.skipIf(!dbAvailable)('Email normalization', () =>
 
         it('leaves a row alone when its canonical form is already taken', async () =>
         {
-            await insertRaw('taken@example.com');
+            const canonical = await insertRaw('taken@example.com');
             const mixed = await insertRaw('Taken@Example.com');
 
             const result = await normalizeStoredEmails();
 
-            expect(result.conflicts).toEqual([[mixed.id]]);
+            // Both ids, not only the mixed-case one: an operator settling this
+            // has to compare the two accounts against each other.
+            expect(result.conflicts).toEqual([[canonical.id, mixed.id]]);
             expect((await usersRepository.findById(mixed.id))?.email).toBe('Taken@Example.com');
+            expect((await usersRepository.findById(canonical.id))?.email).toBe('taken@example.com');
         });
 
         it('normalizes what it can and reports only the rest', async () =>
@@ -288,6 +291,45 @@ describe.skipIf(!dbAvailable)('Email normalization', () =>
             // Not marked done, so the next boot says so again rather than
             // leaving the locked-out account unmentioned.
             expect((await normalizeStoredEmails()).conflicts).toHaveLength(1);
+        });
+
+        it('rewrites every safe row in one pass', async () =>
+        {
+            const ids = [];
+
+            for (let i = 0; i < 25; i++)
+            {
+                ids.push((await insertRaw(`Bulk${i}@Example.com`)).id);
+            }
+
+            expect((await normalizeStoredEmails()).normalized).toBe(25);
+
+            const stored = await Promise.all(ids.map(id => usersRepository.findById(id)));
+            expect(stored.map(row => row?.email)).toEqual(ids.map((_, i) => `bulk${i}@example.com`));
+        });
+    });
+
+    describe('the policy gate apps hang off registration', () =>
+    {
+        it('sees the address in the same form the account is stored under', async () =>
+        {
+            const { configureAuth } = await import('@/server/lib/config');
+            const seen: (string | undefined)[] = [];
+
+            configureAuth({ beforeRegister: ctx => void seen.push(ctx.email) });
+
+            try
+            {
+                await registerAs('Gate.Case@Example.COM');
+            }
+            finally
+            {
+                configureAuth({ beforeRegister: undefined });
+            }
+
+            // A denylist or domain allowlist keyed on the canonical address must
+            // not be walked past by capitalizing it.
+            expect(seen).toEqual(['gate.case@example.com']);
         });
     });
 });
