@@ -16,6 +16,9 @@ import {
     defineServerConfig,
     getShutdownManager,
     loadEnv,
+    CORE_TIME_ROUTE,
+    CORE_TIME_PATH,
+    ServerTimeResponseSchema,
 } from '@spfn/core/server';
 
 import type {
@@ -23,6 +26,8 @@ import type {
     ServerInstance,
     AppFactory,
     ShutdownHookOptions,
+    ServerClock,
+    ServerTimeResponse,
 } from '@spfn/core/server';
 ```
 
@@ -47,6 +52,9 @@ Everything exported from `@spfn/core/server`:
 - **Shutdown**: `getShutdownManager()` → `ShutdownManager` singleton.
 - **Env**: `loadEnv` (re-export of `@spfn/core/env/loader`). `startServer()` already calls
   it internally.
+- **Server time**: `CORE_TIME_ROUTE`, `CORE_TIME_PATH`, `CORE_TIME_OPERATION_ID`,
+  `ServerTimeResponseSchema`, `createCoreTimeRoute()` and the `ServerClock` /
+  `ServerTimeResponse` types — the built-in unproven clock-synchronization contract.
 - **Deprecated**: `loadEnvFiles()` — alias for `loadEnv()`; use `loadEnv` instead.
 - **Types**: `ServerConfig`, `ServerInstance`, `AppFactory`, `ShutdownHookOptions`.
 
@@ -123,6 +131,7 @@ There is **no validation in the builder** — validation runs inside `startServe
 | `.timeout({...})` | `timeout` | `{ request?, keepAlive?, headers? }` (ms) |
 | `.shutdown({...})` | `shutdown` | `{ timeout? }` (ms) |
 | `.healthCheck({...})` | `healthCheck` | `{ enabled?, path?, detailed? }` |
+| `.serverTime({...})` | `serverTime` | Inject `{ clock: { now() } }` for deterministic tests; production defaults to `Date.now()` |
 | `.infrastructure({...})` | `infrastructure` | `{ database?, redis? }` — `false` disables auto-init |
 | `.migrations({...})` | `migrations` | `{ allowPending? }` — `true` boots with pending migrations (warn instead of refuse) |
 | `.debug(boolean)` | `debug` | Default `NODE_ENV === 'development'` |
@@ -261,24 +270,26 @@ When there is no `app.ts`, `createServer` builds the app in this **fixed order**
 2. RequestLogger()                 (if middleware.logger !== false)
 3. cors(config.cors)               (if middleware.cors !== false && cors !== false)
 4. proxyGuard                      (if proxyGuard.mode !== 'off')
-5. config.use[*]                   (raw custom middleware, in array order)
-6. built-in health                 (GET /_core/health — unclaimable, always here;
+5. built-in server time            (GET /_core/time — unproven and session-free)
+6. config.use[*]                   (raw custom middleware, in array order)
+7. built-in health                 (GET /_core/health — unclaimable, always here;
                                     plus config.healthCheck.path when set)
-7. lifecycle.beforeRoutes(app)
-8. registerRoutes(app, routes, middlewares)
-9. /health signpost                (GET /health → 410 naming /_core/health, for one
+8. lifecycle.beforeRoutes(app)
+9. registerRoutes(app, routes, middlewares)
+10. /health signpost               (GET /health → 410 naming /_core/health, for one
                                     release, and only if no app route declared GET on it)
-10. SSE endpoint                   (if .events(): GET /events/stream [+ POST token])
-11. lifecycle.afterRoutes(app)
-12. app.onError(ErrorHandler(...)) (if middleware.errorHandler !== false)
+11. SSE endpoint                   (if .events(): GET /events/stream [+ POST token])
+12. lifecycle.afterRoutes(app)
+13. app.onError(ErrorHandler(...)) (if middleware.errorHandler !== false)
 ```
 
 - Each built-in is opt-out via `.middleware({ logger: false, cors: false, errorHandler: false })`.
 - **`proxyGuard`** is opt-in (`mode: 'off'` by default). When enabled via `.proxyGuard({...})`
   it verifies the trusted-proxy HMAC signature (`method+path+query+body`) + origin allowlist and
   tags `c.get('clientType')`. `tag` and `strict` evaluate every gate; only enforcement differs.
-  Health, SSE stream, and WS paths plus genuine CORS preflights are skipped automatically so
-  probes/EventSource/preflight are never blocked. See `@spfn/core/middleware` and the root
+  Server time, health, SSE stream, and WS paths plus genuine CORS preflights are skipped
+  automatically so bootstrap calls/probes/EventSource/preflight are never blocked. See
+  `@spfn/core/middleware` and the root
   `PROXY-BACKEND-AUTH-SPEC.md`.
 - `.middleware({ onError })` forwards an error callback into `ErrorHandler` (e.g. Slack
   notifier) — it runs async and does not block the response.
@@ -493,6 +504,36 @@ All three log the pending list as a warning rather than continuing silently.
 
 ---
 
+## Server time
+
+`GET /_core/time` returns the server's current Unix epoch in milliseconds:
+
+```json
+{ "serverTimeMillis": 1750000000123 }
+```
+
+The endpoint is always enabled in the auto-configured pipeline. It is registered before
+`config.use`, `lifecycle.beforeRoutes` and application routes, and proxy-guard skips it,
+so a client can call it without a proof or session. The response contract is closed,
+declares `serverTimeMillis` as an integer, and carries `Cache-Control: no-store`.
+
+Production clients trust this value only over HTTPS with certificate validation. It is an
+unsigned server fact, not an authentication policy: core does not define skew margins,
+replay windows, retries, latency compensation or client-side offset storage.
+
+The default clock is `Date.now()`. A deterministic server test can inject one:
+
+```typescript
+const config = defineServerConfig()
+    .serverTime({ clock: { now: () => 1750000000123 } })
+    .build();
+```
+
+Contract exporters should import `CORE_TIME_ROUTE` rather than restating its operation
+identity, path, admission profile or response schema.
+
+---
+
 ## Timeouts (HTTP + outbound fetch)
 
 HTTP server timeouts (`.timeout({...})` or env), applied to the Node server after listen:
@@ -651,7 +692,7 @@ interface ShutdownHookOptions
 // ServerConfig: see config-builder table above — port, host, cors, middleware, use,
 // middlewares, routes, jobs/jobsConfig, events/eventsConfig, websockets/websocketsConfig,
 // workflows/workflowsConfig, debug, database, timeout, fetchTimeout, shutdown, healthCheck,
-// infrastructure, lifecycle.
+// serverTime, infrastructure, lifecycle.
 ```
 
 ## Related

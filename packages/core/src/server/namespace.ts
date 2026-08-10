@@ -31,6 +31,14 @@ export const CORE_NAMESPACE = '/_core';
 export const CORE_HEALTH_PATH = `${CORE_NAMESPACE}/health`;
 
 /**
+ * Where clients obtain the server's current Unix epoch in milliseconds.
+ *
+ * This endpoint is registered before application routes and application auth
+ * middleware so a client can call it before it has a proof or session.
+ */
+export const CORE_TIME_PATH = `${CORE_NAMESPACE}/time`;
+
+/**
  * Where the built-in health endpoint used to answer.
  *
  * `@spfn/core` no longer registers it. The path is an app's to use like any

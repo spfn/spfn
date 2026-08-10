@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [@spfn/core@0.3.0-beta.4, @spfn/auth@0.3.0-beta.4] - 2026-08-10
+
+### Added
+
+#### @spfn/core
+
+- `GET /_core/time` (`core.time`) exposes the server's Unix epoch milliseconds as an
+  unauthenticated, session-free, non-cacheable built-in capability. It is registered before
+  application middleware and routes, and the strict proxy guard excludes it.
+
+#### @spfn/auth
+
+- Mobile contract 0.9.0 imports `core.time` as the prerequisite for process-first
+  `clientProofV1` clock synchronization. A client fails closed when synchronization is
+  unavailable; the strict `0..300000ms` proof-age window and nonce-on-admission rule are
+  unchanged and exported with their four finite boundary cases.
+
+### Changed
+
+#### @spfn/auth
+
+- The `@spfn/core` peer floor is now `>=0.3.0-beta.4`, the first release containing the
+  `CORE_TIME_*` exports loaded by `@spfn/auth/client-proof`. Older core prereleases are no
+  longer advertised as compatible.
+
 ## [@spfn/core@0.3.0-beta.3, spfn@0.3.0-beta.3, @spfn/auth@0.3.0-beta.3] - 2026-08-09
 
 세 가지 breaking change 가 함께 나간다. 배포 전에 아래 두 문서를 먼저 읽는 것이 좋다:

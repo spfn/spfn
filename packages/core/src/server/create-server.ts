@@ -17,7 +17,8 @@ import { createSSEHandler } from '../event/sse/handler';
 import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
 import { wireEventRouterCache } from '../event/cache-transport';
 import { createHealthCheckHandler, resolveEndpointMiddlewares } from './helpers';
-import { CORE_NAMESPACE, CORE_HEALTH_PATH, LEGACY_HEALTH_PATH } from './namespace';
+import { CORE_NAMESPACE, CORE_HEALTH_PATH, CORE_TIME_PATH, LEGACY_HEALTH_PATH } from './namespace';
+import { createCoreTimeRouter } from './server-time';
 import { serverLogger } from './logger';
 
 import type { ServerConfig, AppFactory } from './types';
@@ -124,38 +125,42 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
     // 2.6 Rate limit: register named policies + optional global default limiter
     applyRateLimit(config);
 
-    // 3. Custom middleware
+    // 3. Server time — before application middleware and routes so a client can
+    //    synchronize before it has a proof or session.
+    registerCoreTimeEndpoint(app, config);
+
+    // 4. Custom middleware
     if (Array.isArray(config?.use))
     {
         config.use.forEach(mw => app.use('*', mw));
     }
 
-    // 4. Built-in health endpoint — before app routes and before the
+    // 5. Built-in health endpoint — before app routes and before the
     //    beforeRoutes hook, on purpose. Hono answers with whichever handler was
     //    registered first, and a middleware only wraps handlers registered after
     //    it, so this position is what keeps a probe unauthenticated and keeps
     //    the path unclaimable by an app.
     registerCoreHealthEndpoint(app, config);
 
-    // 5. beforeRoutes hook from config
+    // 6. beforeRoutes hook from config
     await executeBeforeRoutesHook(app, config);
 
-    // 6. Load routes
+    // 7. Load routes
     const appRoutes = await loadAppRoutes(app, config);
 
-    // 6.5 Where /health went — after app routes, so an app that declares that
+    // 7.5 Where /health went — after app routes, so an app that declares that
     //     path keeps it. A signpost, not an endpoint.
     registerMovedHealthSignpost(app, config, appRoutes);
     warnOnShadowedOptInPath(config, appRoutes);
     warnOnCoreNamespaceRoutes(appRoutes);
 
-    // 7. Register SSE endpoint (if events router provided)
+    // 8. Register SSE endpoint (if events router provided)
     await registerSSEEndpoint(app, config);
 
-    // 8. afterRoutes hook from config
+    // 9. afterRoutes hook from config
     await executeAfterRoutesHook(app, config);
 
-    // 9. Error handler
+    // 10. Error handler
     if (enableErrorHandler)
     {
         app.onError(ErrorHandler({ onError: config?.middleware?.onError }));
@@ -234,7 +239,7 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
     // rotation and nothing would say why. /health is in the list while the
     // signpost lives there, because an operator whose probe broke needs to read
     // the 410 rather than a rejection.
-    const autoSkip = [CORE_HEALTH_PATH, LEGACY_HEALTH_PATH];
+    const autoSkip = [CORE_HEALTH_PATH, CORE_TIME_PATH, LEGACY_HEALTH_PATH];
     if (config?.healthCheck?.path)
     {
         autoSkip.push(config.healthCheck.path);
@@ -331,6 +336,20 @@ function resolveHealthCheck(config?: ServerConfig): { enabled: boolean; path?: s
         path: healthCheckConfig.path,
         detailed: healthCheckConfig.detailed ?? process.env.NODE_ENV === 'development',
     };
+}
+
+/**
+ * Register the unproven server-time operation from its exported route contract.
+ *
+ * It sits before `config.use`, `beforeRoutes` and application routes, so none of
+ * the application's authentication surfaces can turn the bootstrap operation
+ * into a proved or session-bound call. Proxy-guard is registered earlier but
+ * explicitly skips this path.
+ */
+function registerCoreTimeEndpoint(app: Hono, config?: ServerConfig): void
+{
+    registerRoutes(app, createCoreTimeRouter(config?.serverTime?.clock));
+    serverLogger.debug(`Server time endpoint enabled at ${CORE_TIME_PATH}`);
 }
 
 /**

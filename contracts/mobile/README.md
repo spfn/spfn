@@ -44,10 +44,17 @@ Operations, wire headers, proof-input fields, the replay window and HTTP
 statuses are read from the modules that implement them: changing the server
 changes the export.
 
-Type shapes, error summaries and the prose describing canonicalization and
-admission are declared in `contract-bundle.ts`. No runtime value carries them,
-so the test suite runs the real decoders and encoders against every declaration
-instead — a declared type that stops describing the server fails there.
+The `core.time` prerequisite is imported from `@spfn/core` as well: its route
+identity, transport, admission policy, and response schema are not restated in
+auth. The exported `clockSynchronization` section defines the process-first,
+fail-closed client policy and the four strict proof-time boundaries.
+
+The remaining type shapes, error summaries and the prose describing
+canonicalization and admission are declared in `contract-bundle.ts`.
+`ServerTimeResponse` is the exception: it is translated from core's exported
+TypeBox schema. For declarations no runtime value carries, the test suite runs
+the real decoders and encoders against each one instead — a declared type that
+stops describing the server fails there.
 
 ## Consuming it
 

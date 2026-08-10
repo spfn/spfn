@@ -236,12 +236,13 @@ await authApi.revokeAllKeys.call({ body: {} });               // other devices o
 await authApi.revokeAllKeys.call({ body: { includeCurrent: true } });   // everything
 ```
 
-> **All three are POST with their arguments in the body, deliberately.** The mobile auth
+> **All three key-management operations are POST with their arguments in the body, deliberately.** The mobile auth
 > profile (clientProofV1) signs the request body, and `canonical-json` fixes exactly how those
 > bytes are written. A `GET` has no body to sign, and a value in the path has no such rule —
 > client and server could disagree on the signed string over percent-encoding, a trailing
 > slash, or a proxy rewrite alone, and the request would be refused with nothing in the logs
-> naming the cause. Every operation in the contract is shaped this way.
+> naming the cause. Proof-bearing auth operations are shaped this way; the unproven,
+> bodyless `core.time` synchronization prerequisite is the explicit exception.
 
 - **The public key never leaves the server**, and the fingerprint is truncated to 8 characters.
   The list exists to recognise a device and point at it; the full fingerprint is what a native
@@ -917,6 +918,12 @@ the fixed-string contract error envelope (`PROOF_INVALID` · `PROOF_REPLAYED` ·
 `SESSION_REVOKED` · `PROFILE_REJECTED` · `CONTRACT_UNSUPPORTED` — SDKs classify by code, never
 HTTP status).
 
+Before minting the first proof in each client process, the client calls the built-in
+`GET /_core/time` operation (`core.time`) and establishes its proof epoch from
+`serverTimeMillis`. This prerequisite is unproven and session-free. If the operation is
+unavailable or its response cannot be decoded, proof minting fails closed — there is no silent
+fallback to the device's unsynchronized wall clock.
+
 - Wire headers (D23, ratified): `x-spfn-auth-profile`, `x-spfn-client-id`, `x-spfn-key-id`,
   `x-spfn-nonce`, `x-spfn-issued-at`, `x-spfn-proof`, `x-spfn-session`.
 - A request body must be **byte-canonical** — a body that parses but re-encodes differently is
@@ -943,6 +950,29 @@ HTTP status).
 - Dev/test scope: public keys (SPKI DER base64, keyed by `x-spfn-key-id`) are registered at
   construction or through the `/control/register-key` hook; the private half never reaches
   the server. No persistence — a production enrollment/rotation story is phase 2.
+
+### Clock synchronization and proof-time boundaries (contract 0.9.0)
+
+`core.time` is imported from `@spfn/core` rather than restated by auth: operation ID, method,
+path, auth class, session requirement, and the closed `ServerTimeResponse` schema all come from
+the core route contract. The mobile contract records it as a bodyless GET prerequisite and
+requires one synchronization before the first proof minted in each process. It does not prescribe
+persistent offset storage, retry sleeps, or device-specific margins.
+
+The server admission rule remains strict: `age = serverNow - issuedAtMillis` must satisfy
+`0 <= age <= 300000`. Synchronization does not widen the replay window or change nonce retention.
+A refused request still leaves its nonce unused; only admission spends it.
+
+| `serverNow - issuedAtMillis` | Result |
+|---:|---|
+| `0` | accept |
+| `-1` (proof is 1 ms in the future) | `PROOF_EXPIRED` |
+| `300000` | accept |
+| `300001` | `PROOF_EXPIRED` |
+
+When `core.time` cannot be read, the client must surface that synchronization failure and stop
+before sending a proof. Using `Date.now()` or a platform wall clock as an implicit fallback would
+reintroduce the skew failure this prerequisite closes.
 
 ### The contract version on the wire (contract 0.6.0)
 
@@ -992,6 +1022,7 @@ Every operation in the exported bundle carries `since` — the contract version 
 | `auth.clientProof.handshake`, `echo.send`, `items.list` | 0.1.0 |
 | `auth.enroll.register`, `auth.enroll.login`, `auth.enroll.oauthNative`, `auth.keys.rotate` | 0.3.0 |
 | `auth.keys.list`, `auth.keys.revoke`, `auth.keys.revokeAll` | 0.4.1 |
+| `core.time` | 0.9.0 |
 
 - **This is history, not policy.** The mobile contract's compatibility policy is `allOrNothing`: one
   contract version passes or refuses the whole surface, so these three fields change no verdict here.

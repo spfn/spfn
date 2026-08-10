@@ -9,6 +9,7 @@ import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
 import type { WSRouterDef, WSHandlerConfig } from '../event/ws/types';
 import type { DatabaseProvider } from '@spfn/core/db';
+import type { ServerClock } from './server-time';
 
 /**
  * Workflow router interface for @spfn/core integration
@@ -525,6 +526,16 @@ export interface ServerConfig
          * @env HEALTH_CHECK_DETAILED
          */
         detailed?: boolean;
+    };
+
+    /**
+     * Server-time capability dependencies.
+     *
+     * The endpoint is always enabled at `GET /_core/time`. Supplying a clock is
+     * primarily a deterministic test seam; production defaults to `Date.now()`.
+     */
+    serverTime?: {
+        clock?: ServerClock;
     };
 
     /**

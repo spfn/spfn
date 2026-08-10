@@ -26,7 +26,18 @@ import '@spfn/core/config';
 /** @deprecated Use `loadEnv` from '@spfn/core/env/loader' instead */
 export { loadEnvFiles } from './dotenv-loader';
 export { loadEnv } from '../env/loader';
-export { createServer, startServer, CORE_NAMESPACE, CORE_HEALTH_PATH } from './server';
+export {
+    createServer,
+    startServer,
+    CORE_NAMESPACE,
+    CORE_HEALTH_PATH,
+    CORE_TIME_PATH,
+    CORE_TIME_OPERATION_ID,
+    CORE_TIME_ROUTE,
+    ServerTimeResponseSchema,
+    createCoreTimeRoute,
+} from './server';
+export type { ServerClock, ServerTimeResponse } from './server';
 export { createServerlessApp, resetServerlessApp, provisionInfrastructure } from './serverless';
 export { getShutdownManager } from './shutdown-manager';
 

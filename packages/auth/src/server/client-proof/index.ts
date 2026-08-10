@@ -78,6 +78,8 @@ export {
 export {
     CONTRACT_OPERATIONS,
     AUTH_SURFACE_OPERATIONS,
+    CORE_PREREQUISITE_OPERATIONS,
+    IMPORTED_CORE_TIME_CONTRACT,
     ContractTypeError,
     decodeHandshakeRequest,
     decodeEchoRequest,

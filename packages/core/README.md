@@ -359,6 +359,39 @@ probe depends on, and a probe reaches it unauthenticated. An app with `src/serve
 
 ---
 
+## How does a client synchronize with the server clock?
+
+Call `GET /_core/time` before minting a timestamped proof. It is a built-in,
+unauthenticated and session-free operation registered before application middleware and
+routes:
+
+```json
+{ "serverTimeMillis": 1750000000123 }
+```
+
+The response is a closed contract: `serverTimeMillis` is an integer Unix epoch in
+milliseconds and no additional fields are declared. It always carries
+`Cache-Control: no-store`; a cached clock reading is not a synchronization point.
+
+The value is trustworthy only when the transport is trustworthy. Production clients must
+call the endpoint over HTTPS and validate the server certificate. The endpoint does not
+sign its response, compensate for network latency, choose an authentication skew margin,
+or define client retry and persistence policy — those belong to the consuming protocol.
+
+Tests can inject an exact clock without replacing global time:
+
+```typescript
+const app = await createServer(defineServerConfig()
+    .serverTime({ clock: { now: () => 1750000000123 } })
+    .build());
+```
+
+`CORE_TIME_ROUTE`, `CORE_TIME_PATH`, `ServerTimeResponseSchema` and the
+`ServerTimeResponse` type are exported from `@spfn/core/server` for separately deployed
+client-contract exporters to consume from the same wire definition.
+
+---
+
 ## Can I deploy this to Vercel?
 
 Yes, and it is a first-class target rather than a workaround. From your app:
