@@ -6,7 +6,7 @@
 
 import { Logger } from './logger';
 import { ConsoleTransport } from './transports/console';
-import { getConsoleConfig, validateConfig } from './config';
+import { getConsoleConfig } from './config';
 import type { LogLevel, Transport } from './types';
 import { LOG_LEVEL_PRIORITY } from './types';
 
@@ -51,14 +51,13 @@ function getLogLevel(): LogLevel
 }
 
 /**
- * Initialize logger with configuration validation
+ * Initialize logger
+ *
+ * Runs at import time, so it must not inspect anything a .env file can supply —
+ * see the note in ./config.
  */
 function initializeLogger(): Logger
 {
-    // Validate configuration before creating logger
-    validateConfig();
-
-    // Create logger with configured transports
     return new Logger({
         level: getLogLevel(),
         transports: initializeTransports(),

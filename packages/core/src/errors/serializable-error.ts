@@ -5,7 +5,10 @@
  * Automatically serializes public fields for transmission to client.
  */
 
-import { logger } from '../logger';
+// Package specifier, not '../logger': tsup marks `@spfn/*` external, so a
+// relative import would inline a SECOND logger singleton into this entrypoint's
+// bundle — and into every bundle that imports errors (issue #136).
+import { logger } from '@spfn/core/logger';
 
 /**
  * Serialized error format for JSON transmission

@@ -1,7 +1,15 @@
 /**
  * Logger Configuration
  *
- * Environment-based logger configuration with validation for console transport.
+ * Environment-based logger configuration for the console transport.
+ *
+ * NODE_ENV is deliberately NOT checked here. The logger is a module-level
+ * singleton, so anything this module runs happens at import time — and the env
+ * loader imports the logger, which puts every logger-side check strictly before
+ * any .env file is read. A NODE_ENV warning raised from here therefore fires
+ * even when .env.server sets NODE_ENV, which is what issue #136 reported. The
+ * check now lives in `loadEnv` (src/env/loader.ts), where the environment is
+ * settled.
  */
 
 import type {
@@ -20,29 +28,4 @@ export function getConsoleConfig(): ConsoleTransportConfig
         enabled: true,
         colorize: !isProduction, // Dev: colored output, Production: plain text
     };
-}
-
-/**
- * Validate environment variables
- */
-function validateEnvironment(): void
-{
-    const nodeEnv = process.env.NODE_ENV;
-
-    if (!nodeEnv)
-    {
-        process.stderr.write(
-            '[Logger] Warning: NODE_ENV is not set. Defaulting to test environment.\n',
-        );
-    }
-    // Allow any NODE_ENV value (development, production, test, staging, local, etc.)
-    // No validation needed - users can use custom environments
-}
-
-/**
- * Validate all logger configuration
- */
-export function validateConfig(): void
-{
-    validateEnvironment();
 }

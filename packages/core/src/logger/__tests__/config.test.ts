@@ -2,11 +2,8 @@
  * Logger Configuration Tests
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-    getConsoleConfig,
-    validateConfig,
-} from '../config';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { getConsoleConfig } from '../config';
 
 describe('Logger Configuration', () =>
 {
@@ -59,52 +56,7 @@ describe('Logger Configuration', () =>
         });
     });
 
-    describe('validateConfig', () =>
-    {
-        it('should pass validation with default config', () =>
-        {
-            process.env.NODE_ENV = 'development';
-
-            expect(() => validateConfig()).not.toThrow();
-        });
-
-        it('should accept any NODE_ENV value without warnings', () =>
-        {
-            // SPFN CLI sets NODE_ENV automatically, and custom values are allowed
-            process.env.NODE_ENV = 'staging';
-
-            const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-
-            expect(() => validateConfig()).not.toThrow();
-
-            // Should not write any warnings about NODE_ENV
-            const calls = stderrSpy.mock.calls.map(call => call[0]);
-            const nodeEnvWarnings = calls.filter(call =>
-                typeof call === 'string' && call.includes('NODE_ENV'),
-            );
-            expect(nodeEnvWarnings).toHaveLength(0);
-
-            stderrSpy.mockRestore();
-        });
-
-        it('should warn when NODE_ENV is not set', () =>
-        {
-            // When NODE_ENV is not set, a warning should be printed
-            delete process.env.NODE_ENV;
-
-            const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-
-            expect(() => validateConfig()).not.toThrow();
-
-            // Should write a warning about NODE_ENV
-            const calls = stderrSpy.mock.calls.map(call => call[0]);
-            const nodeEnvWarnings = calls.filter(call =>
-                typeof call === 'string' && call.includes('NODE_ENV'),
-            );
-            expect(nodeEnvWarnings).toHaveLength(1);
-            expect(nodeEnvWarnings[0]).toContain('Warning: NODE_ENV is not set');
-
-            stderrSpy.mockRestore();
-        });
-    });
+    // The NODE_ENV check used to live here and ran while this module was being
+    // imported — before any .env file had been read (issue #136). It now belongs
+    // to loadEnv; its tests are in src/env/__tests__/loader.test.ts.
 });
