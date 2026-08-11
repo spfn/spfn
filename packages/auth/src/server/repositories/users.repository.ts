@@ -5,11 +5,12 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { BaseRepository } from '@spfn/core/db';
 import { EntityNotFoundError, NotFoundError } from '@spfn/core/errors';
 
 import { rolePermissions, roles, NewUser, users, permissions } from '../entities';
+import { normalizeEmail, normalizeOptionalEmail } from '../helpers/email';
 
 /**
  * Users Repository 클래스
@@ -63,7 +64,32 @@ export class UsersRepository extends BaseRepository
         const result = await this.readDb
             .select()
             .from(users)
-            .where(eq(users.email, email))
+            .where(eq(users.email, normalizeEmail(email)))
+            .limit(1);
+
+        return result[0] ?? null;
+    }
+
+    /**
+     * 이메일로 사용자 조회 — 저장된 형태와 무관하게 찾는다.
+     *
+     * `findByEmail` asks whether a row holds this exact address; this asks
+     * whether any row *is* this address, whatever form it was written in. The
+     * difference matters to a caller that answers "no" by creating an account:
+     * a lookup that misses a row stored in another form would make a second
+     * account for a person who already has one, and the unique constraint
+     * cannot object because the two stored strings differ.
+     *
+     * Folding in the predicate means no index on `email` applies, so this is for
+     * the few addresses a caller decides about — admin seeding — not for a
+     * request path. Write primary: the answer decides whether to insert.
+     */
+    async findByEmailInAnyStoredForm(email: string)
+    {
+        const result = await this.db
+            .select()
+            .from(users)
+            .where(sql`lower(btrim(${users.email})) = ${normalizeEmail(email)}`)
             .limit(1);
 
         return result[0] ?? null;
@@ -172,7 +198,87 @@ export class UsersRepository extends BaseRepository
      */
     async create(data: NewUser)
     {
-        return await this._create(users, data);
+        return await this._create(users, { ...data, email: normalizeOptionalEmail(data.email) });
+    }
+
+    /**
+     * User ids grouped by an address two or more rows share once folded.
+     *
+     * The whole comparison happens in the database and only the colliding groups
+     * come back, so the size of the answer is the size of the problem rather
+     * than the size of the table. `users.email` is unique, so a group of more
+     * than one can only be rows that differ by capitalization or padding —
+     * exactly the ones a rewrite cannot decide between.
+     *
+     * Every member id is returned, including a row already holding the
+     * canonical form, because the operator has to compare the accounts against
+     * each other to settle which is real.
+     *
+     * Write primary: the caller is about to rewrite rows and a replica could
+     * still be showing the pre-fix state.
+     */
+    async findEmailConflictGroups(): Promise<number[][]>
+    {
+        const rows = await this.db
+            .select({ ids: sql<number[]>`array_agg(${users.id} ORDER BY ${users.id})` })
+            .from(users)
+            .where(sql`${users.email} IS NOT NULL`)
+            .groupBy(sql`lower(btrim(${users.email}))`)
+            .having(sql`count(*) > 1`);
+
+        return rows.map(row => row.ids.map(Number));
+    }
+
+    /**
+     * Fold every stored address to canonical form, leaving the given ids alone.
+     *
+     * One statement rather than a row at a time: the rewrite is the same
+     * expression the detection uses, so the database can do it in place. A
+     * legacy install with a large users table therefore pays one update instead
+     * of a round trip per row on the boot path, and no list of addresses is ever
+     * carried through the application.
+     *
+     * The excluded ids travel as a single array parameter, so the count of
+     * conflicts cannot run into the protocol's limit on bind parameters.
+     *
+     * One statement also means all or nothing. `users.email` is unique, so if an
+     * instance still running the old code registers a canonical address in the
+     * moment between the conflict query and this update, the update aborts and
+     * nothing is folded on this boot. The next boot sees that pair as a conflict
+     * and folds everything else, so the repair is deferred rather than lost.
+     *
+     * `lower(btrim(...))` is the SQL spelling of `normalizeEmail`. The two agree
+     * on every address this package's validation accepts (ASCII, no interior
+     * whitespace); an address outside that set — reachable only by an app
+     * writing to the repository directly — may fold differently in a database
+     * whose collation lower-cases non-ASCII letters.
+     *
+     * @param excludedIds - Rows to leave untouched, normally the conflict groups
+     * @returns How many rows were rewritten
+     */
+    async normalizeEmailsExcept(excludedIds: number[]): Promise<number>
+    {
+        // `bigint[]`, matching the bigserial primary key. Cast to `int[]` this
+        // fails outright once an install's id sequence passes 2^31 — which a
+        // sequence reaches on rolled-back inserts too, not only on live rows.
+        const keepConflicts = excludedIds.length > 0
+            ? sql` AND NOT (${users.id} = ANY(string_to_array(${excludedIds.join(',')}, ',')::bigint[]))`
+            : sql``;
+        const pending = sql`${users.email} IS NOT NULL AND ${users.email} <> lower(btrim(${users.email}))${keepConflicts}`;
+
+        // Counted rather than returned. `RETURNING` would hand back one row per
+        // rewritten address, which is the transfer this method exists to avoid.
+        const [counted] = await this.db
+            .select({ rows: sql<number>`count(*)` })
+            .from(users)
+            .where(pending);
+
+        await this.db
+            .update(users)
+            .set({ email: sql`lower(btrim(${users.email}))` })
+            .where(pending);
+
+        return Number(counted?.rows ?? 0);
     }
 
     /**
@@ -181,9 +287,15 @@ export class UsersRepository extends BaseRepository
      */
     async updateById(id: number, data: Partial<NewUser>)
     {
+        // `'email' in data` rather than a truthiness check: setting it to null
+        // (unlinking an address) is a real update and must not be dropped.
+        const patch = 'email' in data
+            ? { ...data, email: normalizeOptionalEmail(data.email) }
+            : data;
+
         const result = await this.db
             .update(users)
-            .set(data)
+            .set(patch)
             .where(eq(users.id, id))
             .returning();
 

@@ -827,6 +827,8 @@ Notes:
   seeding in `initializeAuth()`.
 - OAuth signups have no client-typed fields unless you pass `metadata` at OAuth start — decide
   per channel (reject, or allow and collect during onboarding).
+- `email` arrives trimmed and lower-cased, the same form the account is stored under, so a
+  denylist or domain allowlist keyed on the address is not walked past by capitalizing it.
 - On the `oauth` channel `email` is the provider-reported address and may be **unverified**
   (the created account then stores `email` as `null`). The context carries
   `emailVerified` — an email-based allow/block policy must check it before trusting `email`.
@@ -1238,6 +1240,23 @@ authorization.
 **Where do my admin accounts come from?**
 The environment, seeded on startup by `createAuthLifecycle()`. Seeded accounts are email
 verified, active, and required to change their password on first login.
+
+**Is `Foo@Example.com` the same account as `foo@example.com`?**
+Yes. Addresses are trimmed and lower-cased on the way in and on the way out, so one person
+who capitalizes differently on different days reaches one account instead of creating a
+second. Nothing else is folded — Gmail's dot and `+` rules are that provider's delivery
+behaviour, not an internet rule, and applying them would merge addresses other providers
+treat as different people.
+
+`createAuthLifecycle()` brings existing rows into the same form on startup. If two accounts
+differ only by capitalization, both are left exactly as they are and their user ids are
+logged as an error: which one is the real account, and what becomes of the other's data, is
+not a question the package can answer for you. Until you resolve it, the mixed-case one
+cannot sign in.
+
+Admin seeding is unaffected either way. It recognizes a configured admin in whatever form
+the address was stored, so an account the backfill has not reached is skipped rather than
+duplicated into a second privileged row holding the configured password.
 
 ## Pitfalls & anti-patterns
 

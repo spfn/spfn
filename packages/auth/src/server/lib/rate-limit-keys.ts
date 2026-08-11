@@ -14,6 +14,7 @@
 import type { Context } from 'hono';
 import { createHash } from 'node:crypto';
 import { getClientIp, type RateLimitDimension } from '@spfn/core/middleware';
+import { normalizeEmail } from '../helpers/email';
 
 interface KeyOptions
 {
@@ -35,9 +36,11 @@ async function readJsonBody(c: Context): Promise<Record<string, unknown>>
 
 function accountKey(body: Record<string, unknown>): string | undefined
 {
+    // Same canonical form the account is stored under, or an attacker gets a
+    // fresh budget per capitalization of the address being attacked.
     if (typeof body.email === 'string' && body.email.trim())
     {
-        return `email:${body.email.trim().toLowerCase()}`;
+        return `email:${normalizeEmail(body.email)}`;
     }
     if (typeof body.phone === 'string' && body.phone.trim())
     {
@@ -55,7 +58,7 @@ function targetKey(body: Record<string, unknown>): string | undefined
     }
 
     const type = typeof body.targetType === 'string' ? body.targetType : 'target';
-    const value = type === 'email' ? body.target.trim().toLowerCase() : body.target.trim();
+    const value = type === 'email' ? normalizeEmail(body.target) : body.target.trim();
 
     return `${type}:${value}`;
 }
