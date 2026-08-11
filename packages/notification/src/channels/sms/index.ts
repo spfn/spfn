@@ -6,8 +6,9 @@ import type { SendSMSParams, SMSProvider, InternalSendSMSParams } from './types'
 import type { SendResult } from '../types';
 import type { Notification } from '../../entities';
 import { awsSnsProvider } from './providers/aws-sns';
-import { env, isHistoryEnabled } from '../../config';
-import { renderTemplate, hasTemplate } from '../../templates';
+import { env, isHistoryEnabled, isHistoryContentStored } from '../../config';
+import { renderTemplate, hasTemplate, getTemplate } from '../../templates';
+import { maskRecipients, maskPhone, historyRecipient } from '../../privacy';
 import {
     createNotificationRecord,
     createNotificationRecords,
@@ -92,7 +93,7 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
     // Validate required fields
     if (!message)
     {
-        log.warn('SMS message is required', { to: recipients });
+        log.warn('SMS message is required', { to: maskRecipients(recipients) });
 
         return {
             success: false,
@@ -116,14 +117,19 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
         let historyId: number | undefined;
         if (isHistoryEnabled())
         {
+            const sensitive = params.sensitive
+                ?? (params.template ? getTemplate(params.template)?.sensitive : undefined)
+                ?? false;
+            const storePayload = !sensitive && isHistoryContentStored();
+
             try
             {
                 const record = await createNotificationRecord({
                     channel: 'sms',
-                    recipient: normalizedPhone,
+                    recipient: historyRecipient([normalizedPhone]),
                     templateName: params.template,
-                    templateData: params.data,
-                    content: message,
+                    templateData: storePayload ? params.data : undefined,
+                    content: storePayload ? message : undefined,
                     providerName: provider.name,
                 });
                 historyId = record.id;
@@ -138,11 +144,11 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
 
         if (result.success)
         {
-            log.info('SMS sent', { to: normalizedPhone, messageId: result.messageId });
+            log.info('SMS sent', { to: maskPhone(normalizedPhone), messageId: result.messageId });
         }
         else
         {
-            log.error('SMS send failed', { to: normalizedPhone, error: result.error });
+            log.error('SMS send failed', { to: maskPhone(normalizedPhone), error: result.error });
         }
 
         // Update history record (fire-and-forget — best-effort, off the send path)
@@ -200,6 +206,7 @@ interface PreparedSMS
     message: string;
     template?: string;
     data?: Record<string, unknown>;
+    sensitive: boolean;
 }
 
 /**
@@ -263,6 +270,10 @@ export async function sendSMSBulk(
             continue;
         }
 
+        const sensitive = item.sensitive
+            ?? (item.template ? getTemplate(item.template)?.sensitive : undefined)
+            ?? false;
+
         for (const recipient of recipients)
         {
             prepared.push({
@@ -271,6 +282,7 @@ export async function sendSMSBulk(
                 message,
                 template: item.template,
                 data: item.data,
+                sensitive,
             });
         }
     }
@@ -282,16 +294,23 @@ export async function sendSMSBulk(
     {
         try
         {
+            const storeContent = isHistoryContentStored();
+
             historyRecords = await createNotificationRecords(
-                prepared.map((p) => ({
-                    channel: 'sms' as const,
-                    recipient: p.phone,
-                    templateName: p.template,
-                    templateData: p.data,
-                    content: p.message,
-                    providerName: provider.name,
-                    batchId,
-                })),
+                prepared.map((p) =>
+                {
+                    const storePayload = !p.sensitive && storeContent;
+
+                    return {
+                        channel: 'sms' as const,
+                        recipient: historyRecipient([p.phone]),
+                        templateName: p.template,
+                        templateData: storePayload ? p.data : undefined,
+                        content: storePayload ? p.message : undefined,
+                        providerName: provider.name,
+                        batchId,
+                    };
+                }),
             );
         }
         catch (error)
@@ -375,11 +394,11 @@ export async function sendSMSBulk(
 
         if (result.success)
         {
-            log.info('SMS sent', { to: phone, messageId: result.messageId });
+            log.info('SMS sent', { to: maskPhone(phone), messageId: result.messageId });
         }
         else
         {
-            log.error('SMS send failed', { to: phone, error: result.error });
+            log.error('SMS send failed', { to: maskPhone(phone), error: result.error });
         }
 
         const historyId = historyRecords[i]?.id;

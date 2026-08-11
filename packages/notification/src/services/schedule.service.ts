@@ -6,7 +6,9 @@
 
 import type { SendEmailParams } from '../channels/email/types';
 import type { SendSMSParams } from '../channels/sms/types';
-import { hasTemplate, renderTemplate } from '../templates';
+import { hasTemplate, renderTemplate, getTemplate } from '../templates';
+import { historyRecipient } from '../privacy';
+import { isHistoryContentStored } from '../config';
 import {
     createScheduledNotification,
     updateNotificationJobId,
@@ -99,14 +101,22 @@ export async function scheduleEmail(
 
     try
     {
-        // Create scheduled notification record
+        const sensitive = params.sensitive
+            ?? (params.template ? getTemplate(params.template)?.sensitive : undefined)
+            ?? false;
+        const storePayload = !sensitive && isHistoryContentStored();
+
+        // Create scheduled notification record. The pg-boss job payload below
+        // still carries the raw recipient and content — it has to, that is what
+        // gets sent later — so scheduled sends inherently persist the payload
+        // until pg-boss archives the job.
         const notification = await createScheduledNotification({
             channel: 'email',
-            recipient: recipients.join(','),
+            recipient: historyRecipient(recipients),
             templateName: params.template,
-            templateData: params.data,
-            subject,
-            content: text,
+            templateData: storePayload ? params.data : undefined,
+            subject: sensitive ? undefined : subject,
+            content: storePayload ? text : undefined,
             providerName: 'pending', // Will be set when job runs
             scheduledAt: options.scheduledAt,
             referenceType: options.referenceType,
@@ -125,6 +135,7 @@ export async function scheduleEmail(
                 html: params.html,
                 from: params.from,
                 replyTo: params.replyTo,
+                sensitive: params.sensitive,
             },
             { startAfter: options.scheduledAt },
         );
@@ -197,13 +208,19 @@ export async function scheduleSMS(
         // Normalize phone numbers
         const normalizedRecipients = recipients.map(r => normalizePhoneNumber(r));
 
-        // Create scheduled notification record
+        const sensitive = params.sensitive
+            ?? (params.template ? getTemplate(params.template)?.sensitive : undefined)
+            ?? false;
+        const storePayload = !sensitive && isHistoryContentStored();
+
+        // Create scheduled notification record (see the email note above about
+        // the pg-boss payload).
         const notification = await createScheduledNotification({
             channel: 'sms',
-            recipient: normalizedRecipients.join(','),
+            recipient: historyRecipient(normalizedRecipients),
             templateName: params.template,
-            templateData: params.data,
-            content: message,
+            templateData: storePayload ? params.data : undefined,
+            content: storePayload ? message : undefined,
             providerName: 'pending', // Will be set when job runs
             scheduledAt: options.scheduledAt,
             referenceType: options.referenceType,
@@ -218,6 +235,7 @@ export async function scheduleSMS(
                 message: params.message,
                 template: params.template,
                 data: params.data,
+                sensitive: params.sensitive,
             },
             { startAfter: options.scheduledAt },
         );

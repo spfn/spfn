@@ -141,6 +141,83 @@ describe('tracking/processor', () =>
         });
     });
 
+    describe('fragment handling', () =>
+    {
+        it('keeps the fragment out of the redirect query and re-attaches it to the tracking URL', () =>
+        {
+            const html = '<a href="https://app.example.com/access#token=secret123">Open</a>';
+            const { html: result, trackedLinks } = processTrackingHtml(html, OPTIONS);
+
+            // The signed/sent target is the fragment-less URL…
+            expect(result).toContain(`?url=${encodeURIComponent('https://app.example.com/access')}#token=secret123`);
+            // …and the secret never appears percent-encoded inside the query value.
+            expect(result).not.toContain(encodeURIComponent('#token=secret123'));
+            expect(trackedLinks[0].url).toBe('https://app.example.com/access');
+        });
+
+        it('signs the click token over the fragment-less URL', async () =>
+        {
+            const { generateClickToken } = await import('../token');
+            const html = '<a href="https://app.example.com/access#token=secret123">Open</a>';
+            processTrackingHtml(html, OPTIONS);
+
+            expect(generateClickToken).toHaveBeenLastCalledWith(42, 0, 'https://app.example.com/access');
+        });
+
+        it('still wraps a fragment-only difference in URLs independently', () =>
+        {
+            const html = `
+                <a href="https://example.com/page#a">A</a>
+                <a href="https://example.com/page#b">B</a>
+            `;
+            const { trackedLinks } = processTrackingHtml(html, OPTIONS);
+
+            expect(trackedLinks).toHaveLength(2);
+            expect(trackedLinks[0].url).toBe('https://example.com/page');
+            expect(trackedLinks[1].url).toBe('https://example.com/page');
+        });
+    });
+
+    describe('data-no-track opt-out', () =>
+    {
+        it('leaves a link with data-no-track untouched', () =>
+        {
+            const html = '<a data-no-track href="https://app.example.com/access">Open</a>';
+            const { html: result, trackedLinks } = processTrackingHtml(html, OPTIONS);
+
+            expect(result).toContain('href="https://app.example.com/access"');
+            expect(trackedLinks).toHaveLength(0);
+        });
+
+        it('honours data-no-track after the href too', () =>
+        {
+            const html = '<a href="https://app.example.com/access" data-no-track>Open</a>';
+            const { trackedLinks } = processTrackingHtml(html, OPTIONS);
+
+            expect(trackedLinks).toHaveLength(0);
+        });
+
+        it('does not match unrelated tokens containing the attribute name', () =>
+        {
+            const html = '<a data-no-track-foo href="https://example.com">Go</a>';
+            const { trackedLinks } = processTrackingHtml(html, OPTIONS);
+
+            expect(trackedLinks).toHaveLength(1);
+        });
+
+        it('still tracks sibling links without the attribute', () =>
+        {
+            const html = `
+                <a data-no-track href="https://app.example.com/access#token=s">Secret</a>
+                <a href="https://example.com">Normal</a>
+            `;
+            const { trackedLinks } = processTrackingHtml(html, OPTIONS);
+
+            expect(trackedLinks).toHaveLength(1);
+            expect(trackedLinks[0].url).toBe('https://example.com');
+        });
+    });
+
     describe('complete email HTML', () =>
     {
         it('should process a realistic email HTML', () =>

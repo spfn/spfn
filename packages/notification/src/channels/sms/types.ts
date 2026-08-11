@@ -28,6 +28,13 @@ export interface SendSMSParams
      * Message content (if not using template)
      */
     message?: string;
+
+    /**
+     * This send carries a credential (OTP, …): keep rendered content and
+     * template data out of the history row. When undefined, falls back to
+     * the template's own `sensitive` declaration.
+     */
+    sensitive?: boolean;
 }
 
 /**

@@ -13,6 +13,7 @@ import {
     type NotificationChannel,
     type NotificationStatus,
 } from '../entities';
+import { historyRecipientFilter } from '../privacy';
 
 /**
  * Create notification record (pending status)
@@ -233,7 +234,9 @@ export async function findNotifications(
     }
     if (options.recipient)
     {
-        conditions.push(eq(notifications.recipient, options.recipient));
+        // Filters go through the same transform stored values did, so lookups
+        // work whether recipients are stored raw or hashed.
+        conditions.push(eq(notifications.recipient, historyRecipientFilter(options.recipient)));
     }
     if (options.referenceType)
     {
@@ -279,7 +282,7 @@ export async function countNotifications(
     }
     if (options.recipient)
     {
-        conditions.push(eq(notifications.recipient, options.recipient));
+        conditions.push(eq(notifications.recipient, historyRecipientFilter(options.recipient)));
     }
 
     if (conditions.length > 0)

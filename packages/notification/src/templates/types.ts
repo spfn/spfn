@@ -41,6 +41,12 @@ export interface TemplateDefinition
     email?: EmailTemplateContent;
     sms?: SmsTemplateContent;
     slack?: SlackTemplateContent;
+    /**
+     * The rendered output carries a credential (OTP code, magic link, …).
+     * Sends using a sensitive template keep content and template data out of
+     * history rows. A per-send `sensitive` value overrides this.
+     */
+    sensitive?: boolean;
 }
 
 /**

@@ -84,6 +84,9 @@ SPFN_NOTIFICATION_TRACKING_ENABLED=true
 SPFN_NOTIFICATION_TRACKING_SECRET=your-hmac-secret-key
 SPFN_NOTIFICATION_TRACKING_BASE_URL=https://api.example.com
 
+# History (only needed when history.storeRecipient is 'hashed')
+SPFN_NOTIFICATION_HISTORY_HASH_SECRET=your-history-hmac-secret
+
 # AWS Credentials
 AWS_REGION=ap-northeast-2
 AWS_ACCESS_KEY_ID=xxx
@@ -109,6 +112,11 @@ configureNotification({
         appName: 'MyApp',
     },
     enableHistory: true, // Enable notification history tracking
+    history: {
+        storeContent: true,       // Store rendered content + template data (default: true)
+        storeRecipient: 'raw',    // 'raw' | 'hashed' — how the recipient column is stored
+        // hashSecret: '...',     // Required for 'hashed' (or use the env var)
+    },
     tracking: {
         enabled: true,                          // Enable email tracking
         secret: 'your-hmac-secret-key',         // HMAC signing key
@@ -349,7 +357,20 @@ registerSMSProvider(twilioProvider);
 
 ## Logging & Error Handling
 
-All channels log via `@spfn/core/logger`. Logs are tagged by channel:
+All channels log via `@spfn/core/logger`. Logs are tagged by channel.
+
+**Recipient fields never appear raw in logs.** Every recipient field this
+package writes — success, failure, and validation logs alike — carries a masked
+value (`jo***@example.com`, `+8210******78`). Provider SDK error *messages* are
+passed through as-is, and some embed the address themselves (e.g. an SES sandbox
+`MessageRejected`); the package cannot rewrite arbitrary provider text. A send resolved as `sensitive`
+(see [Sensitive sends](#sensitive-sends)) also keeps its subject out of the log,
+because a verification subject line carries the code itself; the log identifies
+the send by template name instead. The masking helpers are exported
+(`maskEmail`, `maskPhone`, `maskRecipient`, `maskRecipients`) for application-side
+logging of the same values.
+
+Channel tags:
 
 - `@spfn/notification:email` — Email send success/failure, validation errors
 - `@spfn/notification:sms` — SMS send success/failure, validation errors
@@ -382,6 +403,62 @@ configureNotification({
     enableHistory: true,
 });
 ```
+
+### What a row stores — and how to store less
+
+A history row is the anchor for tracking (FK), scheduling (cancellation) and
+bulk status, so the row itself is always created when history is enabled. What
+lands **in** it is configurable, because two of its columns are privacy
+surfaces: `recipient` is a person's address, and `content` / `template_data`
+can carry a live credential (a magic link, an OTP code).
+
+```typescript
+configureNotification({
+    enableHistory: true,
+    history: {
+        // Keep rendered content and template data out of every row.
+        // Status, provider message id, error and timestamps still land.
+        storeContent: false,
+
+        // Store an HMAC per recipient instead of the raw address.
+        // findNotifications({ recipient }) keeps working — the filter is
+        // hashed the same way. Requires a secret (config or
+        // SPFN_NOTIFICATION_HISTORY_HASH_SECRET). A plain hash would be
+        // reversible by dictionary, which is why a keyed HMAC is used.
+        storeRecipient: 'hashed',
+    },
+});
+```
+
+Neither option needs a migration — the payload columns are nullable and the
+HMAC satisfies the `recipient` column as-is.
+
+### Sensitive sends
+
+A send whose rendered output *is* a credential can opt out of payload storage
+per send, regardless of the global `storeContent` setting:
+
+```typescript
+await sendEmail({
+    to: 'user@example.com',
+    subject: 'Your access link',
+    html: accessLinkHtml,
+    sensitive: true,    // no content, template data, or subject in the history row
+});
+```
+
+A template can declare it for every send that uses it — the built-in
+`verification-code` template does, since both its body and its subject line
+contain the code. A per-send `sensitive: true/false` overrides the template's
+declaration.
+
+**Scheduled and distributed sends caveat:** a scheduled send's payload (raw
+recipient, content, template data) necessarily travels through the pg-boss job
+table — that is what gets sent later — and stays there until pg-boss archives
+the job. The same applies to `sendEmailBulk` / `sendSMSBulk` with
+`distributed: true`. The history options above do not change that. If your
+contract forbids persisting a credential at all, send it immediately and
+in-process rather than scheduling or distributing it.
 
 ### Query History
 
@@ -422,6 +499,16 @@ Track email opens and link clicks to measure engagement.
 1. **Open tracking**: A 1x1 transparent GIF is inserted before `</body>`. When the email client loads the image, an open event is recorded.
 2. **Click tracking**: `<a href>` links are wrapped with redirect URLs. When clicked, a click event is recorded and the user is redirected to the original URL.
 3. Links with `mailto:`, `tel:`, `sms:`, `javascript:`, and `#` protocols are automatically skipped.
+4. **URL fragments stay client-side.** A fragment (`#token=...`) is never sent to a server on a normal navigation — magic links carry their secret there for exactly that reason — so the rewriter keeps it out of the redirect's query string. Only the fragment-less URL is signed, sent, and recorded; the fragment rides on the tracking URL itself, and since the 302 `Location` carries no fragment, the browser re-attaches it to the destination. The click is still counted.
+5. **Per-link opt-out**: a link with a `data-no-track` attribute is left completely untouched — no rewrite, no record.
+
+```html
+<!-- tracked; #token=... never reaches the tracking endpoint -->
+<a href="https://app.example.com/access#token=abc">Open your access page</a>
+
+<!-- not tracked at all -->
+<a data-no-track href="https://app.example.com/access#token=abc">Open</a>
+```
 
 ### Setup
 
@@ -488,7 +575,7 @@ These endpoints skip authentication (accessed by email clients):
 | `GET /_noti/t/o/:token` | 200 + 1x1 GIF | Records open event |
 | `GET /_noti/t/c/:token?url=...` | 302 redirect | Records click event, redirects to original URL |
 
-- Invalid tokens still return pixel/redirect (UX protection)
+- An invalid open token still returns the pixel (UX protection); an invalid click token returns 404 — redirecting on an unverified token would be an open redirect
 - `Cache-Control: no-store` for re-open tracking
 - DB writes are fire-and-forget (response speed first)
 

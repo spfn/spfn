@@ -60,6 +60,15 @@ export const notificationEnvSchema = defineEnvSchema({
         }),
     },
 
+    // History
+    SPFN_NOTIFICATION_HISTORY_HASH_SECRET: {
+        ...envString({
+            description: 'HMAC secret for hashed recipient storage in history rows',
+            required: false,
+            sensitive: true,
+        }),
+    },
+
     SPFN_NOTIFICATION_TRACKING_BASE_URL: {
         ...envString({
             description: 'Base URL for tracking endpoints',

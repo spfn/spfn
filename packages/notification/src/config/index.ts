@@ -39,6 +39,29 @@ export interface NotificationConfig
      */
     enableHistory?: boolean;
     /**
+     * What a history row stores. The row itself is always created when history
+     * is enabled — it anchors tracking, scheduling and bulk status — these
+     * options only control which values land in it.
+     */
+    history?: {
+        /**
+         * Store the rendered content and template data (default: true).
+         * Sends marked `sensitive` skip both regardless of this setting.
+         */
+        storeContent?: boolean;
+        /**
+         * How the recipient column is stored (default: 'raw').
+         * 'hashed' stores an HMAC per recipient; exact-match history queries
+         * keep working because filters are hashed the same way.
+         */
+        storeRecipient?: 'raw' | 'hashed';
+        /**
+         * Secret for the recipient HMAC (falls back to
+         * SPFN_NOTIFICATION_HISTORY_HASH_SECRET). Required for 'hashed'.
+         */
+        hashSecret?: string;
+    };
+    /**
      * Email engagement tracking configuration
      */
     tracking?: {
@@ -58,7 +81,30 @@ let globalConfig: NotificationConfig = {};
  */
 export function configureNotification(config: NotificationConfig): void
 {
-    globalConfig = { ...globalConfig, ...config };
+    // `history` merges deep: a later partial call must not silently reset an
+    // earlier privacy setting (e.g. drop storeRecipient: 'hashed' back to raw).
+    const next: NotificationConfig = {
+        ...globalConfig,
+        ...config,
+        history: config.history
+            ? { ...globalConfig.history, ...config.history }
+            : globalConfig.history,
+    };
+
+    // Fail at configure time, not at first send — and before assignment, so a
+    // caught error cannot leave the config in the invalid state. A
+    // hashed-recipient contract with no secret would otherwise surface only
+    // as skipped history rows.
+    if (next.history?.storeRecipient === 'hashed'
+        && !(next.history.hashSecret ?? env.SPFN_NOTIFICATION_HISTORY_HASH_SECRET))
+    {
+        throw new Error(
+            'history.storeRecipient is "hashed" but no hash secret is configured '
+            + '(set history.hashSecret or SPFN_NOTIFICATION_HISTORY_HASH_SECRET)',
+        );
+    }
+
+    globalConfig = next;
 }
 
 /**
@@ -107,6 +153,30 @@ export function getAppName(): string
 export function isHistoryEnabled(): boolean
 {
     return globalConfig.enableHistory ?? false;
+}
+
+/**
+ * Whether history rows store rendered content and template data
+ */
+export function isHistoryContentStored(): boolean
+{
+    return globalConfig.history?.storeContent ?? true;
+}
+
+/**
+ * How history rows store the recipient column
+ */
+export function getHistoryRecipientMode(): 'raw' | 'hashed'
+{
+    return globalConfig.history?.storeRecipient ?? 'raw';
+}
+
+/**
+ * Secret for the history recipient HMAC (config → env)
+ */
+export function getHistoryHashSecret(): string | undefined
+{
+    return globalConfig.history?.hashSecret ?? env.SPFN_NOTIFICATION_HISTORY_HASH_SECRET;
 }
 
 /**

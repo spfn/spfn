@@ -7,6 +7,8 @@ import type { TemplateDefinition } from '../types';
 export const verificationCodeTemplate: TemplateDefinition = {
     name: 'verification-code',
     channels: ['email', 'sms'],
+    // The rendered body IS the credential — keep it out of history rows.
+    sensitive: true,
 
     email: {
         subject: '[{{appName}}] 인증 코드: {{code}}',

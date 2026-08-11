@@ -24,6 +24,7 @@ const SendScheduledEmailInput = Type.Object({
     html: Type.Optional(Type.String()),
     from: Type.Optional(Type.String()),
     replyTo: Type.Optional(Type.String()),
+    sensitive: Type.Optional(Type.Boolean()),
 });
 
 /**

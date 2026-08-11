@@ -163,6 +163,14 @@ export {
     getTrackingBaseUrl,
 } from './config';
 
+// Privacy helpers (masking for application-side logging)
+export {
+    maskEmail,
+    maskPhone,
+    maskRecipient,
+    maskRecipients,
+} from './privacy';
+
 // Auto-register built-in templates
 import { registerBuiltinTemplates } from './templates';
 registerBuiltinTemplates();

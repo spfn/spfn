@@ -20,6 +20,7 @@ const SendScheduledSmsInput = Type.Object({
     message: Type.Optional(Type.String()),
     template: Type.Optional(Type.String()),
     data: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    sensitive: Type.Optional(Type.Boolean()),
 });
 
 /**

@@ -5,6 +5,7 @@
 import type { SMSProvider, InternalSendSMSParams } from '../types';
 import type { SendResult } from '../../types';
 import { env } from '../../../config';
+import { maskPhone } from '../../../privacy';
 import { logger } from '@spfn/core/logger';
 
 const log = logger.child('@spfn/notification:sns');
@@ -82,7 +83,7 @@ export const awsSnsProvider: SMSProvider = {
         catch (error)
         {
             const err = error as Error;
-            log.error('SNS send failed', err, { to: params.to });
+            log.error('SNS send failed', err, { to: maskPhone(params.to) });
 
             return {
                 success: false,

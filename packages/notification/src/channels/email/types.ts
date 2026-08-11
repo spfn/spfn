@@ -54,6 +54,13 @@ export interface SendEmailParams
      * When undefined, falls back to global tracking config.
      */
     tracking?: boolean;
+
+    /**
+     * This send carries a credential (magic link, OTP, …): keep rendered
+     * content and template data out of the history row. When undefined,
+     * falls back to the template's own `sensitive` declaration.
+     */
+    sensitive?: boolean;
 }
 
 /**

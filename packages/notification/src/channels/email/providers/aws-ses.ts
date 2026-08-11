@@ -5,6 +5,7 @@
 import type { EmailProvider, InternalSendEmailParams } from '../types';
 import type { SendResult } from '../../types';
 import { env } from '../../../config';
+import { maskRecipients } from '../../../privacy';
 import { logger } from '@spfn/core/logger';
 
 const log = logger.child('@spfn/notification:ses');
@@ -101,7 +102,7 @@ export const awsSesProvider: EmailProvider = {
         catch (error)
         {
             const err = error as Error;
-            log.error('SES send failed', err, { to: params.to, from: params.from });
+            log.error('SES send failed', err, { to: maskRecipients(params.to), from: params.from });
 
             return {
                 success: false,

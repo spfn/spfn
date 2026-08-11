@@ -6,9 +6,10 @@ import type { SendEmailParams, EmailProvider, InternalSendEmailParams } from './
 import type { SendResult } from '../types';
 import type { Notification } from '../../entities';
 import { awsSesProvider } from './providers/aws-ses';
-import { getEmailFrom, getEmailReplyTo, env, isHistoryEnabled, isTrackingEnabled, getTrackingBaseUrl } from '../../config';
+import { getEmailFrom, getEmailReplyTo, env, isHistoryEnabled, isHistoryContentStored, isTrackingEnabled, getTrackingBaseUrl } from '../../config';
 import { processTrackingHtml } from '../../tracking/processor';
-import { renderTemplate, hasTemplate } from '../../templates';
+import { renderTemplate, hasTemplate, getTemplate } from '../../templates';
+import { maskRecipients, historyRecipient } from '../../privacy';
 import {
     createNotificationRecord,
     createNotificationRecords,
@@ -57,6 +58,35 @@ function getProvider(): EmailProvider
 }
 
 /**
+ * Whether this send's rendered content must stay out of the history row:
+ * per-send flag first, then the template's own declaration.
+ */
+function resolveSensitive(params: Pick<SendEmailParams, 'sensitive' | 'template'>): boolean
+{
+    if (params.sensitive != null)
+    {
+        return params.sensitive;
+    }
+
+    return (params.template ? getTemplate(params.template)?.sensitive : undefined) ?? false;
+}
+
+/**
+ * Log context for a send result: the subject normally, the template name for
+ * a sensitive send (whose subject can carry the credential), nothing when a
+ * sensitive send has no template.
+ */
+function sendLogContext(sensitive: boolean, template: string | undefined, subject: string | undefined): Record<string, unknown>
+{
+    if (!sensitive)
+    {
+        return { subject };
+    }
+
+    return template ? { template } : {};
+}
+
+/**
  * Send email
  */
 export async function sendEmail(params: SendEmailParams): Promise<SendResult>
@@ -92,10 +122,14 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
         }
     }
 
+    // A sensitive send keeps its rendered values out of history AND out of
+    // logs — a verification subject line carries the code itself.
+    const sensitive = resolveSensitive(params);
+
     // Validate required fields
     if (!subject)
     {
-        log.warn('Email subject is required', { to: recipients });
+        log.warn('Email subject is required', { to: maskRecipients(recipients) });
 
         return {
             success: false,
@@ -105,7 +139,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
 
     if (!text && !html)
     {
-        log.warn('Email content (text or html) is required', { to: recipients, subject });
+        log.warn('Email content (text or html) is required', { to: maskRecipients(recipients), ...sendLogContext(sensitive, params.template, subject) });
 
         return {
             success: false,
@@ -130,15 +164,17 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
     let historyId: number | undefined;
     if (isHistoryEnabled())
     {
+        const storePayload = !sensitive && isHistoryContentStored();
+
         try
         {
             const record = await createNotificationRecord({
                 channel: 'email',
-                recipient: recipients.join(','),
+                recipient: historyRecipient(recipients),
                 templateName: params.template,
-                templateData: params.data,
-                subject,
-                content: text,
+                templateData: storePayload ? params.data : undefined,
+                subject: sensitive ? undefined : subject,
+                content: storePayload ? text : undefined,
                 providerName: provider.name,
             });
             historyId = record.id;
@@ -174,11 +210,11 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
 
     if (result.success)
     {
-        log.info('Email sent', { to: recipients, subject, messageId: result.messageId });
+        log.info('Email sent', { to: maskRecipients(recipients), ...sendLogContext(sensitive, params.template, subject), messageId: result.messageId });
     }
     else
     {
-        log.error('Email send failed', { to: recipients, subject, error: result.error });
+        log.error('Email send failed', { to: maskRecipients(recipients), ...sendLogContext(sensitive, params.template, subject), error: result.error });
     }
 
     // Update history record (fire-and-forget — best-effort history must not add a
@@ -219,6 +255,7 @@ interface PreparedEmail
     subject: string;
     text?: string;
     tracking?: boolean;
+    sensitive: boolean;
 }
 
 /**
@@ -307,6 +344,7 @@ function prepareEmailItems(items: SendEmailParams[]): {
             subject,
             text,
             tracking: item.tracking,
+            sensitive: resolveSensitive(item),
         });
     }
 
@@ -342,17 +380,24 @@ export async function sendEmailBulk(
     {
         try
         {
+            const storeContent = isHistoryContentStored();
+
             historyRecords = await createNotificationRecords(
-                prepared.map((p) => ({
-                    channel: 'email' as const,
-                    recipient: p.recipients.join(','),
-                    templateName: p.template,
-                    templateData: p.data,
-                    subject: p.subject,
-                    content: p.text,
-                    providerName: provider.name,
-                    batchId,
-                })),
+                prepared.map((p) =>
+                {
+                    const storePayload = !p.sensitive && storeContent;
+
+                    return {
+                        channel: 'email' as const,
+                        recipient: historyRecipient(p.recipients),
+                        templateName: p.template,
+                        templateData: storePayload ? p.data : undefined,
+                        subject: p.sensitive ? undefined : p.subject,
+                        content: storePayload ? p.text : undefined,
+                        providerName: provider.name,
+                        batchId,
+                    };
+                }),
             );
         }
         catch (error)
@@ -457,19 +502,20 @@ export async function sendEmailBulk(
 
     for (let i = 0; i < prepared.length; i++)
     {
-        const { index, recipients, subject } = prepared[i];
+        const { index, recipients, subject, sensitive, template } = prepared[i];
         const result = sendResults[i];
         results[index] = result;
+        const logContext = sendLogContext(sensitive, template, subject);
 
         if (result.success)
         {
             successCount++;
-            log.info('Email sent', { to: recipients, subject, messageId: result.messageId });
+            log.info('Email sent', { to: maskRecipients(recipients), ...logContext, messageId: result.messageId });
         }
         else
         {
             failureCount++;
-            log.error('Email send failed', { to: recipients, subject, error: result.error });
+            log.error('Email send failed', { to: maskRecipients(recipients), ...logContext, error: result.error });
         }
 
         const historyId = historyRecords[i]?.id;
