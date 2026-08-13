@@ -90,7 +90,9 @@ export function focusFeedReadable(body: string): boolean
 {
     const lines = body.split('\n').filter(line => line.trim() !== '');
 
-    return lines.length === 0 || lines.some(line => parseFocusLine(line)?.ServiceName !== undefined);
+    // Boolean(): the aggregator's own truthiness test, so a feed of ServiceName
+    // null/"" records counts as unreadable here too rather than as zero usage.
+    return lines.length === 0 || lines.some(line => Boolean(parseFocusLine(line)?.ServiceName));
 }
 
 /**

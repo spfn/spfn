@@ -72,6 +72,12 @@ describe('focusFeedReadable', () =>
         expect(focusFeedReadable('{\n  "ServiceName": "Edge Requests"\n}')).toBe(false);
         expect(focusFeedReadable(JSON.stringify({ serviceName: 'edge', consumedQuantity: 1 }))).toBe(false);
     });
+
+    it('rejects records the aggregator itself would drop — ServiceName null or empty', () =>
+    {
+        expect(focusFeedReadable(JSON.stringify({ ServiceName: null, ConsumedQuantity: 100, ConsumedUnit: 'requests' }))).toBe(false);
+        expect(focusFeedReadable(JSON.stringify({ ServiceName: '', ConsumedQuantity: 100 }))).toBe(false);
+    });
 });
 
 describe('extractEnvPushFailures', () =>
