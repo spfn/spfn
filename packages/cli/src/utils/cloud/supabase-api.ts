@@ -72,6 +72,27 @@ export async function getSupabaseApiKeys(token: string, ref: string): Promise<Su
     );
 }
 
+export interface SupabasePoolerConfig
+{
+    database_type?: string;
+    pool_mode?: string;
+    /** Template with a literal `[YOUR-PASSWORD]` placeholder. */
+    connection_string?: string;
+}
+
+/**
+ * Pooler (Supavisor) connection templates. This is the IPv4-safe path: the direct
+ * `db.<ref>.supabase.co` host has no A record (verified live 2026-08-14), so a
+ * composed direct URL times out on IPv4-only networks.
+ */
+export async function getSupabasePoolerConfigs(token: string, ref: string): Promise<SupabasePoolerConfig[]>
+{
+    return cloudFetchJson<SupabasePoolerConfig[]>(
+        `${BASE}/v1/projects/${encodeURIComponent(ref)}/config/database/pooler`,
+        { token, provider: PROVIDER },
+    );
+}
+
 /**
  * Run a read-only SQL statement through the Management API query endpoint.
  * Used for DB size — the one number the analytics endpoints do not carry.
@@ -113,8 +134,10 @@ export function extractDbSizeBytes(rows: unknown): number | null
 
 /**
  * Total REST/auth/storage/realtime request count for the last 24h, from the
- * analytics api-counts endpoint. Answer shape is Logflare-ish (`{ result: [...] }`);
- * any numeric `count` fields found are summed, and null means "could not read".
+ * analytics api-counts endpoint. Live response (verified 2026-08-14):
+ * `{ result: [{ timestamp, total_auth_requests, total_rest_requests,
+ * total_realtime_requests, total_storage_requests }], error }` — one row per
+ * bucket. Every numeric `total_*` field is summed; null means "could not read".
  */
 export async function getSupabaseDailyApiCount(token: string, ref: string): Promise<number | null>
 {
@@ -140,12 +163,21 @@ export function sumApiCounts(data: unknown): number | null
 
     for (const row of result)
     {
-        const count = Number((row as Record<string, unknown>)?.count);
-
-        if (Number.isFinite(count))
+        for (const [field, value] of Object.entries(row as Record<string, unknown>))
         {
-            total += count;
-            found = true;
+            // `count` is the pre-2026 shape, kept as a fallback.
+            if (field !== 'count' && !field.startsWith('total_'))
+            {
+                continue;
+            }
+
+            const count = Number(value);
+
+            if (Number.isFinite(count))
+            {
+                total += count;
+                found = true;
+            }
         }
     }
 

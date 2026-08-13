@@ -2,6 +2,24 @@ import { describe, expect, it } from 'vitest';
 
 import { addCron, normalizeDeployUrl } from '../cloud/keepalive.js';
 import { matchVercelLimit } from '../cloud/collect.js';
+import { sessionPoolerUrl } from '../cloud/env.js';
+
+describe('sessionPoolerUrl', () =>
+{
+    // Template shape as the Management API returns it (captured live 2026-08-14).
+    const TEMPLATE = 'postgresql://postgres.abcdefghij:[YOUR-PASSWORD]@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
+
+    it('fills the password placeholder and pins session mode (5432) for migration compatibility', () =>
+    {
+        expect(sessionPoolerUrl(TEMPLATE, 'hunter2'))
+            .toBe('postgresql://postgres.abcdefghij:hunter2@aws-0-us-east-1.pooler.supabase.com:5432/postgres');
+    });
+
+    it('URL-encodes password characters that would break the connection string', () =>
+    {
+        expect(sessionPoolerUrl(TEMPLATE, 'p@ss/word')).toContain(':p%40ss%2Fword@');
+    });
+});
 
 describe('normalizeDeployUrl', () =>
 {

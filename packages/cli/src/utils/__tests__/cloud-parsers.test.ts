@@ -62,14 +62,31 @@ describe('extractDbSizeBytes', () =>
 
 describe('sumApiCounts', () =>
 {
-    it('sums count fields across the result rows', () =>
+    it('sums the per-service totals of the live response shape (captured 2026-08-14)', () =>
     {
+        const live = {
+            result: [{
+                timestamp: '2026-08-13T16:00:00',
+                total_auth_requests: 14,
+                total_realtime_requests: 0,
+                total_rest_requests: 14,
+                total_storage_requests: 0,
+            }],
+            error: null,
+        };
+
+        expect(sumApiCounts(live)).toBe(28);
+    });
+
+    it('sums across multiple buckets and still accepts the legacy count field', () =>
+    {
+        expect(sumApiCounts({ result: [{ total_rest_requests: 10 }, { total_rest_requests: 5 }] })).toBe(15);
         expect(sumApiCounts({ result: [{ count: 10 }, { count: 5 }] })).toBe(15);
     });
 
-    it('returns null when no numeric counts are present', () =>
+    it('ignores non-count fields and returns null when nothing countable is present', () =>
     {
-        expect(sumApiCounts({ result: [{ value: 3 }] })).toBeNull();
+        expect(sumApiCounts({ result: [{ timestamp: '2026-08-13T16:00:00', value: 3 }] })).toBeNull();
         expect(sumApiCounts({})).toBeNull();
         expect(sumApiCounts(undefined)).toBeNull();
     });

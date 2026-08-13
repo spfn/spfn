@@ -20,7 +20,7 @@ import { parseEnvFile, upsertEnvVar, ensureGitignored } from '../../utils/env-fi
 import { storeSecret } from '../secret/store-value.js';
 import { readCloudConfig, requireLinked } from '../../utils/cloud/config.js';
 import { requireCloudToken } from '../../utils/cloud/tokens.js';
-import { getSupabaseApiKeys, type SupabaseApiKey } from '../../utils/cloud/supabase-api.js';
+import { getSupabaseApiKeys, getSupabasePoolerConfigs, type SupabaseApiKey } from '../../utils/cloud/supabase-api.js';
 import { upsertVercelEnvVars, type VercelEnvVar } from '../../utils/cloud/vercel-api.js';
 import { KEYCHAIN_REF_PREFIX, resolveKeychainEnv } from '../../utils/secret-store/index.js';
 
@@ -39,7 +39,7 @@ export async function cloudEnvPull(options: { dbUrl?: boolean }): Promise<void>
 
         if (options.dbUrl)
         {
-            await storeDatabaseUrl(cwd, linked.projectRef);
+            await storeDatabaseUrl(cwd, token, linked.projectRef);
         }
     }
     catch (error)
@@ -93,8 +93,17 @@ function findKey(keys: SupabaseApiKey[], candidates: string[]): SupabaseApiKey |
         ?? keys.find(key => key.type !== undefined && candidates.includes(key.type));
 }
 
-async function storeDatabaseUrl(cwd: string, projectRef: string): Promise<void>
+async function storeDatabaseUrl(cwd: string, token: string, projectRef: string): Promise<void>
 {
+    const template = await poolerTemplate(token, projectRef);
+
+    if (!template)
+    {
+        logger.warn('Could not read the pooler connection template from the API — skipped DATABASE_URL. Copy it from the dashboard (Connect → Session pooler) into `spfn secret set DATABASE_URL` instead.');
+
+        return;
+    }
+
     const { password } = await prompts({
         type: 'password',
         name: 'password',
@@ -108,9 +117,41 @@ async function storeDatabaseUrl(cwd: string, projectRef: string): Promise<void>
         return;
     }
 
-    const url = `postgresql://postgres:${encodeURIComponent(password)}@db.${projectRef}.supabase.co:5432/postgres`;
+    const url = sessionPoolerUrl(template, password);
     await storeSecret(cwd, 'local', 'DATABASE_URL', url);
-    logger.info('This is the direct (non-pooler) connection — right for migrations; serverless runtime should use the pooler URL.');
+    logger.info('This is the session-mode pooler connection (IPv4-safe, works for migrations). Serverless runtime can use the transaction pooler (port 6543) instead.');
+}
+
+async function poolerTemplate(token: string, projectRef: string): Promise<string | undefined>
+{
+    try
+    {
+        const configs = await getSupabasePoolerConfigs(token, projectRef);
+
+        return configs.find(c => c.database_type === 'PRIMARY')?.connection_string
+            ?? configs.find(c => c.connection_string)?.connection_string;
+    }
+    catch (error)
+    {
+        logger.warn(error instanceof Error ? error.message : String(error));
+
+        return undefined;
+    }
+}
+
+/**
+ * Fill the API's `[YOUR-PASSWORD]` placeholder and pin session mode (port 5432):
+ * the API hands out the transaction-mode template (port 6543), which breaks
+ * prepared statements and therefore migrations. Exported for tests.
+ */
+export function sessionPoolerUrl(template: string, password: string): string
+{
+    const filled = template.replace('[YOUR-PASSWORD]', encodeURIComponent(password));
+    const url = new URL(filled);
+
+    url.port = '5432';
+
+    return url.toString();
 }
 
 export async function cloudEnvPush(keys: string[]): Promise<void>
