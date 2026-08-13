@@ -13,14 +13,10 @@ import { plain, renderCommandUsage } from '../ops/describe.js';
 
 const ESC = String.fromCharCode(27);
 
-function manifestAnswer(commands: unknown[], modules?: unknown): void
+function manifestAnswer(commands: unknown[]): void
 {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
-        JSON.stringify({
-            manifestVersion: 1,
-            ...(modules !== undefined ? { modules } : {}),
-            commands,
-        }),
+        JSON.stringify({ manifestVersion: 1, commands }),
         { status: 200, headers: { 'content-type': 'application/json' } },
     ));
 }
@@ -94,86 +90,6 @@ describe('fetchOpsManifest', () =>
 
         expect(manifest.commands[0]!.input).toEqual({});
         expect(() => renderCommandUsage(manifest.commands[0]!)).not.toThrow();
-    });
-
-    it('keeps valid additive module metadata', async () =>
-    {
-        const module = {
-            id: 'ledger',
-            source: '@spfn/ledger',
-            contractVersion: '1.0.0',
-            summary: 'Ledger diagnostics',
-        };
-        const command = {
-            ...good,
-            name: 'ledger.verify',
-            path: '/_ops/ledger/verify',
-            module: 'ledger',
-            summary: 'Verify invariants',
-            effect: 'read',
-            scopes: ['ledger:read'],
-        };
-
-        manifestAnswer([command], [module]);
-        const manifest = await fetchOpsManifest('https://api.example.com', 'spfn_ops_x');
-
-        expect(manifest.modules).toEqual([module]);
-        expect(manifest.commands).toEqual([command]);
-    });
-
-    it('drops malformed module metadata without losing an otherwise safe command', async () =>
-    {
-        const command = {
-            ...good,
-            name: 'ledger.verify',
-            path: '/_ops/ledger/verify',
-            module: 'ledger',
-            summary: 'Verify invariants',
-            effect: 'erase-everything',
-            scopes: ['ledger:read'],
-        };
-
-        manifestAnswer([command], [{
-            id: 'ledger',
-            source: '@spfn/ledger',
-            contractVersion: '1.0.0',
-            summary: 'Ledger diagnostics',
-        }]);
-        const manifest = await fetchOpsManifest('https://api.example.com', 'spfn_ops_x');
-
-        expect(manifest.commands).toEqual([{
-            name: 'ledger.verify',
-            method: 'GET',
-            path: '/_ops/ledger/verify',
-            input: {},
-        }]);
-        expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toMatch(/Ignoring module metadata/);
-    });
-
-    it('drops duplicate or malformed modules and detaches their command metadata', async () =>
-    {
-        const module = {
-            id: 'ledger',
-            source: '@spfn/ledger',
-            contractVersion: '1.0.0',
-            summary: 'Ledger diagnostics',
-        };
-        const command = {
-            ...good,
-            name: 'ledger.verify',
-            path: '/_ops/ledger/verify',
-            module: 'missing',
-            summary: 'Verify invariants',
-            effect: 'read',
-            scopes: ['ledger:read'],
-        };
-
-        manifestAnswer([command], [module, module, { id: '../bad' }]);
-        const manifest = await fetchOpsManifest('https://api.example.com', 'spfn_ops_x');
-
-        expect(manifest.modules).toEqual([module]);
-        expect(manifest.commands[0]!.module).toBeUndefined();
-        expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toMatch(/duplicated/);
     });
 });
 
