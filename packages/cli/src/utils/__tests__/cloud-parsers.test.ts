@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { aggregateFocusCharges, extractEnvPushFailures } from '../cloud/vercel-api.js';
+import { aggregateFocusCharges, extractEnvPushFailures, focusFeedReadable } from '../cloud/vercel-api.js';
 import { extractDbSizeBytes, sumApiCounts } from '../cloud/supabase-api.js';
 
 describe('aggregateFocusCharges', () =>
@@ -54,6 +54,23 @@ describe('aggregateFocusCharges', () =>
             { serviceName: 'Fast Data Transfer', consumed: 900, unit: 'MB' },
             { serviceName: 'Fast Data Transfer', consumed: 2, unit: 'GB' },
         ]);
+    });
+});
+
+describe('focusFeedReadable', () =>
+{
+    it('accepts an empty body (no usage) and a body with at least one readable record', () =>
+    {
+        expect(focusFeedReadable('')).toBe(true);
+        expect(focusFeedReadable('\n\n')).toBe(true);
+        expect(focusFeedReadable(JSON.stringify({ ServiceName: 'Edge Requests', ConsumedQuantity: 0 }))).toBe(true);
+    });
+
+    it('rejects content that parses to no records — unavailable must not read as zero usage', () =>
+    {
+        expect(focusFeedReadable('[{"ServiceName":"Edge Requests"}]')).toBe(false);
+        expect(focusFeedReadable('{\n  "ServiceName": "Edge Requests"\n}')).toBe(false);
+        expect(focusFeedReadable(JSON.stringify({ serviceName: 'edge', consumedQuantity: 1 }))).toBe(false);
     });
 });
 
