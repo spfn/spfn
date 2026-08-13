@@ -84,18 +84,35 @@ async function collectSupabase(config: CloudConfig, snapshot: CloudSnapshot): Pr
         return;
     }
 
-    const [project, dbSizeBytes, dailyApiCount] = await Promise.all([
-        swallow(() => getSupabaseProject(token, linked.projectRef), 'Supabase project', snapshot),
+    const project = await swallow(() => getSupabaseProject(token, linked.projectRef), 'Supabase project', snapshot);
+    const status = project?.status ?? 'unknown';
+
+    // A paused project's DB is unreachable: the query endpoint holds the
+    // connection for ~30-90s and then fails (seen live, HTTP 544). Knowing the
+    // status first, skip what cannot answer instead of timing out into warnings.
+    if (isSupabasePaused(status))
+    {
+        snapshot.supabase = { projectName: project?.name ?? linked.projectName, status, dbSizeBytes: null, dailyApiCount: null };
+
+        return;
+    }
+
+    const [dbSizeBytes, dailyApiCount] = await Promise.all([
         swallow(() => getSupabaseDbSizeBytes(token, linked.projectRef), 'Supabase DB size', snapshot),
         swallow(() => getSupabaseDailyApiCount(token, linked.projectRef), 'Supabase API counts', snapshot),
     ]);
 
     snapshot.supabase = {
         projectName: project?.name ?? linked.projectName,
-        status: project?.status ?? 'unknown',
+        status,
         dbSizeBytes: dbSizeBytes ?? null,
         dailyApiCount: dailyApiCount ?? null,
     };
+}
+
+export function isSupabasePaused(status: string): boolean
+{
+    return ['INACTIVE', 'PAUSED', 'PAUSING', 'PAUSE_FAILED'].includes(status.toUpperCase());
 }
 
 async function swallow<T>(call: () => Promise<T>, label: string, snapshot: CloudSnapshot): Promise<T | null>

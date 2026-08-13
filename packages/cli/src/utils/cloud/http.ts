@@ -5,6 +5,13 @@
  * exists — never the request headers, so a token cannot leak into command output.
  */
 
+/**
+ * Per-request ceiling. Live case that set it: the Management API query endpoint
+ * against a paused Supabase project holds the connection ~90s before failing
+ * server-side — without this, `spfn cloud status` just hangs there.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export interface CloudRequestInit
 {
     method?: 'GET' | 'POST';
@@ -12,9 +19,13 @@ export interface CloudRequestInit
     body?: unknown;
     /** What to call the provider in error messages, e.g. `Vercel`. */
     provider: string;
+    /** Treat a 404 as a valid "nothing here" answer and return null instead of throwing. */
+    allowNotFound?: boolean;
 }
 
-export async function cloudFetch(url: string, init: CloudRequestInit): Promise<Response>
+export async function cloudFetch(url: string, init: CloudRequestInit & { allowNotFound: true }): Promise<Response | null>;
+export async function cloudFetch(url: string, init: CloudRequestInit): Promise<Response>;
+export async function cloudFetch(url: string, init: CloudRequestInit): Promise<Response | null>
 {
     const response = await fetch(url, {
         method: init.method ?? 'GET',
@@ -23,7 +34,13 @@ export async function cloudFetch(url: string, init: CloudRequestInit): Promise<R
             ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         },
         body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+
+    if (init.allowNotFound && response.status === 404)
+    {
+        return null;
+    }
 
     if (!response.ok)
     {

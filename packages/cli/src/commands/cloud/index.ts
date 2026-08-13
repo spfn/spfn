@@ -19,6 +19,8 @@ export const cloudCommand = new Command('cloud')
 cloudCommand
     .command('link')
     .description('Connect your Vercel and Supabase accounts (tokens go to the OS keychain)')
+    .option('--vercel-project <nameOrId>', 'Pick the Vercel project without prompting')
+    .option('--supabase-project <refOrName>', 'Pick the Supabase project without prompting')
     .action(cloudLink);
 
 cloudCommand

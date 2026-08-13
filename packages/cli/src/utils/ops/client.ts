@@ -7,11 +7,25 @@
  * gave it and relays the server's answer.
  */
 
+export type OpsEffect = 'read' | 'write' | 'destructive';
+
+export interface OpsModuleDescriptor
+{
+    id: string;
+    source: string;
+    contractVersion: string;
+    summary: string;
+}
+
 export interface OpsCommandDescriptor
 {
     name: string;
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     path: string;
+    module?: string;
+    summary?: string;
+    effect?: OpsEffect;
+    scopes?: string[];
     input: {
         params?: Record<string, unknown>;
         query?: Record<string, unknown>;
@@ -22,6 +36,7 @@ export interface OpsCommandDescriptor
 export interface OpsManifest
 {
     manifestVersion: 1;
+    modules?: OpsModuleDescriptor[];
     commands: OpsCommandDescriptor[];
 }
 
@@ -109,10 +124,24 @@ export async function fetchOpsManifest(appUrl: string, token: string): Promise<O
         throw new Error('The manifest answer has an unknown shape.');
     }
 
-    return { manifestVersion: 1, commands: usableCommands(manifest.commands) };
+    const modules = usableModules(manifest.modules);
+
+    return {
+        manifestVersion: 1,
+        ...(manifest.modules !== undefined ? { modules } : {}),
+        commands: usableCommands(manifest.commands, new Set(modules.map(module => module.id))),
+    };
 }
 
 const OPS_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+const OPS_EFFECTS = new Set(['read', 'write', 'destructive']);
+const MODULE_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+const CONTRACT_VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)*$/;
+const MAX_ID_LENGTH = 64;
+const MAX_SOURCE_LENGTH = 128;
+const MAX_SUMMARY_LENGTH = 500;
+const MAX_SCOPES = 64;
+const MAX_SCOPE_LENGTH = 128;
 
 /** Every ops route lives under this prefix — `createOpsRouter` enforces it. */
 const OPS_PATH_PREFIX = '/_ops/';
@@ -156,7 +185,10 @@ function unusableBecause(command: OpsCommandDescriptor): string | null
  * operator every other command on the surface. Silence would be worse than
  * either — an operator would read a short list as the app's whole surface.
  */
-function usableCommands(commands: OpsCommandDescriptor[]): OpsCommandDescriptor[]
+function usableCommands(
+    commands: OpsCommandDescriptor[],
+    moduleIds: ReadonlySet<string>,
+): OpsCommandDescriptor[]
 {
     const usable: OpsCommandDescriptor[] = [];
 
@@ -170,10 +202,148 @@ function usableCommands(commands: OpsCommandDescriptor[]): OpsCommandDescriptor[
             continue;
         }
 
-        usable.push({ ...command, input: isPlainObject(command.input) ? command.input : {} });
+        const normalized: OpsCommandDescriptor = {
+            name: command.name,
+            method: command.method,
+            path: command.path,
+            input: isPlainObject(command.input) ? command.input : {},
+        };
+        const metadataReason = unusableModuleMetadataBecause(command, moduleIds);
+
+        if (metadataReason === null && command.module !== undefined)
+        {
+            normalized.module = command.module;
+            normalized.summary = command.summary;
+            normalized.effect = command.effect;
+            normalized.scopes = [...command.scopes!];
+        }
+        else if (metadataReason !== null)
+        {
+            console.error(`⚠️  Ignoring module metadata for ops command "${command.name}": ${metadataReason}.`);
+        }
+
+        usable.push(normalized);
     }
 
     return usable;
+}
+
+function unusableModuleMetadataBecause(
+    command: OpsCommandDescriptor,
+    moduleIds: ReadonlySet<string>,
+): string | null
+{
+    const carriesMetadata = command.module !== undefined
+        || command.summary !== undefined
+        || command.effect !== undefined
+        || command.scopes !== undefined;
+
+    if (!carriesMetadata)
+    {
+        return null;
+    }
+    if (typeof command.module !== 'string' || !moduleIds.has(command.module))
+    {
+        return 'it names no usable module';
+    }
+    if (!command.name.startsWith(`${command.module}.`))
+    {
+        return 'its qualified name does not start with the module id';
+    }
+    if (!command.path.startsWith(`${OPS_PATH_PREFIX}${command.module}/`))
+    {
+        return 'its path is outside the module namespace';
+    }
+    if (typeof command.summary !== 'string' || command.summary.length === 0
+        || command.summary.length > MAX_SUMMARY_LENGTH)
+    {
+        return 'its summary is missing or too long';
+    }
+    if (typeof command.effect !== 'string' || !OPS_EFFECTS.has(command.effect))
+    {
+        return 'its effect is unknown';
+    }
+    if (!Array.isArray(command.scopes) || command.scopes.length === 0
+        || command.scopes.length > MAX_SCOPES
+        || command.scopes.some(scope => typeof scope !== 'string'
+            || scope.length === 0 || scope.length > MAX_SCOPE_LENGTH))
+    {
+        return 'its scopes are missing or invalid';
+    }
+
+    return null;
+}
+
+function usableModules(value: unknown): OpsModuleDescriptor[]
+{
+    if (value === undefined)
+    {
+        return [];
+    }
+    if (!Array.isArray(value))
+    {
+        console.error('⚠️  Ignoring ops module metadata: modules is not an array.');
+
+        return [];
+    }
+
+    const modules: OpsModuleDescriptor[] = [];
+    const claimed = new Set<string>();
+
+    for (const raw of value)
+    {
+        const reason = unusableModuleBecause(raw, claimed);
+        if (reason !== null)
+        {
+            console.error(`⚠️  Ignoring an ops module the manifest announced: ${reason}.`);
+            continue;
+        }
+
+        const module = raw as OpsModuleDescriptor;
+        claimed.add(module.id);
+        modules.push({
+            id: module.id,
+            source: module.source,
+            contractVersion: module.contractVersion,
+            summary: module.summary,
+        });
+    }
+
+    return modules;
+}
+
+function unusableModuleBecause(value: unknown, claimed: ReadonlySet<string>): string | null
+{
+    if (!isPlainObject(value))
+    {
+        return 'it is not an object';
+    }
+
+    const id = value.id;
+    if (typeof id !== 'string' || id.length > MAX_ID_LENGTH || !MODULE_ID.test(id))
+    {
+        return 'its id is invalid';
+    }
+    if (claimed.has(id))
+    {
+        return `id "${id}" is duplicated`;
+    }
+    if (typeof value.source !== 'string' || value.source.length === 0
+        || value.source.length > MAX_SOURCE_LENGTH)
+    {
+        return `module "${id}" has an invalid source`;
+    }
+    if (typeof value.contractVersion !== 'string' || !CONTRACT_VERSION.test(value.contractVersion))
+    {
+        return `module "${id}" has an invalid contract version`;
+    }
+    if (typeof value.summary !== 'string' || value.summary.length === 0
+        || value.summary.length > MAX_SUMMARY_LENGTH)
+    {
+        return `module "${id}" has an invalid summary`;
+    }
+
+    return null;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown>

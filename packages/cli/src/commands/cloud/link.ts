@@ -2,30 +2,38 @@
  * `spfn cloud link` — one-time account/project connection.
  *
  * Collects a Vercel access token and a Supabase personal access token (hidden
- * prompt, or `VERCEL_TOKEN` / `SUPABASE_ACCESS_TOKEN` env for non-interactive use —
- * never a CLI flag, which would land in shell history), validates each against its
- * API, stores them in the OS keychain, and records the chosen project identifiers
- * in `.spfn/cloud.json`. Token values never appear in output.
+ * prompt, `VERCEL_TOKEN` / `SUPABASE_ACCESS_TOKEN` env, or a token already in the
+ * keychain from an earlier link — never a CLI flag, which would land in shell
+ * history), validates each against its API, stores them in the OS keychain, and
+ * records the chosen project identifiers in `.spfn/cloud.json`. Project choice is
+ * a prompt, or `--vercel-project` / `--supabase-project` for non-interactive runs.
+ * Token values never appear in output.
  */
 
 import { basename } from 'path';
 import prompts from 'prompts';
 import chalk from 'chalk';
 import { logger } from '../../utils/logger.js';
-import { storeCloudToken } from '../../utils/cloud/tokens.js';
+import { storeCloudToken, getCloudToken, type CloudProvider } from '../../utils/cloud/tokens.js';
 import { readCloudConfig, writeCloudConfig, cloudConfigPath } from '../../utils/cloud/config.js';
 import { getVercelUser, listVercelProjects } from '../../utils/cloud/vercel-api.js';
 import { listSupabaseOrganizations, listSupabaseProjects, type SupabaseProject } from '../../utils/cloud/supabase-api.js';
 
-export async function cloudLink(): Promise<void>
+export interface LinkOptions
+{
+    vercelProject?: string;
+    supabaseProject?: string;
+}
+
+export async function cloudLink(options: LinkOptions): Promise<void>
 {
     const cwd = process.cwd();
     const config = readCloudConfig(cwd);
 
     try
     {
-        await linkVercel(config, cwd);
-        await linkSupabase(config);
+        await linkVercel(config, cwd, options);
+        await linkSupabase(config, options);
     }
     catch (error)
     {
@@ -38,9 +46,9 @@ export async function cloudLink(): Promise<void>
     logger.info('Next: `spfn cloud status` for limits vs usage, `spfn cloud env pull` for project keys.');
 }
 
-async function linkVercel(config: { vercel?: { projectId: string; projectName: string } }, cwd: string): Promise<void>
+async function linkVercel(config: { vercel?: { projectId: string; projectName: string } }, cwd: string, options: LinkOptions): Promise<void>
 {
-    const token = await obtainToken('Vercel access token', 'VERCEL_TOKEN', 'https://vercel.com/account/settings/tokens');
+    const token = await obtainToken('vercel', 'Vercel access token', 'VERCEL_TOKEN', 'https://vercel.com/account/settings/tokens');
     const user = await getVercelUser(token);
 
     logger.success(`Vercel token verified (account: ${user.user.username}).`);
@@ -55,14 +63,28 @@ async function linkVercel(config: { vercel?: { projectId: string; projectName: s
         return;
     }
 
-    const defaultIndex = Math.max(0, projects.findIndex(p => p.name === basename(cwd)));
-    const { projectId } = await prompts({
-        type: 'select',
-        name: 'projectId',
-        message: 'Which Vercel project is this app?',
-        initial: defaultIndex,
-        choices: projects.map(p => ({ title: p.name, value: p.id })),
-    });
+    let projectId: string | undefined;
+
+    if (options.vercelProject)
+    {
+        projectId = projects.find(p => p.name === options.vercelProject || p.id === options.vercelProject)?.id;
+
+        if (!projectId)
+        {
+            throw new Error(`No Vercel project named "${options.vercelProject}" — available: ${projects.map(p => p.name).join(', ')}.`);
+        }
+    }
+    else
+    {
+        const defaultIndex = Math.max(0, projects.findIndex(p => p.name === basename(cwd)));
+        ({ projectId } = await prompts({
+            type: 'select',
+            name: 'projectId',
+            message: 'Which Vercel project is this app?',
+            initial: defaultIndex,
+            choices: projects.map(p => ({ title: p.name, value: p.id })),
+        }));
+    }
 
     if (!projectId)
     {
@@ -71,11 +93,12 @@ async function linkVercel(config: { vercel?: { projectId: string; projectName: s
 
     const project = projects.find(p => p.id === projectId)!;
     config.vercel = { projectId: project.id, projectName: project.name };
+    logger.success(`Vercel project linked: ${project.name}`);
 }
 
-async function linkSupabase(config: { supabase?: { projectRef: string; projectName: string; orgSlug: string; region?: string } }): Promise<void>
+async function linkSupabase(config: { supabase?: { projectRef: string; projectName: string; orgSlug: string; region?: string } }, options: LinkOptions): Promise<void>
 {
-    const token = await obtainToken('Supabase personal access token', 'SUPABASE_ACCESS_TOKEN', 'https://supabase.com/dashboard/account/tokens');
+    const token = await obtainToken('supabase', 'Supabase personal access token', 'SUPABASE_ACCESS_TOKEN', 'https://supabase.com/dashboard/account/tokens');
     const orgs = await listSupabaseOrganizations(token);
 
     logger.success(`Supabase token verified (${orgs.length} organization${orgs.length === 1 ? '' : 's'}).`);
@@ -90,12 +113,28 @@ async function linkSupabase(config: { supabase?: { projectRef: string; projectNa
         return;
     }
 
-    const { ref } = await prompts({
-        type: 'select',
-        name: 'ref',
-        message: 'Which Supabase project is this app?',
-        choices: projects.map(p => ({ title: `${p.name} (${p.region}, ${p.status})`, value: projectRef(p) })),
-    });
+    let ref: string | undefined;
+
+    if (options.supabaseProject)
+    {
+        const match = projects.find(p => projectRef(p) === options.supabaseProject || p.name === options.supabaseProject);
+
+        if (!match)
+        {
+            throw new Error(`No Supabase project "${options.supabaseProject}" — available: ${projects.map(p => p.name).join(', ')}.`);
+        }
+
+        ref = projectRef(match);
+    }
+    else
+    {
+        ({ ref } = await prompts({
+            type: 'select',
+            name: 'ref',
+            message: 'Which Supabase project is this app?',
+            choices: projects.map(p => ({ title: `${p.name} (${p.region}, ${p.status})`, value: projectRef(p) })),
+        }));
+    }
 
     if (!ref)
     {
@@ -119,7 +158,7 @@ function projectRef(project: SupabaseProject): string
     return project.ref ?? project.id;
 }
 
-async function obtainToken(label: string, envVar: string, createUrl: string): Promise<string>
+async function obtainToken(provider: CloudProvider, label: string, envVar: string, createUrl: string): Promise<string>
 {
     const fromEnv = process.env[envVar];
 
@@ -128,6 +167,15 @@ async function obtainToken(label: string, envVar: string, createUrl: string): Pr
         logger.info(`Using ${label} from ${envVar} (value not shown).`);
 
         return fromEnv;
+    }
+
+    const fromKeychain = await getCloudToken(provider);
+
+    if (fromKeychain)
+    {
+        logger.info(`Using the ${label} already in the keychain (value not shown). To replace it, delete the keychain item first.`);
+
+        return fromKeychain;
     }
 
     logger.info(`Create one at ${chalk.cyan(createUrl)} if you don't have it yet.`);

@@ -60,7 +60,14 @@ export async function getVercelUsage(token: string, from: Date, to: Date, teamId
         params.set('teamId', teamId);
     }
 
-    const response = await cloudFetch(`${BASE}/v1/billing/charges?${params}`, { token, provider: PROVIDER });
+    // A Hobby account with no recorded usage 404s here ("Costs not found") —
+    // that is "nothing consumed yet", not an error. Seen live on a fresh account.
+    const response = await cloudFetch(`${BASE}/v1/billing/charges?${params}`, { token, provider: PROVIDER, allowNotFound: true });
+
+    if (response === null)
+    {
+        return [];
+    }
 
     return aggregateFocusCharges(await response.text());
 }

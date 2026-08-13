@@ -7,11 +7,9 @@
 
 import chalk from 'chalk';
 import { logger } from '../../utils/logger.js';
-import { collectSnapshot, matchVercelLimit, type CloudSnapshot } from './collect.js';
+import { collectSnapshot, matchVercelLimit, isSupabasePaused, type CloudSnapshot } from './collect.js';
 import { usageLine, isNearLimit, formatBytes, formatCount } from '../../utils/cloud/format.js';
 import { SUPABASE_FREE_LIMITS, LIMITS_VERIFIED_ON } from '../../utils/cloud/limits-data.js';
-
-const SUPABASE_PAUSED_STATUSES = new Set(['INACTIVE', 'PAUSED', 'PAUSING']);
 
 export async function cloudStatus(): Promise<void>
 {
@@ -80,7 +78,7 @@ function printSupabase(snapshot: CloudSnapshot, nearLimit: string[]): void
 
     console.log(chalk.bold(`\nSupabase Free — ${projectName}`));
 
-    if (SUPABASE_PAUSED_STATUSES.has(status.toUpperCase()))
+    if (isSupabasePaused(status))
     {
         console.log(`  ${'Project status'.padEnd(34)} ${chalk.red.bold(status)} — run \`spfn cloud keepalive\` after restoring it`);
     }
