@@ -36,7 +36,22 @@ export interface CloudSnapshot
 
 export async function collectSnapshot(cwd: string): Promise<CloudSnapshot>
 {
-    const config = readCloudConfig(cwd);
+    let config: CloudConfig;
+
+    try
+    {
+        config = readCloudConfig(cwd);
+    }
+    catch (error)
+    {
+        return {
+            config: {},
+            vercel: null,
+            supabase: null,
+            problems: [error instanceof Error ? error.message : String(error)],
+        };
+    }
+
     const snapshot: CloudSnapshot = { config, vercel: null, supabase: null, problems: [] };
 
     await Promise.all([

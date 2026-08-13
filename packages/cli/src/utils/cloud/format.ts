@@ -37,13 +37,26 @@ export function isNearLimit(used: number, limit: number): boolean
     return limit > 0 && used / limit >= MIGRATION_PROMPT_THRESHOLD;
 }
 
+/** Decimal (1000-based), matching how both providers state their limits (500 MB, 5 GB). */
+export const BYTES_PER_MB = 1_000_000;
+
 export function formatBytes(bytes: number): string
 {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+    if (bytes < 1_000) return `${bytes} B`;
+    if (bytes < BYTES_PER_MB) return `${(bytes / 1_000).toFixed(1)} KB`;
+    if (bytes < 1_000 * BYTES_PER_MB) return `${(bytes / BYTES_PER_MB).toFixed(1)} MB`;
 
-    return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+    return `${(bytes / (1_000 * BYTES_PER_MB)).toFixed(2)} GB`;
+}
+
+/**
+ * Whether a provider-reported unit and our limit's unit describe the same thing.
+ * An empty provider unit is treated as agreement; a real mismatch means the
+ * percentage would be nonsense and the caller should not compute one.
+ */
+export function sameUnit(reported: string, limitUnit: string): boolean
+{
+    return reported === '' || reported.trim().toLowerCase() === limitUnit.trim().toLowerCase();
 }
 
 export function formatCount(value: number): string

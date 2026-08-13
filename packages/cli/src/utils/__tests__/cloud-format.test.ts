@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import { formatBytes, formatPercent, isNearLimit } from '../cloud/format.js';
+import { formatBytes, formatPercent, isNearLimit, sameUnit } from '../cloud/format.js';
 import { readCloudConfig, writeCloudConfig, requireLinked } from '../cloud/config.js';
 
 describe('isNearLimit', () =>
@@ -32,11 +32,23 @@ describe('formatPercent', () =>
 
 describe('formatBytes', () =>
 {
-    it('picks a unit by magnitude', () =>
+    it('uses decimal units — the base both providers state their limits in', () =>
     {
         expect(formatBytes(512)).toBe('512 B');
-        expect(formatBytes(52428800)).toBe('50.0 MB');
-        expect(formatBytes(2 * 1024 ** 3)).toBe('2.00 GB');
+        expect(formatBytes(50_000_000)).toBe('50.0 MB');
+        // Supabase's 500 MB ceiling must read as exactly 500, not 476.84
+        expect(formatBytes(500_000_000)).toBe('500.0 MB');
+        expect(formatBytes(2_000_000_000)).toBe('2.00 GB');
+    });
+});
+
+describe('sameUnit', () =>
+{
+    it('treats an empty reported unit as agreement and compares case-insensitively', () =>
+    {
+        expect(sameUnit('', 'GB')).toBe(true);
+        expect(sameUnit('gb', 'GB')).toBe(true);
+        expect(sameUnit('MB', 'GB')).toBe(false);
     });
 });
 
@@ -64,5 +76,22 @@ describe('cloud config round-trip', () =>
     it('requireLinked names the missing provider and the fix', () =>
     {
         expect(() => requireLinked({}, 'supabase')).toThrow(/supabase.*spfn cloud link/);
+    });
+
+    it('a corrupt config file fails with a message naming the file and the fix, not a JSON stack', () =>
+    {
+        const dir = mkdtempSync(join(tmpdir(), 'spfn-cloud-corrupt-'));
+
+        try
+        {
+            mkdirSync(join(dir, '.spfn'));
+            writeFileSync(join(dir, '.spfn', 'cloud.json'), '{ truncated', 'utf-8');
+
+            expect(() => readCloudConfig(dir)).toThrow(/cloud\.json is not valid JSON.*spfn cloud link/);
+        }
+        finally
+        {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });

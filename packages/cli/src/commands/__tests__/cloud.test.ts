@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { addCron } from '../cloud/keepalive.js';
+import { addCron, normalizeDeployUrl } from '../cloud/keepalive.js';
 import { matchVercelLimit } from '../cloud/collect.js';
+
+describe('normalizeDeployUrl', () =>
+{
+    it('accepts what the Vercel dashboard shows — a domain without a scheme', () =>
+    {
+        expect(normalizeDeployUrl('myapp.vercel.app')).toBe('https://myapp.vercel.app/');
+        expect(normalizeDeployUrl('https://myapp.vercel.app')).toBe('https://myapp.vercel.app/');
+    });
+
+    it('returns null for input that cannot be a URL', () =>
+    {
+        expect(normalizeDeployUrl('not a url')).toBeNull();
+    });
+});
 
 describe('addCron', () =>
 {

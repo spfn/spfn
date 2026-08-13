@@ -33,6 +33,12 @@ export async function cloudKeepalive(options: KeepaliveOptions): Promise<void>
     const cwd = process.cwd();
     const healthPath = options.path ?? DEFAULT_HEALTH_PATH;
 
+    if (!healthPath.startsWith('/'))
+    {
+        logger.error(`--path must start with a slash (got "${healthPath}") — both Vercel crons and the workflow URL treat it as absolute.`);
+        process.exit(1);
+    }
+
     if (options.githubActions)
     {
         setupGithubActions(cwd, healthPath, options.url);
@@ -42,9 +48,16 @@ export async function cloudKeepalive(options: KeepaliveOptions): Promise<void>
         setupVercelCron(cwd, healthPath);
     }
 
-    const config = readCloudConfig(cwd);
-    config.keepalive = { path: healthPath, schedule: DEFAULT_SCHEDULE };
-    writeCloudConfig(cwd, config);
+    try
+    {
+        const config = readCloudConfig(cwd);
+        config.keepalive = { path: healthPath, schedule: DEFAULT_SCHEDULE };
+        writeCloudConfig(cwd, config);
+    }
+    catch (error)
+    {
+        logger.warn(error instanceof Error ? error.message : String(error));
+    }
 
     logger.info('The DB ping needs detailed health checks: keep `healthCheck: { detailed: true }` in your server config.');
 }
@@ -118,9 +131,36 @@ function setupGithubActions(cwd: string, healthPath: string, url?: string): void
         return;
     }
 
+    const base = normalizeDeployUrl(url);
+
+    if (!base)
+    {
+        logger.error(`--url "${url}" is not a valid URL. Pass the deployed app origin, e.g. https://myapp.vercel.app.`);
+        process.exit(1);
+    }
+
     mkdirSync(dirname(workflowPath), { recursive: true });
-    writeFileSync(workflowPath, githubWorkflow(new URL(healthPath, url).toString()), 'utf-8');
+    writeFileSync(workflowPath, githubWorkflow(new URL(healthPath, base).toString()), 'utf-8');
     logger.success('.github/workflows/spfn-keepalive.yml: daily keep-alive workflow added. Commit and push to activate.');
+}
+
+/**
+ * Accept what the Vercel dashboard shows: a bare deployment domain without a
+ * scheme. Returns an absolute https URL, or null when the input cannot be one.
+ * Exported for tests.
+ */
+export function normalizeDeployUrl(url: string): string | null
+{
+    const withScheme = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+
+    try
+    {
+        return new URL(withScheme).toString();
+    }
+    catch
+    {
+        return null;
+    }
 }
 
 function githubWorkflow(healthUrl: string): string

@@ -14,7 +14,7 @@ import { basename } from 'path';
 import prompts from 'prompts';
 import chalk from 'chalk';
 import { logger } from '../../utils/logger.js';
-import { storeCloudToken, getCloudToken, type CloudProvider } from '../../utils/cloud/tokens.js';
+import { storeCloudToken, getCloudToken, deleteCloudToken, type CloudProvider } from '../../utils/cloud/tokens.js';
 import { readCloudConfig, writeCloudConfig, cloudConfigPath } from '../../utils/cloud/config.js';
 import { getVercelUser, listVercelProjects } from '../../utils/cloud/vercel-api.js';
 import { listSupabaseOrganizations, listSupabaseProjects, type SupabaseProject } from '../../utils/cloud/supabase-api.js';
@@ -23,6 +23,7 @@ export interface LinkOptions
 {
     vercelProject?: string;
     supabaseProject?: string;
+    replace?: boolean;
 }
 
 export async function cloudLink(options: LinkOptions): Promise<void>
@@ -32,8 +33,19 @@ export async function cloudLink(options: LinkOptions): Promise<void>
 
     try
     {
+        if (options.replace)
+        {
+            await deleteCloudToken('vercel');
+            await deleteCloudToken('supabase');
+            logger.info('Stored tokens discarded — you will be asked for fresh ones.');
+        }
+
+        // Persist after each provider: a Supabase failure must not throw away a
+        // Vercel link the user just watched succeed.
         await linkVercel(config, cwd, options);
+        writeCloudConfig(cwd, config);
         await linkSupabase(config, options);
+        writeCloudConfig(cwd, config);
     }
     catch (error)
     {
@@ -41,7 +53,6 @@ export async function cloudLink(options: LinkOptions): Promise<void>
         process.exit(1);
     }
 
-    writeCloudConfig(cwd, config);
     logger.success(`Link state saved to ${chalk.cyan(cloudConfigPath(cwd))} (identifiers only — tokens stay in the keychain).`);
     logger.info('Next: `spfn cloud status` for limits vs usage, `spfn cloud env pull` for project keys.');
 }
@@ -173,7 +184,7 @@ async function obtainToken(provider: CloudProvider, label: string, envVar: strin
 
     if (fromKeychain)
     {
-        logger.info(`Using the ${label} already in the keychain (value not shown). To replace it, delete the keychain item first.`);
+        logger.info(`Using the ${label} already in the keychain (value not shown). To enter a new one, run \`spfn cloud link --replace\`.`);
 
         return fromKeychain;
     }

@@ -21,6 +21,7 @@ cloudCommand
     .description('Connect your Vercel and Supabase accounts (tokens go to the OS keychain)')
     .option('--vercel-project <nameOrId>', 'Pick the Vercel project without prompting')
     .option('--supabase-project <refOrName>', 'Pick the Supabase project without prompting')
+    .option('--replace', 'Discard the stored tokens and enter fresh ones')
     .action(cloudLink);
 
 cloudCommand

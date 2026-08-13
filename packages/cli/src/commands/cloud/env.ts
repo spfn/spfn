@@ -16,7 +16,7 @@ import { join } from 'path';
 import prompts from 'prompts';
 import chalk from 'chalk';
 import { logger } from '../../utils/logger.js';
-import { parseEnvFile, upsertEnvVar } from '../../utils/env-file.js';
+import { parseEnvFile, upsertEnvVar, ensureGitignored } from '../../utils/env-file.js';
 import { storeSecret } from '../secret/store-value.js';
 import { readCloudConfig, requireLinked } from '../../utils/cloud/config.js';
 import { requireCloudToken } from '../../utils/cloud/tokens.js';
@@ -55,6 +55,7 @@ function writePublicValues(cwd: string, projectRef: string, keys: SupabaseApiKey
 {
     const envLocalPath = join(cwd, '.env.local');
 
+    ensureGitignored(cwd, [{ pattern: '.env.local', comment: 'local env (per-machine values)' }]);
     upsertEnvVar(envLocalPath, 'NEXT_PUBLIC_SUPABASE_URL', `https://${projectRef}.supabase.co`);
     logger.success('NEXT_PUBLIC_SUPABASE_URL → .env.local');
 
@@ -126,7 +127,12 @@ export async function cloudEnvPush(keys: string[]): Promise<void>
     {
         const linked = requireLinked(readCloudConfig(cwd), 'vercel');
         const token = await requireCloudToken('vercel');
-        const { vars, missing } = await resolveLocalValues(cwd, keys);
+        const { vars, missing, unresolved } = await resolveLocalValues(cwd, keys);
+
+        for (const key of unresolved)
+        {
+            logger.warn(`${key}: .env.server points at the keychain but the item could not be resolved — skipped (a stale value from another file will not be pushed in its place).`);
+        }
 
         for (const key of missing)
         {
@@ -153,7 +159,7 @@ export async function cloudEnvPush(keys: string[]): Promise<void>
     }
 }
 
-async function resolveLocalValues(cwd: string, keys: string[]): Promise<{ vars: VercelEnvVar[]; missing: string[] }>
+async function resolveLocalValues(cwd: string, keys: string[]): Promise<{ vars: VercelEnvVar[]; missing: string[]; unresolved: string[] }>
 {
     const publicEnv = { ...parseEnvFile(join(cwd, '.env')), ...parseEnvFile(join(cwd, '.env.local')) };
     const serverEnv = parseEnvFile(join(cwd, '.env.server'));
@@ -161,11 +167,20 @@ async function resolveLocalValues(cwd: string, keys: string[]): Promise<{ vars: 
 
     const vars: VercelEnvVar[] = [];
     const missing: string[] = [];
+    const unresolved: string[] = [];
 
     for (const key of keys)
     {
-        const fromServer = keychain.env[key] ?? plainValue(serverEnv[key]);
-        const value = fromServer ?? publicEnv[key];
+        // A `.env.server` keychain reference is authoritative for its key. When the
+        // item cannot be resolved (keyring unavailable, item deleted), the key is an
+        // error — falling back to another file would silently push a stale value.
+        if (serverEnv[key]?.startsWith(KEYCHAIN_REF_PREFIX) && keychain.env[key] === undefined)
+        {
+            unresolved.push(key);
+            continue;
+        }
+
+        const value = keychain.env[key] ?? serverEnv[key] ?? publicEnv[key];
 
         if (value === undefined)
         {
@@ -181,11 +196,5 @@ async function resolveLocalValues(cwd: string, keys: string[]): Promise<{ vars: 
         });
     }
 
-    return { vars, missing };
-}
-
-/** A keychain reference whose item is gone must not be pushed as the literal reference string. */
-function plainValue(value: string | undefined): string | undefined
-{
-    return value !== undefined && !value.startsWith(KEYCHAIN_REF_PREFIX) ? value : undefined;
+    return { vars, missing, unresolved };
 }

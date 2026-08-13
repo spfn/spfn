@@ -8,7 +8,7 @@
 import chalk from 'chalk';
 import { logger } from '../../utils/logger.js';
 import { collectSnapshot, matchVercelLimit, isSupabasePaused, type CloudSnapshot } from './collect.js';
-import { usageLine, isNearLimit, formatBytes, formatCount } from '../../utils/cloud/format.js';
+import { usageLine, isNearLimit, formatBytes, formatCount, sameUnit, BYTES_PER_MB } from '../../utils/cloud/format.js';
 import { SUPABASE_FREE_LIMITS, LIMITS_VERIFIED_ON } from '../../utils/cloud/limits-data.js';
 
 export async function cloudStatus(): Promise<void>
@@ -52,7 +52,9 @@ function printVercel(snapshot: CloudSnapshot, nearLimit: string[]): void
     {
         const limit = matchVercelLimit(service.serviceName);
 
-        if (!limit)
+        // A unit mismatch (feed says MB, limit says GB) would make the percentage
+        // nonsense — show the raw number rather than a silently wrong ratio.
+        if (!limit || !sameUnit(service.unit, limit.unit))
         {
             console.log(`  ${service.serviceName.padEnd(34)} ${formatCount(service.consumed)} ${service.unit}`.trimEnd());
             continue;
@@ -90,7 +92,7 @@ function printSupabase(snapshot: CloudSnapshot, nearLimit: string[]): void
     if (dbSizeBytes !== null)
     {
         const dbLimit = SUPABASE_FREE_LIMITS.find(l => l.key === 'db-size')!;
-        const usedMb = dbSizeBytes / 1024 ** 2;
+        const usedMb = dbSizeBytes / BYTES_PER_MB;
 
         console.log(usageLine(dbLimit.label, usedMb, dbLimit.limit, dbLimit.unit));
 

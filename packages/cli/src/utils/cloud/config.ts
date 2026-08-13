@@ -45,7 +45,14 @@ export function readCloudConfig(cwd: string): CloudConfig
         return {};
     }
 
-    return JSON.parse(readFileSync(path, 'utf-8')) as CloudConfig;
+    try
+    {
+        return JSON.parse(readFileSync(path, 'utf-8')) as CloudConfig;
+    }
+    catch
+    {
+        throw new Error(`${path} is not valid JSON — delete it and run \`spfn cloud link\` again.`);
+    }
 }
 
 export function writeCloudConfig(cwd: string, config: CloudConfig): void

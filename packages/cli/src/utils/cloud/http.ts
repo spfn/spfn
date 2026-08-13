@@ -50,7 +50,8 @@ export async function cloudFetch(url: string, init: CloudRequestInit): Promise<R
     return response;
 }
 
-export async function cloudFetchJson<T>(url: string, init: CloudRequestInit): Promise<T>
+/** JSON body of a must-succeed request. `allowNotFound` is excluded on purpose: a null response has no JSON. */
+export async function cloudFetchJson<T>(url: string, init: Omit<CloudRequestInit, 'allowNotFound'>): Promise<T>
 {
     const response = await cloudFetch(url, init);
 
@@ -60,7 +61,7 @@ export async function cloudFetchJson<T>(url: string, init: CloudRequestInit): Pr
 async function describeFailure(url: string, provider: string, response: Response): Promise<string>
 {
     const hint = response.status === 401 || response.status === 403
-        ? ' The stored token may be invalid or expired — run `spfn cloud link` again.'
+        ? ' The stored token may be invalid or expired — run `spfn cloud link --replace` to enter a new one.'
         : '';
 
     return `${provider} API responded ${response.status} for ${new URL(url).pathname}.${hint}${await bodyMessage(response)}`;
