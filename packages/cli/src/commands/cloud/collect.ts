@@ -1,0 +1,130 @@
+/**
+ * Shared data collection for `spfn cloud usage` and `spfn cloud status`.
+ *
+ * Every number here is best-effort: a provider endpoint that fails or answers in an
+ * unknown shape becomes a `null`/empty field with the error kept aside, so one
+ * broken feed never blanks the whole report.
+ */
+
+import { readCloudConfig, requireLinked, type CloudConfig } from '../../utils/cloud/config.js';
+import { requireCloudToken } from '../../utils/cloud/tokens.js';
+import { getVercelUsage, type VercelServiceUsage } from '../../utils/cloud/vercel-api.js';
+import {
+    getSupabaseProject,
+    getSupabaseDbSizeBytes,
+    getSupabaseDailyApiCount,
+} from '../../utils/cloud/supabase-api.js';
+import { VERCEL_HOBBY_LIMITS, type PlanLimit } from '../../utils/cloud/limits-data.js';
+
+export interface CloudSnapshot
+{
+    config: CloudConfig;
+    vercel: {
+        projectName: string;
+        /** Rolling 30 days — the window Hobby limits are enforced over. */
+        services: VercelServiceUsage[];
+    } | null;
+    supabase: {
+        projectName: string;
+        status: string;
+        dbSizeBytes: number | null;
+        dailyApiCount: number | null;
+    } | null;
+    /** Feeds that failed, as `provider: message` lines for the report footer. */
+    problems: string[];
+}
+
+export async function collectSnapshot(cwd: string): Promise<CloudSnapshot>
+{
+    const config = readCloudConfig(cwd);
+    const snapshot: CloudSnapshot = { config, vercel: null, supabase: null, problems: [] };
+
+    await Promise.all([
+        collectVercel(config, snapshot),
+        collectSupabase(config, snapshot),
+    ]);
+
+    return snapshot;
+}
+
+async function collectVercel(config: CloudConfig, snapshot: CloudSnapshot): Promise<void>
+{
+    try
+    {
+        const linked = requireLinked(config, 'vercel');
+        const token = await requireCloudToken('vercel');
+        const to = new Date();
+        const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        snapshot.vercel = {
+            projectName: linked.projectName,
+            services: await getVercelUsage(token, from, to, linked.teamId),
+        };
+    }
+    catch (error)
+    {
+        snapshot.problems.push(`Vercel: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+
+async function collectSupabase(config: CloudConfig, snapshot: CloudSnapshot): Promise<void>
+{
+    let linked;
+    let token;
+
+    try
+    {
+        linked = requireLinked(config, 'supabase');
+        token = await requireCloudToken('supabase');
+    }
+    catch (error)
+    {
+        snapshot.problems.push(`Supabase: ${error instanceof Error ? error.message : String(error)}`);
+
+        return;
+    }
+
+    const [project, dbSizeBytes, dailyApiCount] = await Promise.all([
+        swallow(() => getSupabaseProject(token, linked.projectRef), 'Supabase project', snapshot),
+        swallow(() => getSupabaseDbSizeBytes(token, linked.projectRef), 'Supabase DB size', snapshot),
+        swallow(() => getSupabaseDailyApiCount(token, linked.projectRef), 'Supabase API counts', snapshot),
+    ]);
+
+    snapshot.supabase = {
+        projectName: project?.name ?? linked.projectName,
+        status: project?.status ?? 'unknown',
+        dbSizeBytes: dbSizeBytes ?? null,
+        dailyApiCount: dailyApiCount ?? null,
+    };
+}
+
+async function swallow<T>(call: () => Promise<T>, label: string, snapshot: CloudSnapshot): Promise<T | null>
+{
+    try
+    {
+        return await call();
+    }
+    catch (error)
+    {
+        snapshot.problems.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+
+        return null;
+    }
+}
+
+/**
+ * Match a FOCUS ServiceName to the Hobby limit it counts against, by normalized
+ * label ("Fast Data Transfer" → fast-data-transfer). Feed names are provider-owned,
+ * so an unmatched service is expected and rendered without a percentage.
+ */
+export function matchVercelLimit(serviceName: string): PlanLimit | undefined
+{
+    const normalized = normalize(serviceName);
+
+    return VERCEL_HOBBY_LIMITS.find(limit => normalize(limit.label) === normalized || normalize(limit.key) === normalized);
+}
+
+function normalize(text: string): string
+{
+    return text.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
