@@ -33,6 +33,20 @@ describe('normalizeDeployUrl', () =>
     {
         expect(normalizeDeployUrl('not a url')).toBeNull();
     });
+
+    it('rejects inputs that would silently become a wrong host', () =>
+    {
+        expect(normalizeDeployUrl('/foo')).toBeNull();
+        expect(normalizeDeployUrl('ftp://foo.example.com')).toBeNull();
+        expect(normalizeDeployUrl('file:///etc/passwd')).toBeNull();
+        expect(normalizeDeployUrl('C:\\temp')).toBeNull();
+        expect(normalizeDeployUrl('localhost')).toBeNull();
+    });
+
+    it('keeps only the origin — a pasted path cannot silently survive into the workflow', () =>
+    {
+        expect(normalizeDeployUrl('myapp.vercel.app/base/')).toBe('https://myapp.vercel.app/');
+    });
 });
 
 describe('addCron', () =>
@@ -76,5 +90,11 @@ describe('matchVercelLimit', () =>
     it('leaves unknown services unmatched instead of guessing', () =>
     {
         expect(matchVercelLimit('Observability Events')).toBeUndefined();
+    });
+
+    it('never matches per-day or concurrent limits — the usage window is a 30-day sum', () =>
+    {
+        expect(matchVercelLimit('Deployments')).toBeUndefined();
+        expect(matchVercelLimit('Concurrent Builds')).toBeUndefined();
     });
 });

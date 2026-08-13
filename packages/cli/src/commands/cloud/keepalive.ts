@@ -65,9 +65,30 @@ export async function cloudKeepalive(options: KeepaliveOptions): Promise<void>
 function setupVercelCron(cwd: string, healthPath: string): void
 {
     const vercelJsonPath = join(cwd, 'vercel.json');
-    const vercelJson = existsSync(vercelJsonPath)
-        ? JSON.parse(readFileSync(vercelJsonPath, 'utf-8')) as Record<string, unknown>
-        : {};
+    let vercelJson: Record<string, unknown> = {};
+
+    if (existsSync(vercelJsonPath))
+    {
+        let parsed: unknown;
+
+        try
+        {
+            parsed = JSON.parse(readFileSync(vercelJsonPath, 'utf-8'));
+        }
+        catch
+        {
+            logger.error('vercel.json is not valid JSON (comments and trailing commas are not allowed) — fix it and re-run.');
+            process.exit(1);
+        }
+
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+        {
+            logger.error('vercel.json does not contain a JSON object — fix it and re-run.');
+            process.exit(1);
+        }
+
+        vercelJson = parsed as Record<string, unknown>;
+    }
 
     const result = addCron(vercelJson, healthPath);
 
@@ -146,21 +167,36 @@ function setupGithubActions(cwd: string, healthPath: string, url?: string): void
 
 /**
  * Accept what the Vercel dashboard shows: a bare deployment domain without a
- * scheme. Returns an absolute https URL, or null when the input cannot be one.
+ * scheme. Returns an absolute https origin, or null when the input cannot be one —
+ * a non-http scheme, a path posing as a host, or a dotless hostname would produce
+ * a plausible-looking workflow that curls a host that does not exist.
  * Exported for tests.
  */
 export function normalizeDeployUrl(url: string): string | null
 {
-    const withScheme = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    // An explicit scheme other than http(s) is a different protocol, not a typo.
+    if (/^[a-z][a-z0-9+.-]*:/i.test(url) && !/^https?:\/\//i.test(url))
+    {
+        return null;
+    }
+
+    let parsed: URL;
 
     try
     {
-        return new URL(withScheme).toString();
+        parsed = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
     }
     catch
     {
         return null;
     }
+
+    if (!parsed.hostname.includes('.'))
+    {
+        return null;
+    }
+
+    return parsed.origin + '/';
 }
 
 function githubWorkflow(healthUrl: string): string

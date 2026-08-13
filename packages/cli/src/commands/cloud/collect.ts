@@ -148,12 +148,17 @@ async function swallow<T>(call: () => Promise<T>, label: string, snapshot: Cloud
  * Match a FOCUS ServiceName to the Hobby limit it counts against, by normalized
  * label ("Fast Data Transfer" → fast-data-transfer). Feed names are provider-owned,
  * so an unmatched service is expected and rendered without a percentage.
+ *
+ * Only monthly limits participate: the usage window is a 30-day sum, so comparing
+ * it against a per-day or concurrent ceiling would read 30x too high (120 deploys
+ * over a month is 4/day, not 120% of the daily limit).
  */
 export function matchVercelLimit(serviceName: string): PlanLimit | undefined
 {
     const normalized = normalize(serviceName);
 
-    return VERCEL_HOBBY_LIMITS.find(limit => normalize(limit.label) === normalized || normalize(limit.key) === normalized);
+    return VERCEL_HOBBY_LIMITS.find(limit => limit.per === 'month'
+        && (normalize(limit.label) === normalized || normalize(limit.key) === normalized));
 }
 
 function normalize(text: string): string

@@ -45,14 +45,25 @@ export function readCloudConfig(cwd: string): CloudConfig
         return {};
     }
 
+    let parsed: unknown;
+
     try
     {
-        return JSON.parse(readFileSync(path, 'utf-8')) as CloudConfig;
+        parsed = JSON.parse(readFileSync(path, 'utf-8'));
     }
     catch
     {
         throw new Error(`${path} is not valid JSON — delete it and run \`spfn cloud link\` again.`);
     }
+
+    // `null` and arrays parse fine but would blow up every `config.vercel` access
+    // with a bare TypeError — reject them with the same recovery message.
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+    {
+        throw new Error(`${path} does not contain a JSON object — delete it and run \`spfn cloud link\` again.`);
+    }
+
+    return parsed as CloudConfig;
 }
 
 export function writeCloudConfig(cwd: string, config: CloudConfig): void

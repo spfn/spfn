@@ -26,7 +26,7 @@ function printVercel(snapshot: CloudSnapshot): void
         return;
     }
 
-    console.log(chalk.bold(`\nVercel — ${snapshot.vercel.projectName} (rolling 30 days)`));
+    console.log(chalk.bold(`\nVercel — account-wide usage, rolling 30 days (linked project: ${snapshot.vercel.projectName})`));
 
     if (snapshot.vercel.services.length === 0)
     {

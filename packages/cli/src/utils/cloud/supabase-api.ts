@@ -109,10 +109,12 @@ export async function runSupabaseQuery(token: string, ref: string, query: string
 
 export async function getSupabaseDbSizeBytes(token: string, ref: string): Promise<number | null>
 {
+    // current_database() only: summing pg_database adds ~15-25 MB of template
+    // databases the 500 MB limit does not count, and disagrees with the dashboard.
     const rows = await runSupabaseQuery(
         token,
         ref,
-        'select sum(pg_database_size(datname))::bigint as total_bytes from pg_database;',
+        'select pg_database_size(current_database())::bigint as total_bytes;',
     );
 
     return extractDbSizeBytes(rows);

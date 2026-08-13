@@ -41,7 +41,9 @@ function printVercel(snapshot: CloudSnapshot, nearLimit: string[]): void
         return;
     }
 
-    console.log(chalk.bold(`\nVercel Hobby — ${snapshot.vercel.projectName} (rolling 30 days, limits as of ${LIMITS_VERIFIED_ON})`));
+    // The billing feed and the Hobby limits are both account-wide, so the heading
+    // says so — attributing the sum to the linked project would misassign quota.
+    console.log(chalk.bold(`\nVercel Hobby — account-wide usage, rolling 30 days (linked project: ${snapshot.vercel.projectName}; limits as of ${LIMITS_VERIFIED_ON})`));
 
     if (snapshot.vercel.services.length === 0)
     {

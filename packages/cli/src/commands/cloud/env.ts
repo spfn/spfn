@@ -186,11 +186,22 @@ export async function cloudEnvPush(keys: string[]): Promise<void>
             process.exit(1);
         }
 
-        await upsertVercelEnvVars(token, linked.projectId, vars, linked.teamId);
+        const result = await upsertVercelEnvVars(token, linked.projectId, vars, linked.teamId);
+        const failedKeys = new Set(result.failed.map(f => f.key));
 
-        for (const envVar of vars)
+        for (const failure of result.failed)
+        {
+            logger.error(`${failure.key}: rejected by Vercel — ${failure.message}`);
+        }
+
+        for (const envVar of vars.filter(v => !failedKeys.has(v.key)))
         {
             logger.success(`${envVar.key} → Vercel ${chalk.cyan(linked.projectName)} (${envVar.type}, ${envVar.target.join('+')})`);
+        }
+
+        if (result.failed.length > 0)
+        {
+            process.exit(1);
         }
     }
     catch (error)

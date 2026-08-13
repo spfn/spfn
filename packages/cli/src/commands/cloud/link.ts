@@ -29,16 +29,10 @@ export interface LinkOptions
 export async function cloudLink(options: LinkOptions): Promise<void>
 {
     const cwd = process.cwd();
-    const config = readCloudConfig(cwd);
 
     try
     {
-        if (options.replace)
-        {
-            await deleteCloudToken('vercel');
-            await deleteCloudToken('supabase');
-            logger.info('Stored tokens discarded — you will be asked for fresh ones.');
-        }
+        const config = readCloudConfig(cwd);
 
         // Persist after each provider: a Supabase failure must not throw away a
         // Vercel link the user just watched succeed.
@@ -59,7 +53,7 @@ export async function cloudLink(options: LinkOptions): Promise<void>
 
 async function linkVercel(config: { vercel?: { projectId: string; projectName: string } }, cwd: string, options: LinkOptions): Promise<void>
 {
-    const token = await obtainToken('vercel', 'Vercel access token', 'VERCEL_TOKEN', 'https://vercel.com/account/settings/tokens');
+    const token = await obtainToken('vercel', 'Vercel access token', 'VERCEL_TOKEN', 'https://vercel.com/account/settings/tokens', options.replace);
     const user = await getVercelUser(token);
 
     logger.success(`Vercel token verified (account: ${user.user.username}).`);
@@ -109,7 +103,7 @@ async function linkVercel(config: { vercel?: { projectId: string; projectName: s
 
 async function linkSupabase(config: { supabase?: { projectRef: string; projectName: string; orgSlug: string; region?: string } }, options: LinkOptions): Promise<void>
 {
-    const token = await obtainToken('supabase', 'Supabase personal access token', 'SUPABASE_ACCESS_TOKEN', 'https://supabase.com/dashboard/account/tokens');
+    const token = await obtainToken('supabase', 'Supabase personal access token', 'SUPABASE_ACCESS_TOKEN', 'https://supabase.com/dashboard/account/tokens', options.replace);
     const orgs = await listSupabaseOrganizations(token);
 
     logger.success(`Supabase token verified (${orgs.length} organization${orgs.length === 1 ? '' : 's'}).`);
@@ -169,24 +163,39 @@ function projectRef(project: SupabaseProject): string
     return project.ref ?? project.id;
 }
 
-async function obtainToken(provider: CloudProvider, label: string, envVar: string, createUrl: string): Promise<string>
+/**
+ * Token source order: env var → keychain → hidden prompt. `--replace` skips both
+ * silent sources — its whole point is escaping a stored-but-expired token, and an
+ * exported env var would silently win again. Each provider's token is discarded
+ * lazily, right before its own prompt, so a Vercel failure under `--replace`
+ * cannot cost the user their still-working Supabase token.
+ */
+async function obtainToken(provider: CloudProvider, label: string, envVar: string, createUrl: string, replace?: boolean): Promise<string>
 {
-    const fromEnv = process.env[envVar];
-
-    if (fromEnv)
+    if (replace)
     {
-        logger.info(`Using ${label} from ${envVar} (value not shown).`);
-
-        return fromEnv;
+        await deleteCloudToken(provider);
+        logger.info(`Stored ${label} discarded${process.env[envVar] ? ` (ignoring ${envVar})` : ''} — enter a fresh one.`);
     }
-
-    const fromKeychain = await getCloudToken(provider);
-
-    if (fromKeychain)
+    else
     {
-        logger.info(`Using the ${label} already in the keychain (value not shown). To enter a new one, run \`spfn cloud link --replace\`.`);
+        const fromEnv = process.env[envVar];
 
-        return fromKeychain;
+        if (fromEnv)
+        {
+            logger.info(`Using ${label} from ${envVar} (value not shown).`);
+
+            return fromEnv;
+        }
+
+        const fromKeychain = await getCloudToken(provider);
+
+        if (fromKeychain)
+        {
+            logger.info(`Using the ${label} already in the keychain (value not shown). To enter a new one, run \`spfn cloud link --replace\`.`);
+
+            return fromKeychain;
+        }
     }
 
     logger.info(`Create one at ${chalk.cyan(createUrl)} if you don't have it yet.`);

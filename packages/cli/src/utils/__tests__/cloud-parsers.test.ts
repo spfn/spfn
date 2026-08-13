@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { aggregateFocusCharges } from '../cloud/vercel-api.js';
+import { aggregateFocusCharges, extractEnvPushFailures } from '../cloud/vercel-api.js';
 import { extractDbSizeBytes, sumApiCounts } from '../cloud/supabase-api.js';
 
 describe('aggregateFocusCharges', () =>
@@ -41,6 +41,39 @@ describe('aggregateFocusCharges', () =>
     it('returns an empty list for an empty feed', () =>
     {
         expect(aggregateFocusCharges('')).toEqual([]);
+    });
+
+    it('keeps records with different units apart instead of summing across them', () =>
+    {
+        const jsonl = [
+            JSON.stringify({ ServiceName: 'Fast Data Transfer', ConsumedQuantity: 900, ConsumedUnit: 'MB' }),
+            JSON.stringify({ ServiceName: 'Fast Data Transfer', ConsumedQuantity: 2, ConsumedUnit: 'GB' }),
+        ].join('\n');
+
+        expect(aggregateFocusCharges(jsonl)).toEqual([
+            { serviceName: 'Fast Data Transfer', consumed: 900, unit: 'MB' },
+            { serviceName: 'Fast Data Transfer', consumed: 2, unit: 'GB' },
+        ]);
+    });
+});
+
+describe('extractEnvPushFailures', () =>
+{
+    it('reads per-key rejections that arrive under a 2xx', () =>
+    {
+        const body = {
+            created: [{ key: 'GOOD_KEY' }],
+            failed: [{ error: { code: 'invalid_name', key: 'BAD KEY', message: 'Invalid name' } }],
+        };
+
+        expect(extractEnvPushFailures(body)).toEqual([{ key: 'BAD KEY', message: 'Invalid name' }]);
+    });
+
+    it('treats an unknown or empty shape as no failures', () =>
+    {
+        expect(extractEnvPushFailures({ created: [] })).toEqual([]);
+        expect(extractEnvPushFailures(null)).toEqual([]);
+        expect(extractEnvPushFailures('ok')).toEqual([]);
     });
 });
 
