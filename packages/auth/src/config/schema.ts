@@ -240,6 +240,36 @@ export const authEnvSchema = defineEnvSchema({
     },
 
     // ============================================================================
+    // Verified-email signup
+    // ============================================================================
+    SPFN_AUTH_SIGNUP_LINK_TTL_MINUTES: {
+        ...envNumber({
+            description: 'How long an emailed signup confirmation link stays valid. Long enough to survive a mail delay, short enough that a link left in an inbox stops working.',
+            default: 30,
+            required: false,
+            examples: [15, 30, 60],
+        }),
+    },
+
+    SPFN_AUTH_SIGNUP_SETUP_TTL_MINUTES: {
+        ...envNumber({
+            description: 'How long the password-setup session opened by a confirmation link stays valid. Covers one sitting at the password form, not an abandoned tab.',
+            default: 15,
+            required: false,
+            examples: [10, 15, 30],
+        }),
+    },
+
+    SPFN_AUTH_SIGNUP_CONFIRM_PATH: {
+        ...envString({
+            description: 'App page the emailed confirmation link opens, as a path on {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}. The page reads the token from the query string and posts it to /_auth/signup/email/confirm; it is a page in your app, not an API route.',
+            default: '/signup/confirm',
+            required: false,
+            examples: ['/signup/confirm', '/auth/confirm', '/join/verify'],
+        }),
+    },
+
+    // ============================================================================
     // API Configuration
     // ============================================================================
     SPFN_API_URL: {

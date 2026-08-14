@@ -327,6 +327,51 @@ export class NativeSignInUnsupportedError extends ValidationError
 }
 
 /**
+ * Invalid Signup Link Error (400)
+ *
+ * Thrown when an emailed signup confirmation link is unknown, expired, already
+ * consumed, or superseded by a newer request for the same address.
+ *
+ * One error for all four states, on purpose. Distinguishing "expired" from
+ * "unknown" tells a caller holding a random token whether it named a real
+ * pending signup, which is exactly the enumeration the request step avoids. The
+ * specific reason is logged.
+ */
+export class InvalidSignupLinkError extends ValidationError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'This signup link is no longer valid. Request a new one.',
+            details: data.details,
+        });
+        this.name = 'InvalidSignupLinkError';
+    }
+}
+
+/**
+ * Invalid Signup Setup Session Error (401)
+ *
+ * Thrown when the password-setup session backing a verified-email signup is
+ * missing, unknown, expired, superseded or already used.
+ *
+ * One error for every one of those, on purpose: telling a caller which of them
+ * applies tells them whether an address is mid-signup, which is the same
+ * enumeration the request step is careful not to leak.
+ */
+export class InvalidSignupSetupSessionError extends UnauthorizedError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'Password setup session is invalid or has expired. Start the signup again.',
+            details: data.details,
+        });
+        this.name = 'InvalidSignupSetupSessionError';
+    }
+}
+
+/**
  * Unverified Email Link Error (400)
  *
  * Thrown when a social identity carries an email that already belongs to an

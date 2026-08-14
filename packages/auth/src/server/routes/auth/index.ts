@@ -11,6 +11,7 @@ import {
 import { getAuth, getUser } from '../../helpers';
 import { KEY_ALGORITHM } from '../../types';
 import { KeyNotFoundError } from '@spfn/auth/errors';
+import { ValidationError } from '@spfn/core/errors';
 import {
     changePasswordService,
     loginService,
@@ -24,6 +25,10 @@ import {
     verifyCodeService,
     getAuthSessionService,
     issueOneTimeTokenService,
+    requestSignupLinkService,
+    confirmSignupLinkService,
+    completeSignupService,
+    isSafeReturnPath,
 } from '../../services';
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
@@ -126,6 +131,103 @@ export const register = route.post('/_auth/register')
         const { body } = await c.data();
 
         return await registerService(body);
+    });
+
+/**
+ * POST /_auth/signup/email - Request a verified-email signup link
+ *
+ * Emails a one-time confirmation link. Answers identically whether or not the
+ * address already has an account, so it cannot be used to probe for accounts.
+ * Calling it again is the resend: it supersedes every live link for the address.
+ */
+export const requestSignupLink = route.post('/_auth/signup/email')
+    .input({
+        body: Type.Object({
+            email: EmailSchema,
+            returnPath: Type.Optional(Type.String({
+                maxLength: 512,
+                description: 'Relative path within the app to return to after signup. Absolute URLs are rejected.',
+            })),
+        }),
+    })
+    // byIpAndAccount, not byIpAndTarget: the account dimension is read from
+    // `body.email`, and byIpAndTarget looks for `body.target` — which this route
+    // does not have, so it would silently degrade to an IP-only limit.
+    .use([rateLimitPolicy('auth-signup-link', { limit: 5, windowMs: 60_000, by: byIpAndAccount({ ipLimit: 20 }) })])
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+
+        if (body.returnPath !== undefined && !isSafeReturnPath(body.returnPath))
+        {
+            throw new ValidationError({ message: 'returnPath must be a relative path within the app' });
+        }
+
+        return await requestSignupLinkService(body);
+    });
+
+/**
+ * POST /_auth/signup/email/confirm - Exchange a signup link for a setup session
+ *
+ * The emailed link opens an app page; that page posts the token here. The
+ * response carries `setupSecret`, which the Next.js proxy interceptor moves into
+ * an HttpOnly cookie and strips from the body — so it never reaches page script.
+ */
+export const confirmSignupLink = route.post('/_auth/signup/email/confirm')
+    .input({
+        body: Type.Object({
+            token: Type.String({
+                minLength: 16,
+                maxLength: 256,
+                description: 'Token from the confirmation link',
+            }),
+        }),
+    })
+    .use([rateLimitPolicy('auth-signup-confirm', { limit: 10, windowMs: 60_000 })])
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+
+        return await confirmSignupLinkService(body);
+    });
+
+/**
+ * POST /_auth/signup/password - Set the password, which creates the account
+ *
+ * Authorized by the setup-session cookie, not by a session: the interceptor
+ * reads that cookie into `setupSecret` and injects the device key the same way
+ * it does for register. Creating the user, registering the key and marking the
+ * setup session used all commit together.
+ */
+export const completeSignup = route.post('/_auth/signup/password')
+    .input({
+        body: Type.Object({
+            password: PasswordSchema,
+            metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), {
+                description: 'Custom metadata passed to authRegisterEvent (e.g. referral code, UTM params)',
+            })),
+        }),
+    })
+    .interceptor({
+        body: Type.Object({
+            setupSecret: Type.String({ description: 'Password-setup session secret, from the HttpOnly cookie' }),
+            publicKey: Type.String({ description: 'Client public key' }),
+            keyId: Type.String({ description: 'Key identifier' }),
+            fingerprint: Type.String({ description: 'Key fingerprint' }),
+            algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
+            deviceName: Type.Optional(DeviceNameSchema),
+            platform: Type.Optional(PlatformSchema),
+        }),
+    })
+    .use([rateLimitPolicy('auth-signup-password', { limit: 10, windowMs: 60_000 }), Transactional()])
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+
+        return await completeSignupService(body);
     });
 
 /**

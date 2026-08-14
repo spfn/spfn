@@ -52,6 +52,11 @@ export const COOKIE_NAMES = {
     {
         return `spfn_oauth_csrf${getCookieSuffix()}`;
     },
+    /** Password-setup session for verified-email signup — temporary, single-purpose */
+    get SIGNUP_SETUP()
+    {
+        return `spfn_signup_setup${getCookieSuffix()}`;
+    },
 };
 
 /**

@@ -22,7 +22,7 @@ import { cookieSecure } from './cookie-options';
  */
 export const loginRegisterInterceptor: InterceptorRule =
     {
-        pathPattern: /^\/_auth\/(login|register|invitations\/accept)$/,
+        pathPattern: /^\/_auth\/(login|register|invitations\/accept|signup\/password)$/,
         method: 'POST',
 
         request: async (ctx, next) =>

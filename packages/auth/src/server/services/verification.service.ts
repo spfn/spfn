@@ -335,6 +335,49 @@ async function sendAccountExistsNotice(
     }
 }
 
+/**
+ * Tell the owner that someone tried to sign up with their address, at most once
+ * per dedupe window.
+ *
+ * Every signup entry point routes its "account already exists" case here rather
+ * than notifying on its own, so the window is shared. Two entry points with a
+ * window each would let an attacker alternate between them and deliver twice as
+ * many notices as either one permits — the email-bombing this dedupe exists to
+ * prevent.
+ *
+ * The window is kept as an undelivered marker row in `verification_codes`: the
+ * code it carries is never sent and is unusable, since registration refuses an
+ * existing account regardless. Only its timestamp matters.
+ *
+ * @param target - Email address or E.164 phone number
+ * @param targetType - Type of target (email or phone)
+ */
+export async function noticeAccountExistsOnce(
+    target: string,
+    targetType: VerificationTargetType,
+): Promise<void>
+{
+    const recentNotice = await verificationCodesRepository.findValidByTargetAndPurpose(target, 'registration');
+
+    if (recentNotice)
+    {
+        return;
+    }
+
+    const dedupeExpiresAt = new Date(Date.now() + ACCOUNT_EXISTS_NOTICE_DEDUPE_MINUTES * 60_000);
+    await verificationCodesRepository.invalidatePreviousCodes(target, 'registration');
+    await verificationCodesRepository.create({
+        target,
+        targetType,
+        code: generateVerificationCode(),
+        purpose: 'registration',
+        expiresAt: dedupeExpiresAt,
+        attempts: 0,
+    });
+
+    await sendAccountExistsNotice(target, targetType);
+}
+
 export interface SendVerificationCodeParams
 {
     target: string;
@@ -378,26 +421,7 @@ export async function sendVerificationCodeService(
     // dedupe so this can't be used to email-bomb the owner.
     if (purpose === 'registration' && await accountExistsForTarget(target, targetType))
     {
-        const recentNotice = await verificationCodesRepository.findValidByTargetAndPurpose(target, purpose);
-
-        if (!recentNotice)
-        {
-            // Undelivered marker row — a dedupe timestamp only. Long expiry so the
-            // dedupe window holds; the code is never sent and is unusable (register
-            // rejects an existing account regardless).
-            const dedupeExpiresAt = new Date(Date.now() + ACCOUNT_EXISTS_NOTICE_DEDUPE_MINUTES * 60_000);
-            await verificationCodesRepository.invalidatePreviousCodes(target, purpose);
-            await verificationCodesRepository.create({
-                target,
-                targetType,
-                code: generateVerificationCode(),
-                purpose,
-                expiresAt: dedupeExpiresAt,
-                attempts: 0,
-            });
-
-            await sendAccountExistsNotice(target, targetType);
-        }
+        await noticeAccountExistsOnce(target, targetType);
 
         // Uniform response shape (indistinguishable from a real code send).
         return {

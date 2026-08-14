@@ -34,6 +34,22 @@ export type {
     VerifyCodeResult,
 } from './verification.service';
 
+// Verified-Email Signup Service
+export {
+    requestSignupLinkService,
+    confirmSignupLinkService,
+    completeSignupService,
+    isSafeReturnPath,
+} from './signup-link.service';
+
+export type {
+    RequestSignupLinkParams,
+    RequestSignupLinkResult,
+    ConfirmSignupLinkParams,
+    ConfirmSignupLinkResult,
+    CompleteSignupParams,
+} from './signup-link.service';
+
 // Key Service
 export {
     registerPublicKeyService,
