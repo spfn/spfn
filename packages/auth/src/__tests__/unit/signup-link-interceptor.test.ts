@@ -145,7 +145,7 @@ describe('signup link interceptor - password response', () =>
 
         expect(ctx.setCookies).toHaveLength(1);
         expect(ctx.setCookies[0].value).toBe('');
-        expect(ctx.setCookies[0].options.maxAge).toBe(0);
+        expect(ctx.setCookies[0].options?.maxAge).toBe(0);
     });
 
     it('keeps the cookie when the password was refused, so a retry can present it', async () =>

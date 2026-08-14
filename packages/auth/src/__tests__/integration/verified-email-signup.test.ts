@@ -88,7 +88,8 @@ describe.skipIf(!dbAvailable)('Verified-email signup', () =>
     /** The token from the most recent signup-link email. */
     function emailedToken(): string
     {
-        const call = sendEmail.mock.calls.findLast(([arg]) => arg?.template === 'signup-link');
+        const sent = sendEmail.mock.calls.filter(([arg]) => arg?.template === 'signup-link');
+        const call = sent[sent.length - 1];
 
         if (!call)
         {
