@@ -23,4 +23,14 @@ describe('destructiveConfirmationRequired', () =>
         expect(destructiveConfirmationRequired(command('write'), undefined)).toBe(false);
         expect(destructiveConfirmationRequired(command(), undefined)).toBe(false);
     });
+
+    it('requires --yes when the effect is unknown because its metadata was refused', () =>
+    {
+        // The alternative is reading a missing `effect` as harmless, which
+        // opens the gate for precisely the commands the CLI could not verify.
+        const refused = { ...command(), metadataRejected: true };
+
+        expect(destructiveConfirmationRequired(refused, undefined)).toBe(true);
+        expect(destructiveConfirmationRequired(refused, true)).toBe(false);
+    });
 });

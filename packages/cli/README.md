@@ -444,6 +444,29 @@ listSignups  GET /_ops/signups
 Add `--json` for the raw JSON Schema. The server still validates every call — `--describe`
 reports what it will accept, and the app's answer decides.
 
+#### Capability modules
+
+An app can also mount ops commands a package described, with
+[`defineOpsModule`](../core/README.md#can-a-package-ship-ops-commands). Those commands are
+named `<module>.<command>` and carry a summary, an effect and their scopes, so the CLI can
+group them and say what each one does. From **0.3.0-beta.5**:
+
+```bash
+spfn ops modules                                      # what is mounted, and from where
+spfn ops modules --json                               # same, machine-readable
+spfn ops list --module ledger                         # just that module's commands
+spfn ops call ledger.compact --yes                    # effect=destructive needs this
+```
+
+`spfn ops call` refuses a command the app declared `effect: destructive` unless `--yes` is
+given. It refuses the same way when the app announced module metadata this CLI could not
+validate: the effect is then unknown rather than absent, and an unknown effect is not
+treated as a safe one. The command still lists — an operator reading a short list would
+otherwise take it for the app's whole surface — and the warning names what was dropped.
+
+Everything in the manifest is the app's own text written to your terminal, so control
+characters in it are replaced before anything is printed.
+
 The app URL comes from `--app` or `SPFN_OPS_APP`, and it must be **https** — every one of
 these commands carries a secret, and `token issue` carries an administrator's password.
 `http` is accepted only against `localhost`, `127.0.0.1` and `::1`, where there is no

@@ -49,6 +49,7 @@ import {
     type OpsModuleDescriptor,
 } from './manifest';
 import { defineOpsModule, type OpsModule } from './module';
+import { opsRoutePatternsOverlap } from './route-overlap';
 
 /** Every ops route lives under this prefix. */
 export const OPS_PATH_PREFIX = '/_ops/';
@@ -90,16 +91,6 @@ interface CompiledModuleSurface
     descriptors: OpsModuleDescriptor[];
     commands: OpsCommand[];
     routes: Record<string, CompiledModuleRoute>;
-}
-
-function appRouteClaimsModuleNamespace(path: string, moduleId: string): boolean
-{
-    const namespace = path.split('/')[2];
-
-    return namespace === moduleId
-        || namespace === '*'
-        || namespace?.startsWith(':') === true
-        || namespace?.includes('*') === true;
 }
 
 function isRouter(value: unknown): value is Router<any>
@@ -299,14 +290,19 @@ function compileModules(
                 );
             }
 
+            // Whether the two patterns can claim a common URL, not whether the
+            // app route sits in the module's namespace. An app route at exactly
+            // `/_ops/<moduleId>` shares the prefix but can never be reached by
+            // a `/_ops/<moduleId>/<command>` request, and refusing it would
+            // fail a legitimate app at boot.
             const overlappingAppCommand = appCommands.find(command =>
-                command.method === method && appRouteClaimsModuleNamespace(command.path, module.id));
+                command.method === method && opsRoutePatternsOverlap(command.path, path));
             if (overlappingAppCommand)
             {
                 throw new OpsRouterError(
                     `App ops command "${overlappingAppCommand.name}" at ${method} ${overlappingAppCommand.path} `
-                    + `claims the "${module.id}" module namespace used by "${name}" at ${method} ${path}. `
-                    + 'Module namespaces cannot depend on route registration order.',
+                    + `overlaps module command "${name}" at ${method} ${path}. `
+                    + 'Which one answers cannot depend on route registration order.',
                 );
             }
             routeSignatures.set(signature, name);

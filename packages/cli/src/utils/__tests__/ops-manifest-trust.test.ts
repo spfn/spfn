@@ -146,8 +146,56 @@ describe('fetchOpsManifest', () =>
             method: 'GET',
             path: '/_ops/ledger/verify',
             input: {},
+            metadataRejected: true,
         }]);
         expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toMatch(/Ignoring module metadata/);
+    });
+
+    it('marks a command whose refused metadata claimed a limit this CLI enforces alone', async () =>
+    {
+        // The server caps none of these, so a legitimate app can produce a
+        // command the CLI refuses to describe. Dropping `effect` silently would
+        // hand the operator a destructive command with no confirmation gate.
+        manifestAnswer([{
+            ...good,
+            name: 'ledger.wipe',
+            method: 'POST',
+            path: '/_ops/ledger/wipe',
+            module: 'ledger',
+            summary: 'x'.repeat(600),
+            effect: 'destructive',
+            scopes: ['ledger:write'],
+        }], [{
+            id: 'ledger',
+            source: '@spfn/ledger',
+            contractVersion: '1.0.0',
+            summary: 'Ledger diagnostics',
+        }]);
+        const manifest = await fetchOpsManifest('https://api.example.com', 'spfn_ops_x');
+
+        expect(manifest.commands[0]!.effect).toBeUndefined();
+        expect(manifest.commands[0]!.metadataRejected).toBe(true);
+    });
+
+    it('sanitizes the command name in its own warning, as every other rendered string is', async () =>
+    {
+        manifestAnswer([{
+            ...good,
+            name: `ledger.${ESC}[2Jverify`,
+            path: '/_ops/ledger/verify',
+            module: 'ledger',
+            summary: 'Verify invariants',
+            effect: 'read',
+            scopes: [],
+        }], [{
+            id: 'ledger',
+            source: '@spfn/ledger',
+            contractVersion: '1.0.0',
+            summary: 'Ledger diagnostics',
+        }]);
+        await fetchOpsManifest('https://api.example.com', 'spfn_ops_x');
+
+        expect(vi.mocked(console.error).mock.calls.flat().join('\n')).not.toContain(ESC);
     });
 
     it('drops duplicate or malformed modules and detaches their command metadata', async () =>
@@ -173,6 +221,7 @@ describe('fetchOpsManifest', () =>
 
         expect(manifest.modules).toEqual([module]);
         expect(manifest.commands[0]!.module).toBeUndefined();
+        expect(manifest.commands[0]!.metadataRejected).toBe(true);
         expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toMatch(/duplicated/);
     });
 });

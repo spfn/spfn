@@ -44,6 +44,25 @@ describe('buildCommandPath', () =>
     ])('rejects path parameter traversal before sending a request: %s', (value) =>
     {
         expect(() => buildCommandPath(command('/_ops/:target'), { target: value }, {}))
-            .toThrow(/cannot be|encoded path separators|dot segments/);
+            .toThrow(/cannot be|dot segments/);
+    });
+
+    it.each([
+        ['100%', '/_ops/100%25'],
+        ['a/b', '/_ops/a%2Fb'],
+        ['a%2Fb', '/_ops/a%252Fb'],
+        ['v1.2.3', '/_ops/v1.2.3'],
+    ])('sends an operator value that only looks like an escape: %s', (value, expected) =>
+    {
+        // `encodeURIComponent` keeps each of these inside its own segment, and
+        // the app decodes it back. Refusing them would refuse the operator's
+        // own data over a check aimed at the manifest.
+        expect(buildCommandPath(command('/_ops/:target'), { target: value }, {})).toBe(expected);
+    });
+
+    it('refuses an empty path parameter, which would collapse the segment', () =>
+    {
+        expect(() => buildCommandPath(command('/_ops/:target'), { target: '' }, {}))
+            .toThrow(/cannot be empty/);
     });
 });

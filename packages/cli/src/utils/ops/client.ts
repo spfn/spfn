@@ -7,6 +7,8 @@
  * gave it and relays the server's answer.
  */
 
+import { plain } from './plain.js';
+
 export type OpsEffect = 'read' | 'write' | 'destructive';
 
 export interface OpsModuleDescriptor
@@ -26,6 +28,13 @@ export interface OpsCommandDescriptor
     summary?: string;
     effect?: OpsEffect;
     scopes?: string[];
+
+    /**
+     * Set when the app announced module metadata that failed validation, so
+     * this command's effect is unknown rather than absent. Callers must treat
+     * it as needing confirmation.
+     */
+    metadataRejected?: boolean;
     input: {
         params?: Record<string, unknown>;
         query?: Record<string, unknown>;
@@ -275,7 +284,16 @@ function usableCommands(
         }
         else if (metadataReason !== null)
         {
-            console.error(`⚠️  Ignoring module metadata for ops command "${command.name}": ${metadataReason}.`);
+            // The command still lists — hiding it would read as an app with a
+            // smaller surface than it has. But its effect came from the same
+            // metadata just refused, so it is no longer known, and `destructive`
+            // is what it may have been. Confirmation is required rather than
+            // inferred from a field that is now absent.
+            normalized.metadataRejected = true;
+            console.error(
+                `⚠️  Ignoring module metadata for ops command "${plain(command.name)}": ${metadataReason}. `
+                + 'Calling it will require --yes.',
+            );
         }
 
         usable.push(normalized);
@@ -408,8 +426,61 @@ function isPlainObject(value: unknown): value is Record<string, unknown>
 }
 
 /**
+ * Whether a path parameter can climb out of its segment, at any depth of
+ * encoding.
+ *
+ * `encodeURIComponent` confines a value to one segment — it encodes `/`, `\`
+ * and `%` — so the request this CLI writes always has the template's segment
+ * structure. What it does not neutralize is a dot segment: `.` and `..` are
+ * unreserved and survive encoding unchanged. Anything downstream that decodes
+ * the path before routing, a normalizing proxy most of all, would then act on
+ * them. So the value is decoded as far as it goes and refused if any part of
+ * it is a dot segment.
+ *
+ * Separators themselves are left alone. An id that genuinely contains `/` or
+ * `%` is the operator's own data, it stays inside one segment, and the app
+ * reads it back intact.
+ */
+function climbsOutOfItsSegment(value: string): boolean
+{
+    let decoded = value;
+
+    for (let depth = 0; depth < 8; depth++)
+    {
+        if (decoded.split(/[/\\]/).some(part => part === '.' || part === '..'))
+        {
+            return true;
+        }
+
+        let next: string;
+        try
+        {
+            next = decodeURIComponent(decoded);
+        }
+        catch
+        {
+            // Not valid encoding, so nothing downstream decodes it further.
+            return false;
+        }
+
+        if (next === decoded)
+        {
+            return false;
+        }
+        decoded = next;
+    }
+
+    return true;
+}
+
+/**
  * Substitute `:name` segments from params. A missing parameter fails here,
  * before any request leaves the machine.
+ *
+ * The template is checked for namespace escape, and each value for climbing
+ * out of its own segment. The substituted result is not re-checked: by then
+ * every value is encoded, and reading an operator's own `%` or `/` back as an
+ * attempted escape would refuse data the app accepts.
  */
 export function buildCommandPath(
     command: OpsCommandDescriptor,
@@ -417,6 +488,12 @@ export function buildCommandPath(
     query: Record<string, string>,
 ): string
 {
+    const templateReason = unstableOpsPathBecause(command.path);
+    if (templateReason !== null)
+    {
+        throw new Error(`Refusing ops command path ${JSON.stringify(command.path)} because it ${templateReason}.`);
+    }
+
     const path = command.path.replace(/:([A-Za-z0-9_]+)/g, (_match, name: string) =>
     {
         const value = params[name];
@@ -425,19 +502,22 @@ export function buildCommandPath(
             throw new Error(`Missing path parameter "${name}" (pass --param ${name}=<value>).`);
         }
 
-        if (value === '.' || value === '..')
+        // An empty value would collapse the segment and change which route the
+        // app matches, so it is a different request than the operator asked for.
+        if (value === '')
         {
-            throw new Error(`Path parameter "${name}" cannot be "${value}".`);
+            throw new Error(`Path parameter "${name}" cannot be empty.`);
+        }
+
+        if (climbsOutOfItsSegment(value))
+        {
+            throw new Error(
+                `Path parameter "${name}" contains dot segments and cannot be sent: ${JSON.stringify(value)}.`,
+            );
         }
 
         return encodeURIComponent(value);
     });
-
-    const pathReason = unstableOpsPathBecause(path);
-    if (pathReason !== null)
-    {
-        throw new Error(`Refusing ops command path ${JSON.stringify(path)} because it ${pathReason}.`);
-    }
 
     const search = new URLSearchParams(query).toString();
 

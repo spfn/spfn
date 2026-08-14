@@ -275,7 +275,7 @@ describe('createOpsRouter modules', () =>
             auth: testAuth,
             authorize: () => async (_c, next) => await next(),
             modules: [ledgerModule()],
-        })).toThrow(/claims the "ledger" module namespace/);
+        })).toThrow(/overlaps module command "ledger.verify"/);
     });
 
     it('allows another method or another static namespace', () =>
@@ -283,6 +283,24 @@ describe('createOpsRouter modules', () =>
         expect(() => createOpsRouter({
             ledgerWrite: opsRoute.post('/ledger/:rest').handler(async () => ({})),
             otherRead: opsRoute.get('/other/:rest').handler(async () => ({})),
+        }, {
+            auth: testAuth,
+            authorize: () => async (_c, next) => await next(),
+            modules: [ledgerModule()],
+        })).not.toThrow();
+    });
+
+    it.each([
+        '/ledger',
+        '/ledger/verify/detail',
+        '/:module',
+    ])('allows an app route that shares the prefix but no URL: %s', (path) =>
+    {
+        // `/_ops/ledger` cannot be reached by a `/_ops/ledger/verify` request,
+        // so refusing it would fail a legitimate app at boot over a prefix it
+        // merely shares.
+        expect(() => createOpsRouter({
+            appRoute: opsRoute.get(path).handler(async () => ({})),
         }, {
             auth: testAuth,
             authorize: () => async (_c, next) => await next(),

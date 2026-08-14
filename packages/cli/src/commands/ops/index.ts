@@ -189,8 +189,11 @@ async function callCommand(
 
     if (destructiveConfirmationRequired(command, options.yes))
     {
-        console.error(chalk.red(`❌ "${plain(name)}" is destructive and was not called with --yes.`));
+        console.error(command.metadataRejected
+            ? chalk.red(`❌ "${plain(name)}" announced metadata this CLI refused, so its effect is unknown.`)
+            : chalk.red(`❌ "${plain(name)}" is destructive and was not called with --yes.`));
         console.error(chalk.gray(`   Review it first: spfn ops call ${plain(name)} --describe`));
+        console.error(chalk.gray('   Then re-run with --yes.'));
         process.exit(1);
     }
 
@@ -244,7 +247,16 @@ export function destructiveConfirmationRequired(
     confirmed: boolean | undefined,
 ): boolean
 {
-    return command.effect === 'destructive' && confirmed !== true;
+    if (confirmed === true)
+    {
+        return false;
+    }
+
+    // An unknown effect is not a safe effect. A command whose module metadata
+    // the client refused has lost the field this gate reads, so the gate would
+    // otherwise open for exactly the commands whose self-description could not
+    // be trusted.
+    return command.effect === 'destructive' || command.metadataRejected === true;
 }
 
 export const opsCommand = new Command('ops')
