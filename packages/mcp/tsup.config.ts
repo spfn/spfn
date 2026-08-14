@@ -6,6 +6,7 @@ export default defineConfig({
         dispatcher: 'src/dispatcher-entry.ts',
         server: 'src/server.ts',
         stdio: 'src/stdio.ts',
+        skills: 'src/skills.ts',
     },
     format: ['esm'],
     dts: true,
