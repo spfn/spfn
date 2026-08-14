@@ -12,6 +12,9 @@
  */
 
 import type { OpsCommandDescriptor } from './client.js';
+import { plain } from './plain.js';
+
+export { plain };
 
 /** The input sections a command can declare, in the order they are shown. */
 const SECTIONS = [
@@ -45,22 +48,6 @@ function isSchema(value: unknown): value is Schema
  * operator would read as a flat list anyway.
  */
 const MAX_SCHEMA_DEPTH = 12;
-
-/**
- * Strip what a terminal would act on rather than show.
- *
- * Every string rendered here — a field's description, its pattern, a command's
- * name — is the app's, and it is written straight to the operator's terminal.
- * Escape sequences left in it can clear the screen or redraw the lines above,
- * so what the operator reads is no longer what the CLI wrote. Control
- * characters are replaced rather than dropped, so text that contained them
- * still reads as suspicious instead of quietly shrinking.
- */
-export function plain(value: string): string
-{
-     
-    return value.replace(/[\u0000-\u001f\u007f-\u009f]/g, '?');
-}
 
 /**
  * The type as an operator should read it: `string`, `number[]`, `a|b` for a
@@ -212,6 +199,16 @@ export function renderCommandUsage(command: OpsCommandDescriptor): string
 {
     const lines = [`${plain(command.name)}  ${command.method} ${plain(command.path)}`, ''];
     let described = false;
+
+    if (command.summary)
+    {
+        lines.push(`  ${plain(command.summary)}`, '');
+    }
+    if (command.effect || command.scopes)
+    {
+        lines.push(`  Effect: ${command.effect ?? 'unknown'}`);
+        lines.push(`  Scopes: ${command.scopes?.map(plain).join(', ') || '(not declared)'}`, '');
+    }
 
     for (const section of SECTIONS)
     {

@@ -396,6 +396,9 @@ importers:
       concurrently:
         specifier: ^9.2.1
         version: 9.2.1
+      hono:
+        specifier: ^4.12.34
+        version: 4.13.0
       tsx:
         specifier: ^4.20.6
         version: 4.20.6

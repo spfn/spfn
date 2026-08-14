@@ -516,6 +516,57 @@ spfn ops call listSignups --query limit=50            # invoke one
 spfn ops call listSignups --describe                  # print its usage (--json for raw schemas)
 ```
 
+### Can a package ship ops commands?
+
+It can describe them. Whether they are reachable is your application's decision, made in
+the `createOpsRouter` call — installing a package never adds anything to your ops surface.
+Available from **0.3.0-beta.5**.
+
+```typescript
+// in the package
+export const ledgerOpsModule = defineOpsModule({
+    id: 'ledger',
+    source: '@acme/ledger',
+    contractVersion: '1.0.0',
+    summary: 'Ledger diagnostics',
+    commands: {
+        verify: {
+            summary: 'Verify ledger invariants',
+            effect: 'read',                                  // read | write | destructive
+            scopes: ['ledger:read'],
+            route: opsRoute.get('/ledger/verify').handler(verifyLedger),
+        },
+    },
+});
+
+// in the application — nothing is mounted until this line names it
+export const opsRouter = createOpsRouter({ listSignups }, {
+    auth: opsTokenAuth,
+    authorize: requireOpsScope,
+    modules: [ledgerOpsModule],
+});
+```
+
+A module command is named `<module>.<command>` (`ledger.verify`) and its route must live
+under `/_ops/<module>/`. The scopes it declares become a server-side guard, run after
+authentication — `authorize` is required as soon as any module is mounted, and it is passed
+in rather than imported so core stays independent of `@spfn/auth`.
+
+What is refused at definition time: a path that could decode its way out of the module's
+namespace, two commands in one module that could answer the same URL, and an app route that
+overlaps a mounted module's command. That last one matters because the alternative is a
+surface where which command answers depends on route registration order.
+
+The manifest gains a `modules` array and per-command `module`, `summary`, `effect` and
+`scopes`. All of it is additive — an app that mounts no modules serves exactly the v1
+manifest it served before.
+
+```bash
+spfn ops modules                                      # what is mounted, and from where
+spfn ops list --module ledger                         # just that module's commands
+spfn ops call ledger.compact --yes                    # effect=destructive needs this
+```
+
 Authentication is an ops token from [`@spfn/auth`](../auth/README.md#ops-tokens-spfn-ops):
 scoped, revocable, hash-stored, issued with `spfn ops token issue` against the running app
 — the CLI signs in as an administrator, so issuance needs no database access. On macOS the

@@ -17,6 +17,18 @@ import type { RouteDef } from '../route/route-builder';
 import type { RouteInput } from '../route/route-input';
 import type { Router } from '../route/router';
 import type { HttpMethod } from '../route/types';
+import { OpsRouterError } from './error';
+import type { OpsEffect } from './module';
+export { OpsRouterError } from './error';
+
+/** One explicitly mounted capability module, as the CLI sees it. */
+export interface OpsModuleDescriptor
+{
+    id: string;
+    source: string;
+    contractVersion: string;
+    summary: string;
+}
 
 /** One invokable ops command, as the CLI sees it. */
 export interface OpsCommand
@@ -24,6 +36,12 @@ export interface OpsCommand
     name: string;
     method: HttpMethod;
     path: string;
+
+    /** Present for commands contributed by an explicitly mounted ops module. */
+    module?: string;
+    summary?: string;
+    effect?: OpsEffect;
+    scopes?: string[];
 
     /** Input sections the route declares, each as JSON Schema. */
     input: {
@@ -37,17 +55,9 @@ export interface OpsCommand
 export interface OpsManifest
 {
     manifestVersion: 1;
+    /** Additive module metadata. Omitted for an app-only v1 surface. */
+    modules?: OpsModuleDescriptor[];
     commands: OpsCommand[];
-}
-
-/** Thrown when a route cannot be part of an ops surface. */
-export class OpsRouterError extends Error
-{
-    constructor(message: string)
-    {
-        super(message);
-        this.name = 'OpsRouterError';
-    }
 }
 
 function isRouter(value: unknown): value is Router<any>

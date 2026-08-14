@@ -19,7 +19,7 @@
  */
 
 import { route, type RouteBuilder } from '../route/route-builder';
-import { OpsRouterError } from './manifest';
+import { OpsRouterError } from './error';
 
 /** The ops namespace, without the trailing slash. */
 export const OPS_PATH_ROOT = '/_ops';
