@@ -25,7 +25,10 @@ import { defineMiddleware, defineMiddlewareFactory } from '../route/define-middl
 import type { NamedMiddleware } from '../route/define-middleware';
 import { getCache, isCacheDisabled } from '../cache';
 import { TooManyRequestsError } from '../errors';
-import { logger } from '../logger';
+// Package specifier, not '../logger': tsup marks `@spfn/*` external, so a
+// relative import would inline a SECOND logger singleton into this entrypoint's
+// bundle (issue #136).
+import { logger } from '@spfn/core/logger';
 import { CacheRateLimitStore, MemoryRateLimitStore, type RateLimitStore } from './rate-limit-store';
 
 const rateLimitLogger = logger.child('@spfn/core:rate-limit');

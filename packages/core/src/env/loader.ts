@@ -141,9 +141,13 @@ function parseEnvFile(filePath: string): Record<string, string> | null
  */
 export function loadEnv(options: LoadEnvOptions = {}): LoadEnvResult
 {
+    // Captured before any file is read: NODE_ENV decides WHICH files load, so a
+    // value that only arrives from inside a file arrives too late to matter.
+    const nodeEnvAtEntry = process.env.NODE_ENV;
+
     const {
         cwd = process.cwd(),
-        nodeEnv = process.env.NODE_ENV || 'local',
+        nodeEnv = nodeEnvAtEntry || 'local',
         server = true,
         debug = false,
         override = false,
@@ -193,7 +197,69 @@ export function loadEnv(options: LoadEnvOptions = {}): LoadEnvResult
         envLogger.debug(`Loaded ${loadedKeys.length} environment variables`);
     }
 
+    warnIfEnvGuessCostSomething(cwd, nodeEnvAtEntry, options.nodeEnv, nodeEnv);
+
     return { loadedFiles, loadedKeys };
+}
+
+/**
+ * Warn when guessing NODE_ENV actually cost the caller something.
+ *
+ * `getEnvFiles` runs before any file is parsed, so NODE_ENV decides WHICH files
+ * load and a value set inside .env.server arrives too late to affect that. The
+ * warning therefore reports a missed file, not a missing variable — the previous
+ * version announced the variable itself and fired on every boot of a correctly
+ * configured app (issue #136).
+ *
+ * Silent when the guess cost nothing: the guess matched what the files declare,
+ * or it did not match but no `.env.<declared>` file exists to have been skipped.
+ *
+ * @param cwd - project root the files were resolved against
+ * @param nodeEnvAtEntry - NODE_ENV as the process was started with
+ * @param explicitNodeEnv - nodeEnv passed by the caller, if any
+ * @param resolvedNodeEnv - the value the file list was actually built from
+ */
+function warnIfEnvGuessCostSomething(
+    cwd: string,
+    nodeEnvAtEntry: string | undefined,
+    explicitNodeEnv: string | undefined,
+    resolvedNodeEnv: string,
+): void
+{
+    // Nothing was guessed — the process or the caller named the environment.
+    if (nodeEnvAtEntry || explicitNodeEnv)
+    {
+        return;
+    }
+
+    const declared = process.env.NODE_ENV;
+
+    if (!declared)
+    {
+        envLogger.warn(
+            `NODE_ENV is not set anywhere; env files were resolved for "${resolvedNodeEnv}".`
+            + ' Set NODE_ENV in the process environment to choose the file set.',
+        );
+
+        return;
+    }
+
+    if (declared === resolvedNodeEnv)
+    {
+        return;
+    }
+
+    // The guess was wrong, but a file set only goes missing if the file exists.
+    if (!existsSync(resolve(cwd, `.env.${declared}`)))
+    {
+        return;
+    }
+
+    envLogger.warn(
+        `.env.${declared} was NOT loaded: NODE_ENV was not set when the process started,`
+        + ` so env files were resolved for "${resolvedNodeEnv}" before a file declared`
+        + ` NODE_ENV=${declared}. Set NODE_ENV in the process environment, not in a .env file.`,
+    );
 }
 
 /**
