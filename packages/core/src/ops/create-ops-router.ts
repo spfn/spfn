@@ -37,10 +37,18 @@
  * ```
  */
 
+import type { MiddlewareHandler } from 'hono';
 import type { NamedMiddleware } from '../route/define-middleware';
 import { route, type RouteDef } from '../route/route-builder';
 import { defineRouter, type Router } from '../route/router';
-import { collectOpsCommands, OpsRouterError, type OpsManifest } from './manifest';
+import {
+    collectOpsCommands,
+    OpsRouterError,
+    type OpsCommand,
+    type OpsManifest,
+    type OpsModuleDescriptor,
+} from './manifest';
+import { defineOpsModule, type OpsModule } from './module';
 
 /** Every ops route lives under this prefix. */
 export const OPS_PATH_PREFIX = '/_ops/';
@@ -59,6 +67,39 @@ export interface OpsRouterOptions
      * discovered in production.
      */
     auth: NamedMiddleware<string>;
+
+    /**
+     * Build the server-side scope guard for a module command. Required when
+     * modules are mounted. `@spfn/auth`'s `requireOpsScope` is the standard
+     * implementation, but core remains independent of that package.
+     */
+    authorize?: (...scopes: string[]) => MiddlewareHandler | NamedMiddleware<string>;
+
+    /** Capability ops modules this application explicitly chooses to expose. */
+    modules?: readonly OpsModule[];
+}
+
+interface CompiledModuleRoute
+{
+    route: RouteDef<any>;
+    scopes: readonly string[];
+}
+
+interface CompiledModuleSurface
+{
+    descriptors: OpsModuleDescriptor[];
+    commands: OpsCommand[];
+    routes: Record<string, CompiledModuleRoute>;
+}
+
+function appRouteClaimsModuleNamespace(path: string, moduleId: string): boolean
+{
+    const namespace = path.split('/')[2];
+
+    return namespace === moduleId
+        || namespace === '*'
+        || namespace?.startsWith(':') === true
+        || namespace?.includes('*') === true;
 }
 
 function isRouter(value: unknown): value is Router<any>
@@ -207,6 +248,114 @@ function secureRoutes(
     return secured;
 }
 
+function compileModules(
+    modules: readonly OpsModule[],
+    appCommands: readonly OpsCommand[],
+): CompiledModuleSurface
+{
+    const descriptors: OpsModuleDescriptor[] = [];
+    const commands: OpsCommand[] = [];
+    const routes: Record<string, CompiledModuleRoute> = {};
+    const moduleIds = new Set<string>();
+    const commandNames = new Set(appCommands.map(command => command.name));
+    const routeSignatures = new Map(
+        appCommands.map(command => [`${command.method} ${command.path}`, command.name]),
+    );
+
+    for (const rawModule of modules)
+    {
+        const module = defineOpsModule(rawModule);
+
+        if (moduleIds.has(module.id))
+        {
+            throw new OpsRouterError(`Two ops modules use id "${module.id}".`);
+        }
+        moduleIds.add(module.id);
+
+        descriptors.push({
+            id: module.id,
+            source: module.source,
+            contractVersion: module.contractVersion,
+            summary: module.summary,
+        });
+
+        for (const [localName, definition] of Object.entries(module.commands))
+        {
+            const name = `${module.id}.${localName}`;
+            if (commandNames.has(name))
+            {
+                throw new OpsRouterError(`Two ops commands are named "${name}".`);
+            }
+            commandNames.add(name);
+
+            const method = definition.route.method!;
+            const path = definition.route.path!;
+            const signature = `${method} ${path}`;
+            const existing = routeSignatures.get(signature);
+            if (existing)
+            {
+                throw new OpsRouterError(
+                    `Ops commands "${existing}" and "${name}" both use ${signature}.`,
+                );
+            }
+
+            const overlappingAppCommand = appCommands.find(command =>
+                command.method === method && appRouteClaimsModuleNamespace(command.path, module.id));
+            if (overlappingAppCommand)
+            {
+                throw new OpsRouterError(
+                    `App ops command "${overlappingAppCommand.name}" at ${method} ${overlappingAppCommand.path} `
+                    + `claims the "${module.id}" module namespace used by "${name}" at ${method} ${path}. `
+                    + 'Module namespaces cannot depend on route registration order.',
+                );
+            }
+            routeSignatures.set(signature, name);
+
+            commands.push({
+                name,
+                module: module.id,
+                summary: definition.summary,
+                effect: definition.effect,
+                scopes: [...definition.scopes],
+                method,
+                path,
+                input: collectOpsCommands({ [localName]: definition.route })[0]!.input,
+            });
+            routes[name] = { route: definition.route, scopes: definition.scopes };
+        }
+    }
+
+    descriptors.sort((a, b) => a.id.localeCompare(b.id));
+    commands.sort((a, b) => a.name.localeCompare(b.name));
+
+    return { descriptors, commands, routes };
+}
+
+function secureModuleRoutes(
+    routes: Record<string, CompiledModuleRoute>,
+    auth: NamedMiddleware<string>,
+    authorize: NonNullable<OpsRouterOptions['authorize']>,
+): Record<string, RouteDef<any>>
+{
+    const secured: Record<string, RouteDef<any>> = {};
+
+    for (const [name, definition] of Object.entries(routes))
+    {
+        assertOpsName(name);
+        assertOpsRoute(name, definition.route);
+        secured[name] = {
+            ...definition.route,
+            middlewares: [
+                auth,
+                authorize(...definition.scopes),
+                ...(definition.route.middlewares ?? []),
+            ],
+        };
+    }
+
+    return secured;
+}
+
 /**
  * Build the app's ops surface from its ops routes.
  *
@@ -227,12 +376,29 @@ export function createOpsRouter<TRoutes extends Record<string, RouteDef<any, any
         );
     }
 
+    const modules = options.modules ?? [];
+    if (modules.length > 0 && !options.authorize)
+    {
+        throw new OpsRouterError(
+            'createOpsRouter requires an authorize scope factory when modules are mounted.',
+        );
+    }
+
+    const appCommands = collectOpsCommands(routes);
+    const moduleSurface = compileModules(modules, appCommands);
+    const commands = [...appCommands, ...moduleSurface.commands]
+        .sort((a, b) => a.name.localeCompare(b.name));
+
     const manifest: OpsManifest = {
         manifestVersion: 1,
-        commands: collectOpsCommands(routes),
+        ...(moduleSurface.descriptors.length > 0 ? { modules: moduleSurface.descriptors } : {}),
+        commands,
     };
 
     const secured = secureRoutes(routes, options.auth);
+    const securedModules = moduleSurface.descriptors.length > 0
+        ? secureModuleRoutes(moduleSurface.routes, options.auth, options.authorize!)
+        : {};
 
     const manifestRoute = route.get(OPS_MANIFEST_PATH)
         .use([options.auth])
@@ -251,5 +417,6 @@ export function createOpsRouter<TRoutes extends Record<string, RouteDef<any, any
     return defineRouter({
         [OPS_MANIFEST_NAME]: manifestRoute,
         ...secured,
+        ...securedModules,
     } as Record<string, RouteDef<any>>);
 }

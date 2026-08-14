@@ -213,6 +213,16 @@ export function renderCommandUsage(command: OpsCommandDescriptor): string
     const lines = [`${plain(command.name)}  ${command.method} ${plain(command.path)}`, ''];
     let described = false;
 
+    if (command.summary)
+    {
+        lines.push(`  ${plain(command.summary)}`, '');
+    }
+    if (command.effect || command.scopes)
+    {
+        lines.push(`  Effect: ${command.effect ?? 'unknown'}`);
+        lines.push(`  Scopes: ${command.scopes?.map(plain).join(', ') || '(not declared)'}`, '');
+    }
+
     for (const section of SECTIONS)
     {
         const schema = command.input[section.key];

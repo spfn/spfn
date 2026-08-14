@@ -31,6 +31,23 @@ describe('renderCommandUsage', () =>
         expect(usage).toContain('spfn ops call listSignups');
     });
 
+    it('renders capability module summary, effect, and scopes', () =>
+    {
+        const usage = renderCommandUsage({
+            ...command(),
+            name: 'ledger.verify',
+            path: '/_ops/ledger/verify',
+            module: 'ledger',
+            summary: 'Verify ledger invariants',
+            effect: 'read',
+            scopes: ['ledger:read'],
+        });
+
+        expect(usage).toContain('Verify ledger invariants');
+        expect(usage).toContain('Effect: read');
+        expect(usage).toContain('Scopes: ledger:read');
+    });
+
     it('marks required and optional fields and names the flag they arrive on', () =>
     {
         const usage = renderCommandUsage(command({

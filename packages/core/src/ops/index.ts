@@ -24,4 +24,12 @@ export {
     OpsRouterError,
     type OpsCommand,
     type OpsManifest,
+    type OpsModuleDescriptor,
 } from './manifest';
+
+export {
+    defineOpsModule,
+    type OpsEffect,
+    type OpsModule,
+    type OpsModuleCommand,
+} from './module';

@@ -34,4 +34,16 @@ describe('buildCommandPath', () =>
     {
         expect(buildCommandPath(command('/_ops/signups'), {}, {})).toBe('/_ops/signups');
     });
+
+    it.each([
+        '..',
+        '../internal',
+        '%2e%2e',
+        '%252e%252e%252finternal',
+        'safe\\..\\internal',
+    ])('rejects path parameter traversal before sending a request: %s', (value) =>
+    {
+        expect(() => buildCommandPath(command('/_ops/:target'), { target: value }, {}))
+            .toThrow(/cannot be|encoded path separators|dot segments/);
+    });
 });
