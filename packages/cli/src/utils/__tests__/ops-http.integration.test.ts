@@ -17,6 +17,7 @@ function testApp(): Hono
             return c.json({ error: 'unauthorized' }, 401);
         }
         c.set('opsToken', token);
+
         return await next();
     });
     const module = defineOpsModule({
@@ -41,12 +42,14 @@ function testApp(): Hono
             {
                 return c.json({ error: 'forbidden' }, 403);
             }
+
             return await next();
         },
         modules: [module],
     });
     const app = new Hono();
     registerRoutes(app, defineRouter({}).packages([ops]));
+
     return app;
 }
 
@@ -61,6 +64,7 @@ describe('ops HTTP integration', () =>
                 ? input
                 : input instanceof URL ? input.href : input.url;
             const url = new URL(rawUrl);
+
             return app.request(url.pathname + url.search, init);
         });
 
