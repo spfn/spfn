@@ -54,7 +54,8 @@ with `--pm`. In a pnpm workspace, `create` installs from the workspace root.
 ## Commands
 
 Registered top-level commands: `create`, `init`, `add`, `dev`, `build`, `start`,
-`provision`, `codegen`, `contract`, `key`, `setup`, `db`, `env`, `ops`, `secret`.
+`provision`, `codegen`, `contract`, `key`, `setup`, `db`, `env`, `ops`, `secret`,
+`cloud`.
 
 ### `spfn create <name>`
 
@@ -383,6 +384,31 @@ are needed only for the deployed envs, never for local keychain use.
 Schema-driven: a secret declared with `envSecret({ generate: 'base64url32' })` can be
 minted/rotated automatically (`secret generate`/`rotate`); one without `generate` is an
 external value you paste in (`secret set`).
+
+### `spfn cloud`
+
+Free-tier management for apps deployed to your own **Vercel Hobby + Supabase Free**
+accounts: see the plan limits, watch live usage against them, keep the Supabase
+project from pausing, and sync env vars/API keys. Account tokens and key values live
+in the OS keychain and never appear in command output.
+
+| Subcommand | Description |
+|------------|-------------|
+| `cloud link` | Connect accounts: Vercel access token + Supabase personal access token (masked prompt or `VERCEL_TOKEN`/`SUPABASE_ACCESS_TOKEN` env), pick the project on each side. Identifiers land in gitignored `.spfn/cloud.json`; tokens go to the keychain |
+| `cloud limits` | The free-plan limits (constants verified against the official docs, date shown) — works before `link` |
+| `cloud usage` | Current usage: Vercel billing feed (rolling 30 days), Supabase DB size + last-24h API requests |
+| `cloud status` | Usage measured against the limits on one screen; items at ≥80% get a migration warning |
+| `cloud keepalive` | Daily cron hitting `/api/backend/_core/health?detailed=true` (the detailed check runs a DB query, which is what prevents the ~7-idle-day pause). Vercel cron by default; `--github-actions --url <deployed-url>` for a workflow instead |
+| `cloud env pull` | Supabase keys → local: project URL + anon key into `.env.local`, service-role key into the keychain (`.env.server` gets a reference). `--db-url` also composes `DATABASE_URL` (prompts for the DB password) |
+| `cloud env push KEY…` | Push local env values to the Vercel project env by name. Values resolve from `.env`/`.env.local`/`.env.server`+keychain; everything is sent encrypted except `NEXT_PUBLIC_*` |
+
+Free-tier behavior worth knowing (also printed by `cloud limits`): Vercel Hobby
+allows one cron at most once per day and pauses a capability when its rolling
+30-day limit is hit (it never bills); Supabase Free quota is summed per
+organization (except DB size), and org totals like egress/MAU have no public API —
+`cloud status` shows per-item numbers and points at the dashboard for the rest.
+Hobby is limited to personal, non-commercial use — a monetized app needs Vercel Pro
+or a migration off the free tier.
 
 ### `spfn setup icons`
 

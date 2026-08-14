@@ -45,6 +45,12 @@ Three things to know:
 If you use the Vercel Supabase integration, the adapter maps the injected `POSTGRES_URL`
 onto `DATABASE_URL` for you.
 
+Deploying on the free tiers (Vercel Hobby + Supabase Free)? `spfn cloud` manages
+them: `cloud status` shows usage against the plan limits, `cloud keepalive` stops
+the Supabase project from pausing when idle, and `cloud env pull`/`push` move keys
+between the providers and your local env without printing a value. See
+[CLI → spfn cloud](/docs/packages/cli#spfn-cloud).
+
 The rest of this guide covers the **always-on** path.
 
 ## Prerequisites
