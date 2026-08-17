@@ -41,7 +41,7 @@ export interface FakeReleaseSpec
     edgesFrom?: string[];
     /** Packages that carry migrations. */
     withMigrations?: boolean;
-    status?: 'stable' | 'revoked';
+    status?: 'active' | 'superseded' | 'revoked';
 }
 
 export interface FakeWorldOptions
@@ -336,7 +336,7 @@ export class FakeKitWorld
                 sequence: spec.sequence,
                 releaseClass: (spec.releaseClass ?? 'feature') as KitCatalogRelease['releaseClass'],
                 manifestUrl: `https://packages.superfunction.xyz/kits/landing-kit/manifests/${spec.version}`,
-                status: spec.status ?? 'stable',
+                status: spec.status ?? 'active',
             },
         };
     }

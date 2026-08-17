@@ -1,0 +1,22 @@
+{
+    "schemaVersion": 1,
+    "document": {
+        "schemaVersion": 1,
+        "kitId": "campaign-landing",
+        "sequence": 4,
+        "releases": [
+            {
+                "version": "1.0.0",
+                "sequence": 1,
+                "releaseClass": "feature",
+                "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
+                "status": "active"
+            }
+        ]
+    },
+    "signature": {
+        "keyId": "landing-kit-release-2026",
+        "algorithm": "ed25519",
+        "value": "U3ludGhldGljRml4dHVyZVNpZ25hdHVyZU5vdFByb2R1Y2VkQnlBbnlSZWFsS2V5QUFBQUFBQUFBQUFBQUFBQUFBQUE="
+    }
+}

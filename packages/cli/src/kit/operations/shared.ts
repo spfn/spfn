@@ -52,15 +52,19 @@ export async function resolveRelease(
 {
     const catalog = await verifiedCatalog(adapters, catalogUrl);
     const target = options.release === undefined
-        ? latestStableRelease(catalog)
+        ? latestActiveRelease(catalog)
         : catalog.releases.find(release => release.version === options.release);
 
     if (target === undefined)
     {
         throw new KitError('KIT_MANIFEST_INVALID', 'The catalog does not offer that release.', {
-            evidence: { requested: options.release ?? 'latest-stable', kitId: catalog.kitId },
+            evidence: { requested: options.release ?? 'latest-active', kitId: catalog.kitId },
         });
     }
+
+    /* Only `revoked` is refused. A superseded release named explicitly is a
+       legitimate rebuild of something already installed, so it passes here and
+       is filtered out only where a release gets chosen automatically. */
     if (target.status === 'revoked')
     {
         throw new KitError('KIT_MANIFEST_INVALID', 'That release has been withdrawn.', {
@@ -125,20 +129,28 @@ export async function verifiedManifest(adapters: KitAdapters, manifestUrl: strin
     return readManifest(checked.document);
 }
 
-export function latestStableRelease(catalog: KitCatalogView)
+/**
+ * The newest release a client may be pointed at without being asked.
+ *
+ * Only `active` qualifies. A `superseded` release is still installable by exact
+ * version — an entitled client has to be able to rebuild what it already runs —
+ * but choosing one on a client's behalf would hand it a release the catalog has
+ * already stopped recommending.
+ */
+export function latestActiveRelease(catalog: KitCatalogView)
 {
-    const stable = catalog.releases
-        .filter(release => release.status === 'stable')
+    const active = catalog.releases
+        .filter(release => release.status === 'active')
         .sort((left, right) => right.sequence - left.sequence);
 
-    if (stable.length === 0)
+    if (active.length === 0)
     {
-        throw new KitError('KIT_MANIFEST_INVALID', 'The catalog offers no stable release.', {
+        throw new KitError('KIT_MANIFEST_INVALID', 'The catalog offers no active release.', {
             evidence: { kitId: catalog.kitId, releases: catalog.releases.length },
         });
     }
 
-    return stable[0];
+    return active[0];
 }
 
 /** A directory that does not exist, or exists and holds nothing. */

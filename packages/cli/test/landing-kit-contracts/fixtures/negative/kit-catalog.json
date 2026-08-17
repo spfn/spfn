@@ -1,0 +1,46 @@
+{
+    "schemaVersion": 1,
+    "schema": "kit-catalog.v1",
+    "cases": [
+        {
+            "negativeCaseId": "N-CATALOG-01",
+            "reason": "The retired Wave 1 status `stable`. Unit 05 section 2.2 is the approved vocabulary — active, superseded, revoked — and this case exists so the temporary pair cannot quietly come back: a client that met `stable` would have to guess whether it meant active or superseded, and those differ on whether the release may be chosen automatically.",
+            "caseIds": ["A10", "D10"],
+            "expectedInvalidPointers": ["/releases/0/status"],
+            "value": {
+                "schemaVersion": 1,
+                "kitId": "campaign-landing",
+                "sequence": 4,
+                "releases": [
+                    {
+                        "version": "1.0.0",
+                        "sequence": 1,
+                        "releaseClass": "feature",
+                        "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
+                        "status": "stable"
+                    }
+                ]
+            }
+        },
+        {
+            "negativeCaseId": "N-CATALOG-02",
+            "reason": "A release points at a plain-http manifest URL. The manifest is fetched before its signature can be checked, so the transport has to be the trusted one.",
+            "caseIds": ["A2", "F4"],
+            "expectedInvalidPointers": ["/releases/0/manifestUrl"],
+            "value": {
+                "schemaVersion": 1,
+                "kitId": "campaign-landing",
+                "sequence": 4,
+                "releases": [
+                    {
+                        "version": "1.0.0",
+                        "sequence": 1,
+                        "releaseClass": "feature",
+                        "manifestUrl": "http://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
+                        "status": "stable"
+                    }
+                ]
+            }
+        }
+    ]
+}

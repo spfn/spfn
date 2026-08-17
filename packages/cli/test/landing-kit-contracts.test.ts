@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { readCatalog } from '../src/kit/ports.js';
+import { verifySignedDocument } from '../src/kit/signature.js';
+import { latestActiveRelease } from '../src/kit/operations/shared.js';
 // @ts-expect-error - plain ESM, held byte-identically in three repositories.
 import { runConformance } from './landing-kit-contracts/conformance/run.mjs';
 
@@ -29,10 +32,12 @@ const CONTRACTS_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'landi
 
 /** spfn-course and capabilities pin this same value. Three different values
  *  would mean three repositories reading three different contracts. */
-const FROZEN_CONTRACT_SET_DIGEST = 'sha256:033b0c06924effe3c10af3a498a18f9be389f971ef306535ec442c9cc5b47894';
+const FROZEN_CONTRACT_SET_DIGEST = 'sha256:26c77d6f6b623e81a1145fe984e8db9d1dfbba904ac82a11170898385145f374';
 
 const EXPECTED_CONTRACTS = [
     'setup-descriptor-envelope',
+    'signed-document-wrapper',
+    'kit-catalog',
     'kit-operation-journal',
     'provider-operation-envelope',
 ];
@@ -174,6 +179,80 @@ describe('Landing Kit I0 contracts (CLI scope)', () =>
         const keys = Object.keys(schema.properties);
         expect(keys).not.toContain('plan');
         expect(keys).not.toContain('priceQuote');
+    });
+
+    /* I0-C2. These two contracts exist because the CLI already reads these
+       shapes. A schema that agreed with the design but not with `spfn kit`
+       would be worse than none, so the fixtures are fed to the real
+       implementation rather than only to the validator. */
+    it('feeds the wrapper fixture to the real verifier, which gets past shape to the key', () =>
+    {
+        const wrapper = readContractJson('fixtures/positive/signed-document-wrapper.json');
+        const checked = verifySignedDocument(wrapper, [
+            { keyId: 'landing-kit-release-2026', publicKey: 'not-a-real-key' },
+        ]);
+
+        /* The signature value is synthetic, so verification must fail — but it
+           has to fail at the crypto step, which is only reachable once every
+           shape check has passed. */
+        expect(checked.ok).toBe(false);
+        expect(checked.keyId).toBe('landing-kit-release-2026');
+        expect(checked.reason).toBe('signature could not be verified with the trusted key');
+    });
+
+    it('rejects each negative wrapper for the reason the fixture states', () =>
+    {
+        const cases = readContractJson('fixtures/negative/signed-document-wrapper.json').cases;
+        const byId = (id: string) => cases.find((entry: { negativeCaseId: string }) => entry.negativeCaseId === id);
+        const keys = [{ keyId: 'landing-kit-release-2026', publicKey: 'not-a-real-key' }];
+
+        const wrongAlgorithm = verifySignedDocument(byId('N-SIGNED-01').value, keys);
+        expect(wrongAlgorithm.ok).toBe(false);
+        expect(wrongAlgorithm.reason).toBe('signature algorithm is not ed25519');
+
+        /* An unsigned sibling is a schema-level rejection: the verifier only
+           covers `document`, so the wrapper schema is what has to refuse the
+           extra key. Both layers together are the guarantee. */
+        const unsignedSibling = byId('N-SIGNED-02');
+        expect(unsignedSibling.expectedInvalidPointers).toEqual(['/unsignedNote']);
+        expect(verifySignedDocument(unsignedSibling.value, keys).ok).toBe(false);
+    });
+
+    it('reads the catalog fixture into the view the CLI actually uses', () =>
+    {
+        const catalog = readCatalog(readContractJson('fixtures/positive/kit-catalog.json'));
+
+        expect(catalog).not.toBeNull();
+        expect(catalog!.kitId).toBe('campaign-landing');
+        expect(catalog!.sequence).toBe(4);
+        expect(catalog!.releases).toHaveLength(3);
+
+        // Unit 05 section 2.2: the newest active release wins. The superseded
+        // one stays in the catalog so an entitled client can rebuild that exact
+        // version, but it is never chosen on a client's behalf; the revoked one
+        // is never offered at all.
+        expect(catalog!.releases.map(release => release.status))
+            .toEqual(['superseded', 'active', 'revoked']);
+
+        const latest = latestActiveRelease(catalog!);
+        expect(latest.version).toBe('1.1.0');
+        expect(latest.status).toBe('active');
+    });
+
+    it('keeps the catalog contract to the fields the CLI reads', () =>
+    {
+        const schema = readContractJson('schemas/kit-catalog.v1.schema.json');
+
+        expect(schema.required).toEqual(['schemaVersion', 'kitId', 'sequence', 'releases']);
+        expect(Object.keys(schema.properties.releases.items.properties).sort())
+            .toEqual(['manifestUrl', 'releaseClass', 'sequence', 'status', 'version']);
+
+        // Open on purpose: a real signed snapshot carries more than this view.
+        expect(schema.additionalProperties).toBeUndefined();
+
+        // kitId stays generic — the CLI installs whatever Kit the descriptor names.
+        expect(schema.properties.kitId.const).toBeUndefined();
+        expect(schema.properties.kitId.type).toBe('string');
     });
 
     it('requires an approval digest behind an external write', () =>

@@ -1,0 +1,28 @@
+{
+    "schemaVersion": 1,
+    "kitId": "campaign-landing",
+    "sequence": 4,
+    "releases": [
+        {
+            "version": "1.0.0",
+            "sequence": 1,
+            "releaseClass": "feature",
+            "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
+            "status": "superseded"
+        },
+        {
+            "version": "1.1.0",
+            "sequence": 2,
+            "releaseClass": "maintenance",
+            "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.1.0",
+            "status": "active"
+        },
+        {
+            "version": "1.0.1",
+            "sequence": 3,
+            "releaseClass": "security",
+            "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.1",
+            "status": "revoked"
+        }
+    ]
+}
