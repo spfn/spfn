@@ -1,0 +1,136 @@
+/**
+ * The machine-readable failure vocabulary of `spfn kit` (unit 06 section 8.3).
+ *
+ * A Kit command never fails with a stack trace and a number: it fails with a
+ * stable code an agent can branch on, and an exit code that says what class of
+ * thing went wrong. The two tables below are the whole contract — the code list
+ * is closed, and every code maps to exactly one exit code.
+ *
+ * The codes are the CLI surface of the frozen `kit-error-vocabulary` contract.
+ * Adding one here without adding it there would give an agent a code no other
+ * repository can read, so the list is asserted against the design in
+ * `test/kit/errors.test.ts`.
+ */
+
+/** Exit codes, unit 06 section 8.3. */
+export const KIT_EXIT = {
+    /** Completed, or an idempotent no-op. */
+    OK: 0,
+    /** Waiting for human input or an exact plan approval. */
+    INPUT_REQUIRED: 2,
+    /** Recoverable operation failure — `spfn kit resume` can continue it. */
+    RESUMABLE: 3,
+    /** Refused before any write: drift, compatibility or entitlement. */
+    REFUSED: 4,
+    /** An external provider or the control plane is unavailable. */
+    UNAVAILABLE: 5,
+    /** CLI and manifest speak different protocol versions. */
+    INCOMPATIBLE: 10,
+} as const;
+
+export type KitExitCode = (typeof KIT_EXIT)[keyof typeof KIT_EXIT];
+
+/** Every failure code a `spfn kit` command may return, and its exit code. */
+export const KIT_ERROR_EXIT = {
+    KIT_SETUP_URL_INVALID: KIT_EXIT.REFUSED,
+    KIT_MANIFEST_INVALID: KIT_EXIT.REFUSED,
+    KIT_CLI_INCOMPATIBLE: KIT_EXIT.INCOMPATIBLE,
+    KIT_LICENSE_REQUIRED: KIT_EXIT.INPUT_REQUIRED,
+    KIT_CREDENTIAL_MISSING: KIT_EXIT.REFUSED,
+    KIT_CREDENTIAL_STALE: KIT_EXIT.REFUSED,
+    KIT_ENTITLEMENT_EXPIRED: KIT_EXIT.REFUSED,
+    KIT_PROJECT_LIMIT: KIT_EXIT.REFUSED,
+    KIT_TARGET_NOT_EMPTY: KIT_EXIT.REFUSED,
+    KIT_WORKTREE_DIRTY: KIT_EXIT.REFUSED,
+    KIT_LOCK_INVALID: KIT_EXIT.REFUSED,
+    KIT_MANAGED_DRIFT: KIT_EXIT.REFUSED,
+    KIT_UNSUPPORTED_RESOLUTION: KIT_EXIT.REFUSED,
+    KIT_UNSUPPORTED_IMPORT: KIT_EXIT.REFUSED,
+    KIT_UPDATE_EDGE_MISSING: KIT_EXIT.REFUSED,
+    KIT_OPERATION_ACTIVE: KIT_EXIT.REFUSED,
+    KIT_RESUME_MISMATCH: KIT_EXIT.RESUMABLE,
+    KIT_GUIDE_UNAVAILABLE: KIT_EXIT.UNAVAILABLE,
+    KIT_GUIDE_INCOMPATIBLE: KIT_EXIT.REFUSED,
+    KIT_GATE_FAILED: KIT_EXIT.RESUMABLE,
+    KIT_MIGRATION_FAILED: KIT_EXIT.RESUMABLE,
+    KIT_DEPLOY_FAILED: KIT_EXIT.RESUMABLE,
+} as const;
+
+export type KitErrorCode = keyof typeof KIT_ERROR_EXIT;
+
+/**
+ * Codes this build may emit that are *not* Kit failures.
+ *
+ * `CLI_` names sit outside the frozen `KIT_` vocabulary on purpose: the Kit
+ * vocabulary is closed and shared across three repositories, so a condition it
+ * has no code for gets a name that cannot be mistaken for one. Both mean "this
+ * machine could not reach the service", which is exit 5.
+ */
+export const CLI_ONLY_ERROR_EXIT = {
+    /** The control-plane client is not in this build (arrives with I4c). */
+    CLI_CONTROL_PLANE_CLIENT_ABSENT: KIT_EXIT.UNAVAILABLE,
+    /** The control plane answered nothing usable. */
+    CLI_CONTROL_PLANE_UNAVAILABLE: KIT_EXIT.UNAVAILABLE,
+} as const;
+
+export type CliOnlyErrorCode = keyof typeof CLI_ONLY_ERROR_EXIT;
+
+export const CLI_CONTROL_PLANE_CLIENT_ABSENT = 'CLI_CONTROL_PLANE_CLIENT_ABSENT';
+
+/** What the agent may safely run next, printed with the failure. */
+export interface KitNextAction
+{
+    command: string;
+    requiresHumanApproval: boolean;
+    approvalDigest?: string;
+}
+
+export interface KitErrorInit
+{
+    /** Secret-free facts about the failure. Never a token, key or raw body. */
+    evidence?: Record<string, string | number | boolean | null>;
+    next?: KitNextAction;
+    operationId?: string;
+    phase?: string;
+    cause?: unknown;
+}
+
+/**
+ * A refusal with a code an agent can act on.
+ *
+ * `summary` is written for a person; `evidence` carries the machine-readable
+ * facts. Neither ever holds a secret — the journal, the events and this error
+ * all pass through the same rule.
+ */
+export class KitError extends Error
+{
+    readonly code: KitErrorCode | CliOnlyErrorCode;
+    readonly exitCode: number;
+    readonly evidence: Record<string, string | number | boolean | null>;
+    readonly next?: KitNextAction;
+    readonly operationId?: string;
+    readonly phase?: string;
+
+    constructor(
+        code: KitErrorCode | CliOnlyErrorCode,
+        summary: string,
+        init: KitErrorInit = {},
+    )
+    {
+        super(summary, init.cause === undefined ? undefined : { cause: init.cause });
+        this.name = 'KitError';
+        this.code = code;
+        this.exitCode = code in CLI_ONLY_ERROR_EXIT
+            ? CLI_ONLY_ERROR_EXIT[code as CliOnlyErrorCode]
+            : KIT_ERROR_EXIT[code as KitErrorCode];
+        this.evidence = init.evidence ?? {};
+        this.next = init.next;
+        this.operationId = init.operationId;
+        this.phase = init.phase;
+    }
+}
+
+export function isKitError(value: unknown): value is KitError
+{
+    return value instanceof KitError;
+}

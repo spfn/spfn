@@ -9,12 +9,20 @@
 import { execa } from 'execa';
 import { KEYCHAIN_SERVICE, type SecretStore } from './index.js';
 
-const ATTRS = (name: string): string[] => ['service', KEYCHAIN_SERVICE, 'account', name];
+const ATTRS = (service: string, name: string): string[] => ['service', service, 'account', name];
 
 export class LinuxSecretToolStore implements SecretStore
 {
     readonly id = 'linux-secret-tool';
     readonly label = 'libsecret (secret-tool)';
+
+    /** The secret-service attribute the items live under. */
+    private readonly service: string;
+
+    constructor(service: string = KEYCHAIN_SERVICE)
+    {
+        this.service = service;
+    }
 
     async isAvailable(): Promise<boolean>
     {
@@ -39,7 +47,7 @@ export class LinuxSecretToolStore implements SecretStore
     {
         try
         {
-            const { stdout } = await execa('secret-tool', ['lookup', ...ATTRS(name)]);
+            const { stdout } = await execa('secret-tool', ['lookup', ...ATTRS(this.service, name)]);
 
             return stdout;
         }
@@ -53,7 +61,7 @@ export class LinuxSecretToolStore implements SecretStore
     {
         await execa(
             'secret-tool',
-            ['store', '--label', `spfn ${name}`, ...ATTRS(name)],
+            ['store', '--label', `spfn ${name}`, ...ATTRS(this.service, name)],
             { input: value },
         );
     }
@@ -62,7 +70,7 @@ export class LinuxSecretToolStore implements SecretStore
     {
         try
         {
-            await execa('secret-tool', ['clear', ...ATTRS(name)]);
+            await execa('secret-tool', ['clear', ...ATTRS(this.service, name)]);
         }
         catch
         {
