@@ -32,7 +32,7 @@ const CONTRACTS_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'landi
 
 /** spfn-course and capabilities pin this same value. Three different values
  *  would mean three repositories reading three different contracts. */
-const FROZEN_CONTRACT_SET_DIGEST = 'sha256:26c77d6f6b623e81a1145fe984e8db9d1dfbba904ac82a11170898385145f374';
+const FROZEN_CONTRACT_SET_DIGEST = 'sha256:7e1819231c2f04e2b1024a8dd0df4c064a462161b7cefbe8d07d4bb48f98b35f';
 
 const EXPECTED_CONTRACTS = [
     'setup-descriptor-envelope',
@@ -239,13 +239,32 @@ describe('Landing Kit I0 contracts (CLI scope)', () =>
         expect(latest.status).toBe('active');
     });
 
+    it('carries replacementVersion through the view without acting on it', () =>
+    {
+        const catalog = readCatalog(readContractJson('fixtures/positive/kit-catalog.json'));
+        const revoked = catalog!.releases.find(release => release.status === 'revoked');
+
+        // I0-C4: the field survives the read, so a report can say what to move
+        // to rather than only that the release is gone.
+        expect(revoked!.replacementVersion).toBe('1.1.0');
+
+        /* It changes no selection. The newest active release is still what a
+           client gets offered, and a replacement named by a revoked entry
+           neither promotes nor demotes anything. */
+        expect(latestActiveRelease(catalog!).version).toBe('1.1.0');
+        expect(catalog!.releases.filter(release => release.replacementVersion !== undefined)).toHaveLength(1);
+    });
+
     it('keeps the catalog contract to the fields the CLI reads', () =>
     {
         const schema = readContractJson('schemas/kit-catalog.v1.schema.json');
 
         expect(schema.required).toEqual(['schemaVersion', 'kitId', 'sequence', 'releases']);
         expect(Object.keys(schema.properties.releases.items.properties).sort())
-            .toEqual(['manifestUrl', 'releaseClass', 'sequence', 'status', 'version']);
+            .toEqual(['manifestUrl', 'releaseClass', 'replacementVersion', 'sequence', 'status', 'version']);
+        // replacementVersion is the one optional field; the rest are the floor.
+        expect(schema.properties.releases.items.required)
+            .toEqual(['version', 'sequence', 'releaseClass', 'manifestUrl', 'status']);
 
         // Open on purpose: a real signed snapshot carries more than this view.
         expect(schema.additionalProperties).toBeUndefined();

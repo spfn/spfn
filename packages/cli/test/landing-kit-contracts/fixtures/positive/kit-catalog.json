@@ -22,7 +22,8 @@
             "sequence": 3,
             "releaseClass": "security",
             "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.1",
-            "status": "revoked"
+            "status": "revoked",
+            "replacementVersion": "1.1.0"
         }
     ]
 }

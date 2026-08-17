@@ -263,7 +263,7 @@ loaded `.env` chain.
 | `db generate` (`g`) | Generate migrations from schema changes (timestamp-prefixed) |
 | `db push` | Diff with Drizzle Kit's current PostgreSQL engine and apply the selected DDL atomically. Destructive changes need confirmation; `--force` applies them, `--dry-run` previews |
 | `db migrate` (`m`) | Run pending migrations. `--with-backup` snapshots first |
-| `db status` | Show which migrations are applied and which are pending, for the project and for each installed function package |
+| `db status` | Show which migrations are applied and which are pending, for the project and for each installed function package. `--json` prints one machine-readable report instead |
 | `db studio` | Open Drizzle Studio. `-p, --port` (auto-finds a free port) |
 | `db check` | Verify the database connection |
 | `db drop` | Drop all tables — **destructive**, double-prompts (see [Pitfalls](#pitfalls)) |
@@ -579,6 +579,13 @@ arrives the same way — one scaffold archive, verified against the manifest's i
 before a single file is expanded, and refused outright if it names a path that would leave
 the project directory or overwrite a file that is already there.
 
+**Release files are paid content, and are fetched as such.** Managed files, agent packs and
+the scaffold archive go out with the same bearer the private registry takes, and a refusal
+comes back in the same vocabulary — so "this machine's credential has been replaced" never
+arrives disguised as "that file is missing". The setup descriptor, the release catalog and
+the manifests stay public and carry no bearer: they are locators and promises about a
+release, and nothing anyone paid for is inside them.
+
 **Credentials rotate before they expire, not after.** A local credential opens the registry
 for a limited window. When that window is close to closing, the CLI asks the control plane
 for a replacement and writes it to the keychain *before* using it — a rotation that was not
@@ -591,26 +598,43 @@ them means someone else's machine changed.
 `security -i` and nothing else. It also means a keychain item can hold a value a quoted
 command line could not have carried at all, such as a multi-line key.
 
-Six of the ten places `spfn kit` touches the outside world are real in this build: signed
-catalogs and manifests, licence activation, credential rotation, the registry proxy,
-release artifacts and the scaffold. The four that remain are local process work — running
-the install, the migrations, the release's gates and Git — so `install`, `restore` and
-`update` still report `CLI_CONTROL_PLANE_CLIENT_ABSENT` (exit 5) until an integration
-supplies those and registers the whole set through the exported `setKitAdapterFactory` and
-`createKitRemotePorts`. `status` and `check` work either way: an unreachable remote never
-hides local state, so they read the lock, the license file, the drift and the open
-operation from disk and report everything else as `unknown`.
+**Machine-local state stays local.** `spfn kit` writes `.spfn/.gitignore` covering
+`operations/` the moment it creates that directory — in its own directory, never in the
+project's root `.gitignore`, which belongs to the customer. Without it a release whose
+scaffold forgot the rule would commit an operation journal and a lock naming the machine's
+hostname and process id.
+
+All ten places `spfn kit` touches the outside world are real implementations now. Six reach
+the network or a release artifact — signed catalogs and manifests, licence activation,
+credential rotation, the registry proxy, release artifacts and the scaffold — and four run
+something on this machine: `pnpm install --frozen-lockfile`, the migrations through
+`spfn db status --json` and `spfn db migrate`, the release's gates as the project's own
+scripts, and Git for `init`, `status` and the first commit. Nothing else: no remote is
+added and nothing is pushed.
+
+What still stops a real install is the trust root. The list of keys this CLI will accept a
+signed release from is **empty in this build**, because the release signing key is not
+published yet — so every signed document fails verification with `KIT_MANIFEST_INVALID`,
+which is the correct behaviour for a CLI that cannot yet tell a real release from a forged
+one. `SPFN_KIT_TRUSTED_KEYS` supplies a list for a staging run or a release rehearsal, as a
+JSON array of `{ "keyId", "publicKey" }` with base64 SPKI keys. It *replaces* the built-in
+list rather than adding to it.
 
 `SPFN_KIT_CONTROL_PLANE_URL` and `SPFN_KIT_REGISTRY_URL` point a project that has *not yet
 been activated* at a staging or local control plane. They are ignored once it has: the
 addresses a checkout recorded when it was licensed are the addresses it keeps, so a stray
 shell variable cannot move an activated project onto another service.
 
+`status` and `check` never depend on any of it: an unreachable remote must not hide local
+state, so they read the lock, the license file, the drift and the open operation from disk
+and report everything else as `unknown`.
+
 The command surface, journal, lock, keychain, verification and the whole install →
-activation → exact frozen install → restore path are exercised in `test/kit/` — the remote
+activation → exact frozen install → restore path are exercised in `test/kit/`: the remote
 half against a loopback HTTP fixture answering with the licence service's and the registry
 proxy's own statuses and error bodies, the scaffold against real archives on real temporary
-directories, and the local half against fakes.
+directories, and one integration case that runs the whole install with pnpm resolving from
+a registry on 127.0.0.1, the gate as a real child process and a real Git commit at the end.
 
 ---
 

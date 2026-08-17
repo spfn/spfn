@@ -243,7 +243,11 @@ export class HttpRegistryPort implements RegistryPort
         const record = {
             credential: response.body.credential,
             accessExpiresAt: String(response.body.accessExpiresAt ?? ''),
-            generation: generation + 1,
+            // The server's number, never a local guess. A generation counted on
+            // this machine drifts the moment another machine rotates too, and a
+            // credential this machine calls generation 3 while the server calls
+            // it 5 is a credential believed current that is not.
+            generation: readGeneration(response.body, generation + 1),
         };
 
         // Saved before it is handed out. A credential the package manager is
@@ -289,9 +293,10 @@ function activated(body: Record<string, unknown>): ActivationResult
         status: 'activated',
         activationId: String(body.activationId ?? ''),
         accessExpiresAt: String(body.accessExpiresAt ?? ''),
-        // The activation response carries no generation; a fresh activation is
-        // the first one this machine holds, which is generation 1.
-        generation: 1,
+        // The server's generation for the credential it just accepted. The
+        // fallback covers a control plane that predates the field, where the
+        // only credential this activation has ever had is its first.
+        generation: readGeneration(body, 1),
         detail: {
             // The server names the client after the credential it was given.
             // Reported rather than adopted: the keychain account is a local
@@ -302,6 +307,21 @@ function activated(body: Record<string, unknown>): ActivationResult
             updatesUntil: String(body.updatesUntil ?? ''),
         },
     };
+}
+
+/**
+ * The credential generation a control-plane answer states.
+ *
+ * One reader for every answer that carries one — activation, rotation, and the
+ * recovery completion that will use the same field — so a build cannot end up
+ * trusting the server's count in one path and its own arithmetic in another.
+ * The fallback is only for a control plane that has not started sending it.
+ */
+export function readGeneration(body: Record<string, unknown> | null, fallback: number): number
+{
+    const value = body?.generation;
+
+    return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
 /** The licence error code a failed answer carries, or `unknown`. */

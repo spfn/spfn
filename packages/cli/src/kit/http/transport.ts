@@ -38,6 +38,8 @@ export interface KitHttpResponse
     status: number;
     /** Parsed JSON, or null when the body was absent or not JSON. */
     body: Record<string, unknown> | null;
+    /** The `Location` header, for a caller that follows redirects itself. */
+    location?: string;
 }
 
 export interface KitHttpRequest
@@ -49,6 +51,14 @@ export interface KitHttpRequest
     /** Bearer credential for the registry proxy. Never logged. */
     bearer?: string;
     accept?: string;
+    /**
+     * `manual` hands a redirect back instead of following it.
+     *
+     * The setup descriptor needs that: every hop of a setup link is re-checked
+     * against the origin allowlist, and a redirect `fetch` followed on its own
+     * is a hop that nothing checked.
+     */
+    redirect?: 'follow' | 'manual';
 }
 
 /**
@@ -61,11 +71,12 @@ export interface KitHttpRequest
 export async function requestJson(request: KitHttpRequest, options: KitHttpOptions = {}): Promise<KitHttpResponse>
 {
     const response = await send(request, options);
+    const location = response.headers.get('location') ?? undefined;
     const text = await readCapped(response, request);
 
     if (text.length === 0)
     {
-        return { status: response.status, body: null };
+        return { status: response.status, body: null, location };
     }
 
     try
@@ -77,11 +88,12 @@ export async function requestJson(request: KitHttpRequest, options: KitHttpOptio
             body: typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
                 ? parsed as Record<string, unknown>
                 : null,
+            location,
         };
     }
     catch
     {
-        return { status: response.status, body: null };
+        return { status: response.status, body: null, location };
     }
 }
 
@@ -140,7 +152,7 @@ async function send(request: KitHttpRequest, options: KitHttpOptions): Promise<R
             headers,
             body: request.json === undefined ? undefined : JSON.stringify(request.json),
             signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
-            redirect: 'follow',
+            redirect: request.redirect ?? 'follow',
         });
     }
     catch (error)

@@ -194,6 +194,23 @@ describe('table A — refusals that write nothing', () =>
     });
 });
 
+describe('what an install leaves for Git', () =>
+{
+    it('ignores its own per-machine operation state from the moment it exists', async () =>
+    {
+        const world = new FakeKitWorld();
+
+        await runInstall(installRequest(world), world.adapters);
+
+        // Written by the CLI into its own directory, never into the customer's
+        // root .gitignore — and present whatever the release's scaffold ships.
+        const ignore = readFileSync(join(target, '.spfn', '.gitignore'), 'utf8');
+
+        expect(ignore).toContain('operations/');
+        expect(existsSync(join(target, '.spfn', 'operations'))).toBe(true);
+    });
+});
+
 describe('table A — activation refused', () =>
 {
     it('writes no scaffold when the license key is rejected', async () =>

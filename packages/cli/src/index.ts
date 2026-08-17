@@ -16,6 +16,8 @@ import { opsCommand } from './commands/ops/index.js';
 import { secretCommand } from './commands/secret/index.js';
 import { cloudCommand } from './commands/cloud/index.js';
 import { kitCommand } from './commands/kit/index.js';
+import { setKitAdapterFactory } from './kit/adapters.js';
+import { createLiveKitAdapters } from './kit/live-adapters.js';
 import { getCliVersion } from './utils/version.js';
 
 // Export types
@@ -55,22 +57,21 @@ program.addCommand(cloudCommand);
 program.addCommand(kitCommand);
 
 /**
- * The Kit ports that are already real, and the seam they plug into.
+ * The Kit ports, wired.
  *
- * `spfn kit` reaches the outside world through one injected set of ports. Six
- * of them — signed documents, the licence control plane, credential rotation,
- * the registry proxy, release artifacts and the scaffold, plus the exact-graph
- * proof that runs in front of the package manager — are built here and shipped.
- * The four that remain are local process work: installing, migrating, running
- * the release's gates and Git. An integration run supplies those and registers
- * the whole set with `setKitAdapterFactory`.
- *
- * Exported rather than wired in place, because a half-wired factory would make
- * `spfn kit install` claim a client it cannot finish the job with. Until all
- * ten ports are real the command reports `CLI_CONTROL_PLANE_CLIENT_ABSENT`,
- * which is the true statement about this build.
+ * `spfn kit` reaches the outside world through one injected set of ports, and
+ * all ten are real implementations now: signed documents, licence activation,
+ * credential rotation, the registry proxy, release artifacts and the scaffold
+ * on one side; the package manager, the database, the release's gates and Git
+ * on the other. Registering the factory here rather than inside the Kit module
+ * keeps the seam a seam — a test replaces the whole set with one call, and
+ * `setKitAdapterFactory(null)` still means "this run has no client", which is
+ * how the read-only commands prove they survive an unreachable remote.
  */
+setKitAdapterFactory(async request => createLiveKitAdapters(request));
+
 export { setKitAdapterFactory, type KitAdapterFactory } from './kit/adapters.js';
+export { createLiveKitAdapters, type LiveKitAdapterOptions } from './kit/live-adapters.js';
 export {
     createKitRemotePorts,
     resolveKitEndpoints,
@@ -83,6 +84,16 @@ export {
     type KitRemotePorts,
     type KitRemotePortsOptions,
 } from './kit/http/index.js';
+export {
+    createKitLocalPorts,
+    PnpmPackageManagerPort,
+    SpfnDatabasePort,
+    CommandGatePort,
+    SystemGitPort,
+    type KitLocalPorts,
+    type KitLocalPortsOptions,
+} from './kit/local/index.js';
+export { resolveTrustedKeys, TRUSTED_KEYS_ENV, BUILT_IN_TRUSTED_KEYS } from './kit/trusted-keys.js';
 export type { KitAdapters } from './kit/ports.js';
 
 export async function run(): Promise<void>

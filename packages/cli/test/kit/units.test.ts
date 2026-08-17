@@ -676,6 +676,29 @@ describe('the child environment and secret hygiene', () =>
         expect(npmrc).not.toMatch(/_authToken\s*=\s*spfn/);
     });
 
+    it('spells the auth key exactly as the registry is addressed, trailing slash and all', () =>
+    {
+        // npm and pnpm match a stored credential against the registry URI as
+        // written: `//host/npm` does not open `//host/npm/`, and the token is
+        // simply never sent — an unauthorized install with the credential
+        // sitting right there in the file.
+        expect(registryNpmrc('@spfn', 'https://packages.superfunction.xyz/npm/'))
+            .toContain('//packages.superfunction.xyz/npm/:_authToken=');
+        expect(registryNpmrc('@spfn', 'https://packages.superfunction.xyz/npm'))
+            .toContain('//packages.superfunction.xyz/npm/:_authToken=');
+    });
+
+    it('names every scope the release publishes under, not only the first', () =>
+    {
+        const npmrc = registryNpmrc(['@spfn', '@superfunction', '@spfn'], 'https://packages.superfunction.xyz/npm/');
+
+        expect(npmrc).toContain('@spfn:registry=');
+        expect(npmrc).toContain('@superfunction:registry=');
+        // Once each: a duplicated line is not wrong, but it is a sign the
+        // caller's list was not deduplicated and the next one might not be.
+        expect(npmrc.match(/@spfn:registry=/g)).toHaveLength(1);
+    });
+
     it('finds the secret shapes this product mints, wherever they are hiding', () =>
     {
         expect(scanTextForSecrets('key spfnl_abcd1234 leaked')).toHaveLength(1);

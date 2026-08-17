@@ -12,6 +12,7 @@
  */
 
 import { generateKeyPairSync, sign as signBytes, createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { canonicalJson, sha256Digest } from '../../src/kit/digest.js';
@@ -408,7 +409,10 @@ export class FakeKitWorld
             return existing.integrity;
         }
 
-        const bytes = buildTar({ 'package/package.json': `${JSON.stringify({ name, version }, null, 4)}\n` });
+        // A real npm tarball: gzipped, with everything under `package/`. A
+        // package manager run against this fixture unpacks it for real, so a
+        // shape only this repository's own reader accepts would not do.
+        const bytes = npmTarball(name, version);
         const integrity = sriOf(bytes);
 
         this.packageTarballs.push({ name, version, bytes, integrity });
@@ -743,6 +747,30 @@ function fakeIntegrity(seed: string): string
 export function sriOf(bytes: Uint8Array, algorithm: 'sha256' | 'sha512' = 'sha512'): string
 {
     return `${algorithm}-${createHash(algorithm).update(bytes).digest('base64')}`;
+}
+
+/**
+ * A publishable npm tarball for a package that does nothing.
+ *
+ * `main` points at a file that exists, and `sideEffects: false` keeps a bundler
+ * from looking for anything else — enough for a package manager to install it
+ * and for a project to depend on it.
+ */
+export function npmTarball(name: string, version: string): Uint8Array
+{
+    const manifest = {
+        name,
+        version,
+        main: 'index.js',
+        type: 'module',
+        sideEffects: false,
+        license: 'UNLICENSED',
+    };
+
+    return new Uint8Array(gzipSync(Buffer.from(buildTar({
+        'package/package.json': `${JSON.stringify(manifest, null, 2)}\n`,
+        'package/index.js': `export const name = ${JSON.stringify(name)};\n`,
+    }))));
 }
 
 /** The base a release scaffolds when the spec does not name its own. */

@@ -214,9 +214,22 @@ export function registryEntitlementProbe(
     };
 }
 
+/** Produces the bearer a release artifact is fetched with, or null. */
+export type ArtifactCredentialResolver = () => Promise<string | null>;
+
 /**
  * Release artifacts — managed files, agent packs, scaffold archives — fetched
  * from the release store the catalog lives in.
+ *
+ * An artifact is paid content, so the store authenticates it exactly as the npm
+ * proxy does: the same bearer, the same refusal codes. That makes a refusal
+ * here a statement about *this machine's credential* rather than about the
+ * file, and the two send an agent to completely different next steps — only
+ * one of them is `spfn kit recover`.
+ *
+ * The setup descriptor, the catalog and the manifests stay public and are
+ * fetched without a bearer. They are locators and promises about a release;
+ * nothing anyone paid for is inside them.
  *
  * No digest is checked here, and that is not an omission: the caller holds the
  * digest the *signed manifest* declared, and checking it anywhere else would
@@ -226,13 +239,17 @@ export class HttpArtifactPort implements ArtifactPort
 {
     private readonly resolveBase: () => string;
     private readonly http: KitHttpOptions;
+    private readonly credential: ArtifactCredentialResolver | null;
 
     /**
      * `baseUrl` may be a function because the release store is only known once
      * the operation has a catalog URL — which is a fact about the release being
      * installed, not about the machine installing it.
      */
-    constructor(options: KitHttpOptions & { baseUrl: string | (() => string) })
+    constructor(options: KitHttpOptions & {
+        baseUrl: string | (() => string);
+        credential?: ArtifactCredentialResolver;
+    })
     {
         const base = options.baseUrl;
 
@@ -240,20 +257,85 @@ export class HttpArtifactPort implements ArtifactPort
             ? () => `${base.replace(/\/+$/, '')}/`
             : () => `${base().replace(/\/+$/, '')}/`;
         this.http = { fetchImpl: options.fetchImpl, timeoutMs: options.timeoutMs };
+        this.credential = options.credential ?? null;
     }
 
     async fetch(artifact: string): Promise<Uint8Array>
     {
         const url = artifactUrl(this.resolveBase(), artifact);
-        const call = { method: 'GET' as const, url, accept: 'application/octet-stream' };
+        const credential = this.credential === null ? null : await this.credential();
+
+        if (credential === null)
+        {
+            throw new KitError('KIT_CREDENTIAL_MISSING', 'This machine has no credential to fetch release files with.', {
+                evidence: { artifact },
+                next: { command: 'spfn kit recover --json', requiresHumanApproval: false },
+            });
+        }
+
+        const call = { method: 'GET' as const, url, accept: 'application/octet-stream', bearer: credential };
         const response = await requestBytes(call, MAX_TARBALL_BYTES, this.http);
 
+        if (response.status === 401 || response.status === 403)
+        {
+            throw artifactRefusal(response.status, reasonFromBytes(response.bytes), artifact);
+        }
         if (response.status !== 200)
         {
             throw unavailable(call, 'artifact-not-served', { status: response.status });
         }
 
         return response.bytes;
+    }
+}
+
+/**
+ * A refused artifact, in the vocabulary the rest of the CLI branches on.
+ *
+ * The store answers with the npm proxy's own codes, and each already has a Kit
+ * error that means the same thing — so this is a table rather than a judgement,
+ * and the server's own slug travels on as evidence for the cases where two of
+ * its codes had to be rounded to one of ours.
+ */
+export function artifactRefusal(status: number, reason: string, artifact: string): KitError
+{
+    const evidence = { artifact, status, reason };
+    const next = { command: 'spfn kit recover --json', requiresHumanApproval: false };
+
+    if (status === 403)
+    {
+        // `license-revoked` and `activation-deactivated`: the credential is
+        // this machine's own, and it is no longer entitled to anything.
+        return new KitError('KIT_ENTITLEMENT_EXPIRED', 'This licence no longer covers the release\'s files.', {
+            evidence,
+        });
+    }
+    if (reason === 'credential-malformed')
+    {
+        return new KitError('KIT_CREDENTIAL_MISSING', 'The release store did not accept this machine\'s credential.', {
+            evidence,
+            next,
+        });
+    }
+
+    // `credential-rejected`: the control plane holds a credential for this
+    // activation, and it is not the one this machine just presented.
+    return new KitError('KIT_CREDENTIAL_STALE', 'This machine\'s credential is no longer the current one.', {
+        evidence,
+        next,
+    });
+}
+
+/** The `{ "error": "<slug>" }` a refusal carries, read out of raw bytes. */
+function reasonFromBytes(bytes: Uint8Array): string
+{
+    try
+    {
+        return proxyReason(JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>);
+    }
+    catch
+    {
+        return 'unknown';
     }
 }
 

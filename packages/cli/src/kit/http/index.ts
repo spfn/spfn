@@ -30,6 +30,8 @@ import {
     registryEntitlementProbe,
 } from './registry.js';
 import { RegistryVerifyingPackageManager } from './package-manager.js';
+import { createHttpSetupFetcher } from './setup.js';
+import type { SetupFetcher } from '../setup-descriptor.js';
 import type { KitHttpOptions } from './transport.js';
 
 /** Where a Kit's services live when nothing says otherwise. */
@@ -97,6 +99,8 @@ export interface KitRemotePortsOptions extends KitHttpOptions
 
 export interface KitRemotePorts
 {
+    /** Fetches the setup descriptor, one allowlist-checked hop at a time. */
+    setupFetcher: SetupFetcher;
     catalog: HttpCatalogPort;
     license: HttpLicensePort;
     registry: HttpRegistryPort;
@@ -112,24 +116,42 @@ export function createKitRemotePorts(options: KitRemotePortsOptions): KitRemoteP
     const http: KitHttpOptions = { fetchImpl: options.fetchImpl, timeoutMs: options.timeoutMs };
     const catalog = new HttpCatalogPort(http);
     const registryClient = new KitRegistryProxyClient({ ...http, registryUrl: options.endpoints.registryUrl });
+    // Release files are paid content, so they are fetched with the same bearer
+    // the npm proxy takes. It comes from the licence file the activation step
+    // wrote — which is why nothing fetches an artifact before then.
+    const credentialForCheckout = async (): Promise<string | null> =>
+    {
+        const license = readLicenseFile(kitPaths(options.projectDir).licenseFile);
+
+        if (license === null)
+        {
+            return null;
+        }
+
+        const record = await options.credentials.read({
+            kitId: license.kitId,
+            activationId: license.activationId,
+            localClientId: license.localClientId,
+        });
+
+        return record?.credential ?? null;
+    };
     const artifacts = new HttpArtifactPort({
         ...http,
         baseUrl: () => artifactBaseFromCatalogUrl(requireCatalogUrl(options.projectDir)),
+        credential: credentialForCheckout,
     });
     const probe = registryEntitlementProbe(registryClient, async request =>
     {
-        const credential = await options.credentials.read({
-            kitId: request.kitId,
-            activationId: request.activationId,
-            localClientId: readLicenseFile(kitPaths(options.projectDir).licenseFile)?.localClientId ?? '',
-        });
+        const credential = await credentialForCheckout();
 
         return credential === null
             ? null
-            : { packageName: kitPackageName(request.kitId), credential: credential.credential };
+            : { packageName: kitPackageName(request.kitId), credential };
     });
 
     return {
+        setupFetcher: createHttpSetupFetcher(http),
         catalog,
         license: new HttpLicensePort({ ...http, baseUrl: options.endpoints.controlPlaneUrl }, probe),
         registry: new HttpRegistryPort({

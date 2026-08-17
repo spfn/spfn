@@ -210,7 +210,7 @@ export class KitHttpFixture
             }
             if (url.pathname.startsWith('/kits/'))
             {
-                this.handleReleaseStore(response, url);
+                this.handleReleaseStore(request, response, url);
 
                 return;
             }
@@ -389,29 +389,56 @@ export class KitHttpFixture
             localClientId: localPublicId(replacement),
             credential: replacement,
             accessExpiresAt: this.expiry(),
+            generation: found.client.generation + 1,
         });
     }
 
-    private handleRegistry(request: IncomingMessage, response: ServerResponse, url: URL): void
+    /**
+     * The bearer check the npm proxy and the release store both apply.
+     *
+     * One implementation for both, because the contract says they answer with
+     * the same codes — and a fixture that spelled them separately would let a
+     * client pass against one and fail against the other in production.
+     */
+    private authorize(request: IncomingMessage, response: ServerResponse): string | null
     {
-        const authorization = request.headers.authorization ?? '';
-        const match = /^Bearer +(\S+)$/i.exec(authorization);
+        const match = /^Bearer +(\S+)$/i.exec(request.headers.authorization ?? '');
 
         if (match === null)
         {
             sendProxyError(response, 401, 'credential-malformed');
 
-            return;
+            return null;
         }
 
         const accepted = this.acceptCredential(match[1]);
 
-        if (accepted !== 'ok')
+        if (accepted === 'ok')
         {
-            sendProxyError(response, accepted === 'deactivated' ? 403 : 401, accepted === 'deactivated'
-                ? 'activation-deactivated'
-                : 'credential-rejected');
+            return match[1];
+        }
+        if (accepted === 'deactivated')
+        {
+            sendProxyError(response, 403, 'activation-deactivated');
 
+            return null;
+        }
+        if (accepted === 'revoked')
+        {
+            sendProxyError(response, 403, 'license-revoked');
+
+            return null;
+        }
+
+        sendProxyError(response, 401, accepted === 'malformed' ? 'credential-malformed' : 'credential-rejected');
+
+        return null;
+    }
+
+    private handleRegistry(request: IncomingMessage, response: ServerResponse, url: URL): void
+    {
+        if (this.authorize(request, response) === null)
+        {
             return;
         }
         if (this.faults.registryBroken)
@@ -486,7 +513,14 @@ export class KitHttpFixture
         response.end(bytes);
     }
 
-    private handleReleaseStore(response: ServerResponse, url: URL): void
+    /**
+     * The release store: public locators, paid files.
+     *
+     * The catalog and the manifests say which releases exist and what is in
+     * them, and are served to anyone. The artifacts *are* the product, so they
+     * take the same bearer and answer with the same refusals as the npm proxy.
+     */
+    private handleReleaseStore(request: IncomingMessage, response: ServerResponse, url: URL): void
     {
         const rest = url.pathname.split('/').slice(3).join('/');
 
@@ -512,6 +546,13 @@ export class KitHttpFixture
             return;
         }
 
+        // Checked before the file is even looked for, so a refusal cannot leak
+        // which artifacts a release happens to have.
+        if (this.authorize(request, response) === null)
+        {
+            return;
+        }
+
         const artifact = this.release.artifacts[decodeURIComponent(rest)];
 
         if (artifact === undefined)
@@ -528,14 +569,22 @@ export class KitHttpFixture
         response.end(Buffer.from(artifact));
     }
 
-    /** Whether a bearer may read the registry right now, and why not. */
-    private acceptCredential(credential: string): 'ok' | 'rejected' | 'deactivated'
+    /**
+     * Whether a bearer may read paid content right now, and why not.
+     *
+     * `malformed` and `rejected` are separated the way the service separates
+     * them: a bearer that is not a credential at all is a client that built the
+     * request wrong, while a well-formed credential the control plane no longer
+     * calls current is a machine that needs to recover. Only the second is
+     * worth telling a customer about.
+     */
+    private acceptCredential(credential: string): 'ok' | 'malformed' | 'rejected' | 'deactivated' | 'revoked'
     {
         const publicId = localPublicId(credential);
 
         if (publicId === null)
         {
-            return 'rejected';
+            return 'malformed';
         }
 
         const found = this.findClient(publicId);
@@ -543,6 +592,10 @@ export class KitHttpFixture
         if (found === null || found.client.credentialHash !== hashOf(credential) || found.client.status !== 'current')
         {
             return 'rejected';
+        }
+        if (this.licenses.get(found.activation.licenseKey)?.revoked === true)
+        {
+            return 'revoked';
         }
         if (found.activation.deactivated)
         {
@@ -576,6 +629,7 @@ export class KitHttpFixture
             installationId: activation.installationId,
             localClientId: client.publicId,
             accessExpiresAt: client.accessExpiresAt,
+            generation: client.generation,
             kitId: license.kitId,
             projectLimit: license.projectLimit,
             updatesUntil: license.updatesUntil,
