@@ -12,6 +12,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { sha256Digest } from './digest.js';
+import { readAgentPackRecord } from './agent-pack.js';
 import type { InstalledKitLockV1 } from './installed-state.js';
 
 export interface ManagedDriftEntry
@@ -29,12 +30,38 @@ export function fileDigest(root: string, relativePath: string): string | null
     return existsSync(file) ? sha256Digest(readFileSync(file)) : null;
 }
 
+/**
+ * The Agent Pack's targets: one file, or every file of an expanded tree.
+ *
+ * A pack that expanded has no file at the manifest's `path` — the digest there
+ * covers the archive, not anything on disk — so the comparison moves to the
+ * record the expansion wrote. A checkout whose record is missing is reported as
+ * drift on the root itself rather than passing silently: "the pack is gone" and
+ * "the pack is fine" must not look the same.
+ */
+function agentPackTargets(root: string, lock: InstalledKitLockV1): { path: string; expected: string }[]
+{
+    if (lock.agentPack.root === undefined)
+    {
+        return [{ path: lock.agentPack.path, expected: lock.agentPack.targetDigest }];
+    }
+
+    const record = readAgentPackRecord(root);
+
+    if (record === null)
+    {
+        return [{ path: lock.agentPack.root, expected: lock.agentPack.targetDigest }];
+    }
+
+    return Object.entries(record.files).map(([path, expected]) => ({ path, expected }));
+}
+
 /** Every managed file whose bytes no longer match the installed lock. */
 export function detectManagedDrift(root: string, lock: InstalledKitLockV1): ManagedDriftEntry[]
 {
     const targets = [
         ...lock.managedResources.map(resource => ({ path: resource.path, expected: resource.targetDigest })),
-        { path: lock.agentPack.path, expected: lock.agentPack.targetDigest },
+        ...agentPackTargets(root, lock),
     ];
 
     return targets
@@ -52,7 +79,10 @@ export function managedDigests(root: string, lock: InstalledKitLockV1): Record<s
         digests[resource.path] = fileDigest(root, resource.path);
     }
 
-    digests[lock.agentPack.path] = fileDigest(root, lock.agentPack.path);
+    for (const target of agentPackTargets(root, lock))
+    {
+        digests[target.path] = fileDigest(root, target.path);
+    }
 
     return digests;
 }

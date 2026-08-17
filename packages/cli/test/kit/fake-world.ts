@@ -47,6 +47,8 @@ export interface FakeReleaseSpec
     status?: 'active' | 'superseded' | 'revoked';
     /** What the release's scaffold archive holds: path → content. */
     scaffoldFiles?: Record<string, string>;
+    /** What the release's Agent Pack archive holds: path → content. */
+    agentPackFiles?: Record<string, string>;
 }
 
 export interface FakeWorldOptions
@@ -286,9 +288,15 @@ export class FakeKitWorld
                 ownership: 'managed-bridge' as const,
             };
         });
-        const agentPackArtifact = `artifact/${spec.version}/AGENTS.md`;
+        // The Agent Pack is an archive the CLI expands, the same judgement the
+        // release harness applies: a release's guides, schemas and checklists
+        // are a directory, not one document.
+        const agentPackArtifact = `artifact/${spec.version}/agent-pack.tar`;
+        const agentPackFiles = spec.agentPackFiles
+            ?? { 'agents-block.md': agentPackContent, 'guides/install.md': `# Install ${spec.version}\n` };
+        const agentPackBytes = buildTar(agentPackFiles);
 
-        this.artifacts.set(agentPackArtifact, Buffer.from(agentPackContent, 'utf8'));
+        this.artifacts.set(agentPackArtifact, agentPackBytes);
 
         // A real ustar archive, so a real scaffold port has something to expand
         // and a real integrity to check it against.
@@ -342,7 +350,7 @@ export class FakeKitWorld
                 path: 'AGENTS.md',
                 role: 'agent-pack',
                 artifact: agentPackArtifact,
-                targetDigest: sha256Digest(agentPackContent),
+                targetDigest: sha256Digest(agentPackBytes),
                 ownership: 'managed-document',
                 version: spec.version,
                 managedBlockDigests: { install: sha256Digest(`install-block-${spec.version}`) },

@@ -33,7 +33,21 @@ export interface KitAgentPackTarget extends KitManagedResource
     ownership: 'managed-document';
     version: string;
     managedBlockDigests: Record<string, string>;
+    /**
+     * Where the pack's tree is expanded, project-relative.
+     *
+     * The Agent Pack travels as an archive of a release's workflow — guides,
+     * schemas, checklists — not as one document, so it needs a directory
+     * rather than a path. The manifest contract does not carry the field yet,
+     * so it is read when present and defaulted when not; the default is the
+     * CLI's own state directory, because a release's workflow files are not
+     * customer source and must not land among it.
+     */
+    root: string;
 }
+
+/** Where an Agent Pack expands when the release does not say. */
+export const DEFAULT_AGENT_PACK_ROOT = '.spfn/agent-pack';
 
 export interface KitPackageEntry
 {
@@ -238,6 +252,15 @@ function readAgentPack(value: unknown, refuse: (reason: string, field: string) =
         refuse('malformed-target-digest', '/agentPack/targetDigest');
     }
 
+    const root = entry?.root === undefined ? DEFAULT_AGENT_PACK_ROOT : String(entry.root);
+
+    // The same rule the managed paths get: this is a directory the CLI is
+    // about to write a whole tree into, so it may not leave the project.
+    if (!PATH_PATTERN.test(root) || root.split('/').includes('..'))
+    {
+        refuse('unsafe-agent-pack-root', '/agentPack/root');
+    }
+
     return {
         path,
         role: String(entry?.role ?? 'agent-pack'),
@@ -246,6 +269,7 @@ function readAgentPack(value: unknown, refuse: (reason: string, field: string) =
         ownership: 'managed-document',
         version: String(entry?.version ?? ''),
         managedBlockDigests: (entry?.managedBlockDigests as Record<string, string>) ?? {},
+        root,
     };
 }
 

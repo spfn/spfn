@@ -16,6 +16,7 @@
 import { KitError, KIT_EXIT } from './../errors.js';
 import { createEventSink, type KitOperationResult } from './../events.js';
 import { detectManagedDrift, fileDigest } from './../drift.js';
+import { readAgentPackRecord, writeAgentPackRecord } from './../agent-pack.js';
 import { JournalStore } from './../journal.js';
 import { acquireOperationLock } from './../lock.js';
 import { kitPaths } from './../paths.js';
@@ -32,7 +33,28 @@ import {
     requireCredential,
     resolveRelease,
     runLocalGates,
+    type MaterializeTarget,
 } from './shared.js';
+
+/**
+ * What this checkout currently holds at a managed path.
+ *
+ * For a managed bridge that is the file's own digest. The Agent Pack has no
+ * file at its path — it expanded into a directory — so what it currently holds
+ * is the archive digest the expansion recorded. Reading the directory as a file
+ * would report every project as drifted the moment the pack became a tree.
+ */
+function installedDigestOf(projectDir: string, path: string, agentPackPath: string): string | null
+{
+    if (path !== agentPackPath)
+    {
+        return fileDigest(projectDir, path);
+    }
+
+    const record = readAgentPackRecord(projectDir);
+
+    return record === null ? fileDigest(projectDir, path) : record.targetDigest;
+}
 
 export interface UpdateRequest
 {
@@ -266,7 +288,7 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
                         continue;
                     }
 
-                    const actual = fileDigest(projectDir, change.path);
+                    const actual = installedDigestOf(projectDir, change.path, manifest.agentPack.path);
 
                     // The edge says which bytes it was authored against. If the
                     // file is not those bytes, the transform is being applied to
@@ -280,16 +302,47 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
                 }
 
                 const changed = new Set(options.plan.managedChanges.map(change => change.path));
-                const written = await materializeTargets(adapters, projectDir, [
-                    ...manifest.managedResources,
-                    manifest.agentPack,
-                ]
+                const targets: MaterializeTarget[] = manifest.managedResources
                     .filter(resource => changed.has(resource.path))
                     .map(resource => ({
                         path: resource.path,
                         artifact: resource.artifact,
                         targetDigest: resource.targetDigest,
-                    })));
+                    }));
+
+                // The pack is an archive, so it is expanded rather than
+                // written — the same judgement install applies.
+                if (changed.has(manifest.agentPack.path))
+                {
+                    targets.push({
+                        path: manifest.agentPack.path,
+                        artifact: manifest.agentPack.artifact,
+                        targetDigest: manifest.agentPack.targetDigest,
+                        kind: 'tree',
+                        root: manifest.agentPack.root,
+                    });
+                }
+
+                // Drift was refused before this update started, so every
+                // managed file holds the previous release's bytes and replacing
+                // them applies the approved plan rather than losing an edit.
+                const written = await materializeTargets(adapters, projectDir, targets, { existing: 'replace' });
+
+                if (changed.has(manifest.agentPack.path))
+                {
+                    const prefix = `${manifest.agentPack.root.replace(/\/+$/, '')}/`;
+
+                    writeAgentPackRecord(projectDir, {
+                        schemaVersion: 1,
+                        version: manifest.agentPack.version,
+                        artifact: manifest.agentPack.artifact,
+                        targetDigest: manifest.agentPack.targetDigest,
+                        root: manifest.agentPack.root,
+                        files: Object.fromEntries(
+                            Object.entries(written).filter(([path]) => path.startsWith(prefix)),
+                        ),
+                    });
+                }
 
                 return { kind: 'done', evidence: written };
             },
@@ -301,6 +354,19 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
 
                 for (const change of options.plan.managedChanges)
                 {
+                    // The pack contributes the files it expanded to, so this
+                    // has the shape the step itself returned — which is what a
+                    // resume compares it against.
+                    if (change.path === manifest.agentPack.path)
+                    {
+                        for (const path of Object.keys(readAgentPackRecord(projectDir)?.files ?? {}))
+                        {
+                            digests[path] = fileDigest(projectDir, path);
+                        }
+
+                        continue;
+                    }
+
                     digests[change.path] = fileDigest(projectDir, change.path);
                 }
 

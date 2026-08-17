@@ -195,7 +195,7 @@ describe('table B — clean clone and credentials', () =>
 
         const clone = cleanClone();
 
-        writeFileSync(join(clone, 'AGENTS.md'), '# edited by hand\n', 'utf8');
+        writeFileSync(join(clone, '.spfn/agent-pack/agents-block.md'), '# edited by hand\n', 'utf8');
 
         const result = await runRestore({ projectDir: clone, json: true, write: silent }, world.adapters);
 
@@ -230,7 +230,7 @@ describe('table C — plan', () =>
 
         await install(world);
         world.publish(R1);
-        writeFileSync(join(target, 'AGENTS.md'), '# edited by hand\n', 'utf8');
+        writeFileSync(join(target, '.spfn/agent-pack/agents-block.md'), '# edited by hand\n', 'utf8');
 
         const planned = await runUpdate({ projectDir: target, planOnly: true, json: true, write: silent }, world.adapters);
 

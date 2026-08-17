@@ -10,10 +10,11 @@
  * describes.
  */
 
-import { mkdirSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { KitError } from './../errors.js';
 import { sha256Digest } from './../digest.js';
+import { expandArchive } from './../expand.js';
 import { createChildEnv } from './../child-env.js';
 import { readManifest, assertManifestCliCompatible, type KitReleaseManifestView } from './../manifest.js';
 import { readCatalog, type KitAdapters, type KitCatalogView } from './../ports.js';
@@ -176,20 +177,43 @@ export interface MaterializeTarget
     path: string;
     artifact: string;
     targetDigest: string;
+    /**
+     * What the artifact's bytes are.
+     *
+     * `file` — the bytes *are* the managed file, written as they arrived. That
+     * is every managed bridge: a route, a config, a component.
+     *
+     * `tree` — the bytes are an archive to expand, the way the scaffold is.
+     * The Agent Pack is one: a release's guides, schemas and checklists are a
+     * directory, and a directory cannot be written as a file however carefully
+     * it is digested.
+     *
+     * The declared digest covers the *archive* either way, so a tree is proven
+     * before it is opened exactly as a file is proven before it is written.
+     */
+    kind?: 'file' | 'tree';
+    /** Where a `tree` is expanded, project-relative. Unused for a file. */
+    root?: string;
 }
 
 /**
  * Write release artifacts into the project and prove each one is what the
  * manifest said it would be.
  *
- * The digest is checked *before* the bytes are written, not after. A file that
- * fails the check has then never existed on disk, so there is nothing to clean
- * up and no window in which a wrong file was importable.
+ * The digest is checked *before* anything is written, not after. An artifact
+ * that fails the check has then never touched the disk, so there is nothing to
+ * clean up and no window in which the wrong bytes were readable.
+ *
+ * Re-entrant, because a resume comes back through here after a materialize
+ * that stopped partway: a file already holding exactly the bytes this target
+ * would write counts as done, and one holding anything else is refused with
+ * the file left alone.
  */
 export async function materializeTargets(
     adapters: KitAdapters,
     projectDir: string,
     targets: readonly MaterializeTarget[],
+    options: { existing?: 'verify' | 'replace' } = {},
 ): Promise<Record<string, string>>
 {
     const written: Record<string, string> = {};
@@ -206,14 +230,60 @@ export async function materializeTargets(
             });
         }
 
-        const file = join(projectDir, target.path);
+        if (target.kind === 'tree')
+        {
+            const expanded = expandArchive(bytes, {
+                targetDir: projectDir,
+                root: target.root,
+                artifact: target.artifact,
+                existing: options.existing,
+            });
 
-        mkdirSync(dirname(file), { recursive: true });
-        writeFileSync(file, bytes);
+            Object.assign(written, expanded.files);
+
+            continue;
+        }
+
         written[target.path] = digest;
+        writeManagedFile(join(projectDir, target.path), target.path, bytes, digest, options.existing);
     }
 
     return written;
+}
+
+/**
+ * One managed file, written unless it is already exactly this file.
+ *
+ * The comparison is what makes a resume possible. Overwriting unconditionally
+ * would work for a resume too — the bytes are identical — but it would also
+ * silently replace an edit somebody made, and this cannot tell the two apart
+ * without looking.
+ */
+function writeManagedFile(
+    file: string,
+    path: string,
+    bytes: Uint8Array,
+    digest: string,
+    existing: 'verify' | 'replace' = 'verify',
+): void
+{
+    if (existsSync(file) && existing !== 'replace')
+    {
+        const actual = sha256Digest(readFileSync(file));
+
+        if (actual === digest)
+        {
+            return;
+        }
+
+        throw new KitError('KIT_TARGET_NOT_EMPTY', 'A managed file is already there with different contents.', {
+            evidence: { path, expected: digest, actual },
+            next: { command: 'spfn kit status --json', requiresHumanApproval: false },
+        });
+    }
+
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, bytes);
 }
 
 export interface FrozenInstallOptions

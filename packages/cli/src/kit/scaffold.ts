@@ -23,8 +23,7 @@
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { KitError } from './errors.js';
-import { sha256Digest } from './digest.js';
-import { readTar, TarFormatError, type TarEntry } from './tar.js';
+import { expandArchive, treeDigestOf } from './expand.js';
 import { assertIntegrity } from './http/registry.js';
 import type { ArtifactPort, ScaffoldPort } from './ports.js';
 
@@ -85,8 +84,13 @@ export class ArtifactScaffoldPort implements ScaffoldPort
 
         assertIntegrity(bytes, request.scaffold.integrity, `scaffold ${request.scaffold.recipeVersion}`);
 
-        const entries = readEntries(bytes, request.scaffold);
-        const written = expand(entries, request.targetDir);
+        // Re-entrant on purpose: an install that stopped after part of the
+        // scaffold was written resumes through here, and the files already on
+        // disk are compared rather than written again.
+        const expanded = expandArchive(bytes, {
+            targetDir: request.targetDir,
+            artifact: request.scaffold.artifact,
+        });
 
         seedProjectName(request.targetDir, request.name);
         writeScaffoldRecord(request.targetDir, {
@@ -94,64 +98,10 @@ export class ArtifactScaffoldPort implements ScaffoldPort
             recipeVersion: request.scaffold.recipeVersion,
             artifact: request.scaffold.artifact,
             integrity: request.scaffold.integrity,
-            treeDigest: treeDigest(entries),
-            files: written,
+            treeDigest: treeDigestOf(expanded.files),
+            files: Object.keys(expanded.files).length,
         });
     }
-}
-
-/** The archive's entries, or a refusal naming the path that caused it. */
-function readEntries(bytes: Uint8Array, scaffold: KitScaffoldDescriptor): TarEntry[]
-{
-    try
-    {
-        return readTar(bytes);
-    }
-    catch (error)
-    {
-        if (!(error instanceof TarFormatError))
-        {
-            throw error;
-        }
-
-        throw new KitError('KIT_MANIFEST_INVALID', 'The release scaffold archive cannot be expanded.', {
-            evidence: {
-                reason: error.reason,
-                artifact: scaffold.artifact,
-                entryPath: error.entryPath,
-            },
-        });
-    }
-}
-
-/** Write every entry, refusing any path that is already taken. */
-function expand(entries: readonly TarEntry[], targetDir: string): number
-{
-    let files = 0;
-
-    for (const entry of entries)
-    {
-        const destination = join(targetDir, entry.path);
-
-        if (entry.kind === 'directory')
-        {
-            mkdirSync(destination, { recursive: true });
-
-            continue;
-        }
-        if (existsSync(destination))
-        {
-            throw new KitError('KIT_TARGET_NOT_EMPTY', 'The release scaffold would overwrite a file that already exists.', {
-                evidence: { path: entry.path },
-            });
-        }
-
-        mkdirSync(dirname(destination), { recursive: true });
-        writeFileSync(destination, entry.bytes, { mode: entry.mode === 0 ? 0o644 : entry.mode });
-        files += 1;
-    }
-
-    return files;
 }
 
 /**
@@ -227,21 +177,4 @@ export function readScaffoldRecord(targetDir: string): KitScaffoldRecordV1 | nul
     {
         return null;
     }
-}
-
-/**
- * One digest over the whole expanded tree.
- *
- * Taken over the entries rather than over the archive so that two archives that
- * expand to the same files agree — the record is about what the project got,
- * not about how it was packed.
- */
-export function treeDigest(entries: readonly TarEntry[]): string
-{
-    const lines = entries
-        .filter(entry => entry.kind === 'file')
-        .map(entry => `${entry.path}\u0000${sha256Digest(entry.bytes)}`)
-        .sort();
-
-    return sha256Digest(lines.join('\n'));
 }
