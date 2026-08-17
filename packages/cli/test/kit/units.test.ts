@@ -43,7 +43,7 @@ import { registryMetadataPath } from '../../src/kit/http/registry.js';
 import { scanTextForSecrets, scanValueForSecrets, redactSecrets } from '../../src/kit/secret-scan.js';
 import { atLeast, compareVersions, satisfiesRange } from '../../src/kit/version.js';
 import { isKitError } from '../../src/kit/errors.js';
-import { FakeKitWorld, FAKE_SETUP_URL } from './fake-world.js';
+import { FakeKitWorld, FAKE_SETUP_URL, missingExportError } from './fake-world.js';
 
 let root: string;
 
@@ -581,7 +581,7 @@ describe('product tooling', () =>
             manifest,
             load: async specifier => (specifier === '@superfunction/landing-kit/tooling'
                 ? { default: tooling(manifest.kitId) }
-                : Promise.reject(new Error('no such export'))),
+                : Promise.reject(missingExportError(specifier))),
         });
 
         expect(discovered.specifier).toBe('@superfunction/landing-kit/tooling');
@@ -591,9 +591,9 @@ describe('product tooling', () =>
     {
         expect(await asyncCodeOf(() => discoverTooling({
             manifest,
-            load: async () => 
+            load: async specifier => 
             {
-                throw new Error('no such export'); 
+                throw missingExportError(specifier); 
             },
         }))).toBe('KIT_MANIFEST_INVALID');
     });
