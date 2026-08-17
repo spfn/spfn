@@ -25,6 +25,113 @@ export const SETUP_ORIGIN_ALLOWLIST = ['https://start.superfunction.xyz'] as con
 
 export const SETUP_PATH_PREFIX = '/setup/';
 
+/**
+ * Where a certification or local run says its setup origin is.
+ *
+ * The allowlist is a trust decision, so it ships built in — the same reasoning
+ * as the signing keys. But a control plane running on someone's own machine is
+ * a legitimate origin no shipped list can name, and a certification run cannot
+ * certify a service it is not allowed to talk to. So this variable exists, and
+ * it *replaces* the built-in list rather than adding to it: a stray variable
+ * can only ever narrow what this CLI will fetch a descriptor from, down to
+ * origins the person running it chose.
+ *
+ * The format is a comma-separated list of origins — scheme, host, optional
+ * port, nothing else. A path, a query, a fragment or userinfo makes the whole
+ * variable invalid rather than being trimmed away, because an origin list that
+ * silently dropped half an entry is a list nobody actually wrote.
+ */
+export const SETUP_ALLOWLIST_ENV = 'SPFN_KIT_SETUP_ALLOWLIST';
+
+/**
+ * The only hosts this CLI will fetch a setup descriptor from over plain http,
+ * and then only when the variable above names them.
+ *
+ * Loopback and nothing else. An unencrypted fetch is readable and rewritable by
+ * anything sitting between the two machines; between two processes on one
+ * machine there is nothing to sit between them. Both names are matched
+ * literally rather than by prefix or suffix, so `127.0.0.1.evil.example` — a
+ * name that resolves wherever its owner likes — is not one of them.
+ */
+export const LOOPBACK_HTTP_HOSTS = ['localhost', '127.0.0.1'] as const;
+
+/**
+ * The origins this run may fetch a setup descriptor from.
+ *
+ * A malformed variable is refused outright rather than partly honoured: the
+ * alternative is a run that quietly allowlists whatever survived parsing.
+ */
+export function resolveSetupAllowlist(env: NodeJS.ProcessEnv = process.env): readonly string[]
+{
+    const raw = env[SETUP_ALLOWLIST_ENV];
+
+    if (typeof raw !== 'string' || raw.trim().length === 0)
+    {
+        return SETUP_ORIGIN_ALLOWLIST;
+    }
+
+    const entries = raw.split(',').map(entry => entry.trim()).filter(entry => entry.length > 0);
+    const refuse = (reason: string, entry: string): never =>
+    {
+        throw new KitError('KIT_SETUP_URL_INVALID', `${SETUP_ALLOWLIST_ENV} is not a list of setup origins.`, {
+            evidence: { reason, entry, variable: SETUP_ALLOWLIST_ENV },
+        });
+    };
+
+    if (entries.length === 0)
+    {
+        refuse('empty-list', '');
+    }
+
+    // The list is returned as `URL.origin` spellings, because that is what a
+    // setup link is compared against. Returning what the variable said would
+    // make `https://host/` and `https://host` two different allowlists.
+    const origins: string[] = [];
+
+    for (const entry of entries)
+    {
+        let url: URL;
+
+        try
+        {
+            url = new URL(entry);
+        }
+        catch
+        {
+            refuse('unparseable-origin', entry);
+
+            continue;
+        }
+
+        if (url.protocol !== 'https:' && url.protocol !== 'http:')
+        {
+            refuse('unsupported-scheme', entry);
+        }
+        if (url.username !== '' || url.password !== '')
+        {
+            refuse('has-userinfo', entry);
+        }
+        if (url.search !== '' || url.hash !== '' || (url.pathname !== '/' && url.pathname !== ''))
+        {
+            refuse('not-a-bare-origin', entry);
+        }
+        if (url.protocol === 'http:' && !isLoopbackHost(url.hostname))
+        {
+            refuse('plain-http-off-loopback', entry);
+        }
+
+        origins.push(url.origin);
+    }
+
+    return origins;
+}
+
+/** Exactly one of the two loopback names. Never a prefix or a suffix match. */
+export function isLoopbackHost(hostname: string): boolean
+{
+    return (LOOPBACK_HTTP_HOSTS as readonly string[]).includes(hostname);
+}
+
 /** Redirects are followed only inside the allowlist, and only this far. */
 export const MAX_SETUP_REDIRECTS = 3;
 
@@ -59,7 +166,7 @@ export interface SetupDescriptorV1
  * key pasted into a link would otherwise reach process arguments, shell
  * history and any log that records the command line.
  */
-export function assertAllowedSetupUrl(raw: string, allowlist: readonly string[] = SETUP_ORIGIN_ALLOWLIST): URL
+export function assertAllowedSetupUrl(raw: string, allowlist: readonly string[] = resolveSetupAllowlist()): URL
 {
     let url: URL;
 
@@ -80,8 +187,16 @@ export function assertAllowedSetupUrl(raw: string, allowlist: readonly string[] 
             evidence: { reason, origin: url.origin },
         });
     };
+    /**
+     * http is relaxed only for an origin that is *both* loopback and on the
+     * allowlist, and the two conditions are checked together for a reason: an
+     * `http://127.0.0.1` link nobody allowlisted must still fail as `not-https`
+     * exactly as it did before, or a default run would start reporting a
+     * different refusal for the same URL.
+     */
+    const onAllowlist = allowlist.includes(url.origin);
 
-    if (url.protocol !== 'https:')
+    if (url.protocol !== 'https:' && !(onAllowlist && url.protocol === 'http:' && isLoopbackHost(url.hostname)))
     {
         fail('not-https', 'A setup link must be https.');
     }
@@ -93,7 +208,7 @@ export function assertAllowedSetupUrl(raw: string, allowlist: readonly string[] 
     {
         fail('has-query-or-fragment', 'A setup link is a public locator and must carry no query or fragment.');
     }
-    if (!allowlist.includes(url.origin))
+    if (!onAllowlist)
     {
         fail('origin-not-allowlisted', 'That setup origin is not an official Superfunction setup origin.');
     }
@@ -139,7 +254,7 @@ export async function resolveSetupDescriptor(
     options: ResolveSetupDescriptorOptions,
 ): Promise<ResolvedSetupDescriptor>
 {
-    const allowlist = options.allowlist ?? SETUP_ORIGIN_ALLOWLIST;
+    const allowlist = options.allowlist ?? resolveSetupAllowlist();
     const requested = assertAllowedSetupUrl(options.setupUrl, allowlist);
     const { body, resolvedFrom } = await fetchThroughRedirects(requested, options.fetcher, allowlist);
     const checked = verifySignedDocument(body, options.trustedKeys);

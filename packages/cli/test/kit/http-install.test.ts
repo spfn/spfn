@@ -23,6 +23,7 @@ import { runInstall } from '../../src/kit/operations/install.js';
 import { runRestore } from '../../src/kit/operations/restore.js';
 import { createKitRemotePorts } from '../../src/kit/http/index.js';
 import { readScaffoldRecord } from '../../src/kit/scaffold.js';
+import { SETUP_ALLOWLIST_ENV } from '../../src/kit/setup-descriptor.js';
 import { isKitError, type KitError } from '../../src/kit/errors.js';
 import type { KitAdapters } from '../../src/kit/ports.js';
 import { FakeKitWorld } from './fake-world.js';
@@ -43,11 +44,25 @@ const KIT_ID = 'campaign-landing';
 const CONTROL_PLANE_URL = 'https://start.superfunction.xyz';
 const PACKAGES_URL = 'https://packages.superfunction.xyz';
 
+/**
+ * The setup origin a certification run is given: not the shipped one, and
+ * carrying an explicit port.
+ *
+ * Both halves of the G2 blocker meet here. The origin is reachable only because
+ * `SPFN_KIT_SETUP_ALLOWLIST` names it, and the port is acceptable only because
+ * I0-C5 widened the locator and the runtime pattern now says the same thing.
+ * It stays `https://` because the frozen envelope requires that of `setupUrl`
+ * whatever the allowlist permits — the CLI may be told to trust an origin, and
+ * still cannot accept a descriptor that names a plain-http locator.
+ */
+const SETUP_ORIGIN = 'https://certification.superfunction.xyz:8443';
+
 let fixture: KitHttpFixture;
 let world: FakeKitWorld;
 let licenseKey: string;
 let root: string;
 let target: string;
+let previousAllowlist: string | undefined;
 
 beforeEach(async () =>
 {
@@ -60,16 +75,24 @@ beforeEach(async () =>
     fixture.publicRegistryUrl = `${PACKAGES_URL}/npm/`;
     world = new FakeKitWorld({
         kitId: KIT_ID,
+        // The setup link is a certification origin with a port, the way a
+        // certification run is handed one.
+        setupOrigin: SETUP_ORIGIN,
         releaseStoreUrl: `${PACKAGES_URL}/kits/${KIT_ID}`,
         registryUrl: fixture.registryUrl,
     });
 
-    // The release store serves exactly what this world signed.
+    // The store serves exactly what this world signed, descriptor included.
     fixture.release = {
+        setupDescriptors: { 'landing-kit': world.signedDescriptor() },
         catalog: world.signedCatalog(),
         manifests: { [world.latest.spec.version]: world.sign(world.latest.manifest) },
         artifacts: world.artifactStore(),
     };
+
+    // Which is only fetchable because the run says this origin is allowed.
+    previousAllowlist = process.env[SETUP_ALLOWLIST_ENV];
+    process.env[SETUP_ALLOWLIST_ENV] = SETUP_ORIGIN;
 
     for (const entry of world.packageTarballs)
     {
@@ -82,13 +105,24 @@ beforeEach(async () =>
 
 afterEach(async () =>
 {
+    if (previousAllowlist === undefined)
+    {
+        delete process.env[SETUP_ALLOWLIST_ENV];
+    }
+    else
+    {
+        process.env[SETUP_ALLOWLIST_ENV] = previousAllowlist;
+    }
+
     await fixture.stop();
     rmSync(root, { recursive: true, force: true });
 });
 
 /** Resolve a published address onto the loopback fixture, and go. */
 const mappedFetch = (url: string, init?: RequestInit): Promise<Response> => fetch(
-    url.replace(CONTROL_PLANE_URL, fixture.origin).replace(PACKAGES_URL, fixture.origin),
+    url.replace(CONTROL_PLANE_URL, fixture.origin)
+        .replace(PACKAGES_URL, fixture.origin)
+        .replace(SETUP_ORIGIN, fixture.origin),
     init,
 );
 
@@ -110,6 +144,8 @@ function adaptersFor(projectDir: string): KitAdapters
         ...world.adapters,
         controlPlaneUrl: CONTROL_PLANE_URL,
         registryUrl: fixture.registryUrl,
+        // Fetched over the socket, from the loopback origin the run allowed.
+        setupFetcher: remote.setupFetcher,
         catalog: remote.catalog,
         license: remote.license,
         registry: remote.registry,
@@ -263,6 +299,27 @@ describe('an install against real HTTP services', () =>
 
         expect(isKitError(failed) && failed.code).toBe('CLI_CONTROL_PLANE_UNAVAILABLE');
         expect(existsSync(join(target, 'package.json'))).toBe(false);
+    });
+
+    it('reaches a certification origin only because the run named it', async () =>
+    {
+        // The same install minus the one variable: the descriptor is never
+        // fetched at all, and the refusal names the origin, not the network.
+        delete process.env[SETUP_ALLOWLIST_ENV];
+
+        const failed = await install().catch(error => error as KitError);
+
+        expect(isKitError(failed) && failed.code).toBe('KIT_SETUP_URL_INVALID');
+        expect((failed as KitError).evidence.reason).toBe('origin-not-allowlisted');
+        expect(fixture.requests.filter(request => request.path.startsWith('/setup/'))).toHaveLength(0);
+
+        // Name it, and the same command runs to the end.
+        process.env[SETUP_ALLOWLIST_ENV] = SETUP_ORIGIN;
+
+        const result = await install();
+
+        expect(result.status).toBe('completed');
+        expect(fixture.requests.map(request => request.path)).toContain('/setup/landing-kit');
     });
 });
 

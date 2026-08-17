@@ -78,6 +78,14 @@ export interface FixtureFaults
 
 export interface FixtureRelease
 {
+    /**
+     * Signed setup descriptors by locator id, served from `/setup/<id>`.
+     *
+     * Public, like the catalog and the manifests: this is the link a customer
+     * is handed, and whether this origin may hand one out at all is the CLI
+     * allowlist's decision rather than the server's.
+     */
+    setupDescriptors?: Record<string, unknown>;
     catalog: unknown;
     manifests: Record<string, unknown>;
     artifacts: Record<string, Uint8Array>;
@@ -205,6 +213,12 @@ export class KitHttpFixture
             if (url.pathname.startsWith('/npm/'))
             {
                 this.handleRegistry(request, response, url);
+
+                return;
+            }
+            if (url.pathname.startsWith('/setup/'))
+            {
+                this.handleSetup(response, url);
 
                 return;
             }
@@ -511,6 +525,20 @@ export class KitHttpFixture
             'cache-control': 'private, no-store',
         });
         response.end(bytes);
+    }
+
+    private handleSetup(response: ServerResponse, url: URL): void
+    {
+        const descriptor = this.release.setupDescriptors?.[url.pathname.slice('/setup/'.length)];
+
+        if (descriptor === undefined)
+        {
+            send(response, 404, { error: 'Not found' });
+
+            return;
+        }
+
+        send(response, 200, descriptor as Record<string, unknown>);
     }
 
     /**
