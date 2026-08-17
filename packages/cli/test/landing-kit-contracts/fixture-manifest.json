@@ -1,0 +1,517 @@
+{
+    "schemaVersion": 1,
+    "contractSet": "landing-kit/i0",
+    "origin": "spfn-course/packages/landing-kit/contracts",
+    "design": "docs/product/kits/landing-kit/units",
+    "contractSetDigest": "sha256:033b0c06924effe3c10af3a498a18f9be389f971ef306535ec442c9cc5b47894",
+    "contracts": [
+        {
+            "id": "setup-descriptor-envelope",
+            "title": "Setup descriptor generic envelope",
+            "owner": "spfn",
+            "schemaVersion": 1,
+            "schema": "schemas/setup-descriptor-envelope.v1.schema.json",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ]
+        },
+        {
+            "id": "landing-kit-setup-payload",
+            "title": "Landing Kit setup payload",
+            "owner": "@superfunction/landing-kit",
+            "schemaVersion": 1,
+            "schema": "schemas/landing-kit-setup-payload.v1.schema.json",
+            "repos": [
+                "spfn-course"
+            ]
+        },
+        {
+            "id": "kit-release-manifest",
+            "title": "Kit Release Manifest and artifact identity",
+            "owner": "@superfunction/landing-kit",
+            "schemaVersion": 1,
+            "schema": "schemas/kit-release-manifest.v1.schema.json",
+            "repos": [
+                "spfn-course"
+            ]
+        },
+        {
+            "id": "kit-release-evidence",
+            "title": "Release Evidence Manifest and gate status",
+            "owner": "@superfunction/landing-kit",
+            "schemaVersion": 1,
+            "schema": "schemas/kit-release-evidence.v1.schema.json",
+            "repos": [
+                "spfn-course"
+            ]
+        },
+        {
+            "id": "kit-operation-journal",
+            "title": "Operation journal checkpoint and resume identity",
+            "owner": "spfn",
+            "schemaVersion": 1,
+            "schema": "schemas/kit-operation-journal.v1.schema.json",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ]
+        },
+        {
+            "id": "kit-error-vocabulary",
+            "title": "License, registry, CLI and cloud error vocabulary",
+            "owner": "@superfunction/landing-kit",
+            "schemaVersion": 1,
+            "schema": "schemas/kit-error-vocabulary.v1.schema.json",
+            "repos": [
+                "spfn-course"
+            ]
+        },
+        {
+            "id": "provider-operation-envelope",
+            "title": "Provider operation and target identity envelope",
+            "owner": "spfn",
+            "schemaVersion": 1,
+            "schema": "schemas/provider-operation-envelope.v1.schema.json",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ]
+        },
+        {
+            "id": "ops-modules-discovery",
+            "title": "spfn ops modules --json discovery contract",
+            "owner": "@spfn/core/ops",
+            "schemaVersion": 1,
+            "schema": "schemas/ops-modules-discovery.v1.schema.json",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ]
+        },
+        {
+            "id": "landing-report-envelope",
+            "title": "landing.* report JSON envelope",
+            "owner": "@superfunction/landing-kit/ops",
+            "schemaVersion": 1,
+            "schema": "schemas/landing-report-envelope.v1.schema.json",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ]
+        },
+        {
+            "id": "case-map",
+            "title": "Canonical fixture and case ID map",
+            "owner": "@superfunction/landing-kit",
+            "schemaVersion": 1,
+            "schema": "schemas/case-map.v1.schema.json",
+            "repos": [
+                "spfn-course"
+            ]
+        }
+    ],
+    "files": [
+        {
+            "path": "README.md",
+            "role": "doc",
+            "repos": [
+                "spfn-course",
+                "capabilities",
+                "spfn"
+            ],
+            "sha256": "sha256:39347c9d620124a306306a7944f2c59fad7a5367dd8fd2cac8568dbd07c8297b"
+        },
+        {
+            "path": "case-map.json",
+            "role": "case-map",
+            "contract": "case-map",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:787b9d726f7c2f815e4a8e4bea8ae1ded8508e17a9e68248860c276e83592235"
+        },
+        {
+            "path": "conformance/build-manifest.mjs",
+            "role": "tool",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:148f7e3a7535768f8f048dce54a09c97faeaf4032f813d686b9ba54789da5723"
+        },
+        {
+            "path": "conformance/json-schema.mjs",
+            "role": "tool",
+            "repos": [
+                "spfn-course",
+                "capabilities",
+                "spfn"
+            ],
+            "sha256": "sha256:ba975cc9ff25d5cdaff3b14b846e32703eb43cfc5a110d64238b1f2b0d406225"
+        },
+        {
+            "path": "conformance/run.mjs",
+            "role": "tool",
+            "repos": [
+                "spfn-course",
+                "capabilities",
+                "spfn"
+            ],
+            "sha256": "sha256:dcc43eee34bc5e1ffdf8bff583c3191b9813b19b1e75269c1319233aa383b5f7"
+        },
+        {
+            "path": "fixtures/negative/case-map.json",
+            "role": "negative",
+            "contract": "case-map",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:40bac4060c6038c641c3c24749a8106a6bcf39453be0d0bcf3d48b06ba068683"
+        },
+        {
+            "path": "fixtures/negative/kit-error-vocabulary.json",
+            "role": "negative",
+            "contract": "kit-error-vocabulary",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:b14d0c140706ada376cf2d60b9f2521c77368a82fef0c3ba131b9e746462dda8"
+        },
+        {
+            "path": "fixtures/negative/kit-operation-journal.json",
+            "role": "negative",
+            "contract": "kit-operation-journal",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:2f14b431fb052f70e8d97a6f2293eb0f27046f96e4a7133a633ccbccfa4c0e16"
+        },
+        {
+            "path": "fixtures/negative/kit-release-evidence.json",
+            "role": "negative",
+            "contract": "kit-release-evidence",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:d662461bc72451d77cb739edf47c2915585266df2bd7e5f23ea2f70d2e001b6b"
+        },
+        {
+            "path": "fixtures/negative/kit-release-manifest.json",
+            "role": "negative",
+            "contract": "kit-release-manifest",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:a1d2ee4790974b13a9880304efdd5ca9f54ea79c9d5d549689a413ff3540cca6"
+        },
+        {
+            "path": "fixtures/negative/landing-kit-setup-payload.json",
+            "role": "negative",
+            "contract": "landing-kit-setup-payload",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:f40a7fe822e57b2c337c56be8198d2c6fc30572a709a5cb44e1cadf0a8361dc7"
+        },
+        {
+            "path": "fixtures/negative/landing-report-envelope.json",
+            "role": "negative",
+            "contract": "landing-report-envelope",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ],
+            "sha256": "sha256:87481a9d26651efd7dce3a40eb579ce82d9642c1e9ecae8fe091549ad3fa83ec"
+        },
+        {
+            "path": "fixtures/negative/ops-modules-discovery.json",
+            "role": "negative",
+            "contract": "ops-modules-discovery",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ],
+            "sha256": "sha256:b9d1dd201ab4c5eda65aa4071c41f9d4cdad88af8d561dca2aac2389fb1fccf8"
+        },
+        {
+            "path": "fixtures/negative/provider-operation-envelope.json",
+            "role": "negative",
+            "contract": "provider-operation-envelope",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:e8ee28b8b1b13b40ae5a0c8014e6d0fa9ad3b6ad882fa3a46e777c1933c3dbd8"
+        },
+        {
+            "path": "fixtures/negative/setup-descriptor-envelope.json",
+            "role": "negative",
+            "contract": "setup-descriptor-envelope",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:771c32c62cd5244d68e9765491b7459c1f01f76b14be51357f92b0b970020495"
+        },
+        {
+            "path": "fixtures/positive/kit-error-vocabulary.json",
+            "role": "positive",
+            "contract": "kit-error-vocabulary",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:48ed47d89ea253c20920701a2b6046dfb456a604b806d372d0b23cdd9ac90358"
+        },
+        {
+            "path": "fixtures/positive/kit-operation-journal-waiting-approval.json",
+            "role": "positive",
+            "contract": "kit-operation-journal",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:16a5d906ace9224d53def4c8f8ce7231e2f00781a82408091fa16bccb27398f5"
+        },
+        {
+            "path": "fixtures/positive/kit-operation-journal-waiting-cloud.json",
+            "role": "positive",
+            "contract": "kit-operation-journal",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:dd8d04f8312a25085ad663d89874d397b265c218ee53940c5c5892935cb83708"
+        },
+        {
+            "path": "fixtures/positive/kit-operation-journal-waiting-settlement.json",
+            "role": "positive",
+            "contract": "kit-operation-journal",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:42fc7407f64e42332f2c544e4fc7c5e513b952a14fd90f7c0f39e750689b85a5"
+        },
+        {
+            "path": "fixtures/positive/kit-release-evidence-release-ready.json",
+            "role": "positive",
+            "contract": "kit-release-evidence",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:c9dc9b8d30a23ccb8a5ac81ae671e0ce94d389ceded3fac54f9d9f6b26aeee26"
+        },
+        {
+            "path": "fixtures/positive/kit-release-evidence-waiting-approval.json",
+            "role": "positive",
+            "contract": "kit-release-evidence",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:ad6847d28afc33e4958b8be3214d352d13d797c61cc7d01cfd0cb0d6e4ed1236"
+        },
+        {
+            "path": "fixtures/positive/kit-release-manifest-update.json",
+            "role": "positive",
+            "contract": "kit-release-manifest",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:6890d2bbd7672f44c95d9f271ad5482cf2c1783d5482ac5acdda31010594220f"
+        },
+        {
+            "path": "fixtures/positive/kit-release-manifest.json",
+            "role": "positive",
+            "contract": "kit-release-manifest",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:0073283d3e2956de74ac332a64c77f0e6d4645cd606df237c4cb933cedbb6bcc"
+        },
+        {
+            "path": "fixtures/positive/landing-kit-setup-payload.json",
+            "role": "positive",
+            "contract": "landing-kit-setup-payload",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:0c2eee7dd8919f16ca71df665dd04824e75fa67c7c7a8613f5cc8c7fe4123b4b"
+        },
+        {
+            "path": "fixtures/positive/landing-report-compare.json",
+            "role": "positive",
+            "contract": "landing-report-envelope",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ],
+            "sha256": "sha256:297539cf703044e876e31b9ca88c820944ca08c5643c011f33edfdcd6ecdc976"
+        },
+        {
+            "path": "fixtures/positive/landing-report-overview-open.json",
+            "role": "positive",
+            "contract": "landing-report-envelope",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ],
+            "sha256": "sha256:a23cae74977ef4916bbfd87985dd0983816c271b1724675e0333a49d5fddcc29"
+        },
+        {
+            "path": "fixtures/positive/landing-report-overview-settled.json",
+            "role": "positive",
+            "contract": "landing-report-envelope",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ],
+            "sha256": "sha256:967dbd91f2859c660789cb4544f1772b88d2d5be28d5a6324fbdecf7bde0b116"
+        },
+        {
+            "path": "fixtures/positive/ops-modules-discovery.json",
+            "role": "positive",
+            "contract": "ops-modules-discovery",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ],
+            "sha256": "sha256:a6cbd2a1b8189b9fec64e9c587324cf3c19c903ceea77aa432deb36eeb50aa2c"
+        },
+        {
+            "path": "fixtures/positive/provider-operation-envelope-applied.json",
+            "role": "positive",
+            "contract": "provider-operation-envelope",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:cbd21cb0995ff49a630f93c9b403e9a7b9c5c308dfc9cb48d093abe9b9aad8d5"
+        },
+        {
+            "path": "fixtures/positive/provider-operation-envelope-target-drift.json",
+            "role": "positive",
+            "contract": "provider-operation-envelope",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:b7f0075f6f789de32ae642dc55edb2dfe06c34a209f247d168e1ec9e812178ee"
+        },
+        {
+            "path": "fixtures/positive/provider-operation-envelope-waiting-approval.json",
+            "role": "positive",
+            "contract": "provider-operation-envelope",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:605cb81d45902422f04cadb8ec014f9d9e98d1dd08786bc7fd634d87090c532f"
+        },
+        {
+            "path": "fixtures/positive/setup-descriptor-envelope.json",
+            "role": "positive",
+            "contract": "setup-descriptor-envelope",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:bb41ef0a57f7014db5db992d8c3901edcc8d37cc8eccb114961016b4320e8ab1"
+        },
+        {
+            "path": "schemas/case-map.v1.schema.json",
+            "role": "schema",
+            "contract": "case-map",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:4dd036d3ef46121fd782156923454f259fb025b2d5b58c1d691d8c5b9aae7afe"
+        },
+        {
+            "path": "schemas/kit-error-vocabulary.v1.schema.json",
+            "role": "schema",
+            "contract": "kit-error-vocabulary",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:1e5ca2da1c68f577171fbdb2eecf6498ac5b36436181cba6facc7d54f263b6fe"
+        },
+        {
+            "path": "schemas/kit-operation-journal.v1.schema.json",
+            "role": "schema",
+            "contract": "kit-operation-journal",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:adb6ac2e835be89cc43cef5d19a2717082cbe9888fb2f56885c732c3c746423a"
+        },
+        {
+            "path": "schemas/kit-release-evidence.v1.schema.json",
+            "role": "schema",
+            "contract": "kit-release-evidence",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:b3579201b38e9d6763870ea8fbc36a8d5d46ed66aed9c3aaad1f4d0666823da1"
+        },
+        {
+            "path": "schemas/kit-release-manifest.v1.schema.json",
+            "role": "schema",
+            "contract": "kit-release-manifest",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:b5ec223dc5305a647d711a78a91a51cd6c7788830efac675d2f292b646c4e2e9"
+        },
+        {
+            "path": "schemas/landing-kit-setup-payload.v1.schema.json",
+            "role": "schema",
+            "contract": "landing-kit-setup-payload",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:8fdef379383be18b4986a6fb9af4a26bddfeb2bded70f123c5776e09aad95a49"
+        },
+        {
+            "path": "schemas/landing-report-envelope.v1.schema.json",
+            "role": "schema",
+            "contract": "landing-report-envelope",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ],
+            "sha256": "sha256:8d78264c2763fce5f01a3acc46ced857e127bfee8842e4aa25c39454d1b07a98"
+        },
+        {
+            "path": "schemas/ops-modules-discovery.v1.schema.json",
+            "role": "schema",
+            "contract": "ops-modules-discovery",
+            "repos": [
+                "spfn-course",
+                "capabilities"
+            ],
+            "sha256": "sha256:59a7f6de5e975920abcb9195ea6be29d6379ddce3a7070ad271308176ee7f1c5"
+        },
+        {
+            "path": "schemas/provider-operation-envelope.v1.schema.json",
+            "role": "schema",
+            "contract": "provider-operation-envelope",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:f18692e27e322f5752715abc9dab74d3bb6d1806acd43148bb8f51094e962d96"
+        },
+        {
+            "path": "schemas/setup-descriptor-envelope.v1.schema.json",
+            "role": "schema",
+            "contract": "setup-descriptor-envelope",
+            "repos": [
+                "spfn-course",
+                "spfn"
+            ],
+            "sha256": "sha256:0b462f57a5f89fecf0f61d72493132424ec647c1b45425618cd40ddf26fe278c"
+        }
+    ]
+}

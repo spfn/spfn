@@ -1,0 +1,42 @@
+{
+    "schemaVersion": 1,
+    "operationId": "op-2026-08-17-install-01",
+    "type": "install",
+    "kitId": "campaign-landing",
+    "sourceRelease": null,
+    "targetRelease": "1.0.0",
+    "manifestDigest": "sha256:19ccd51444b6cbe4e3bbc17589a2172beb25c9226fd397ef0de79f9fd9c0a2bb",
+    "planDigest": "sha256:e5a8456eb9270999b6376a8df9370376a897fc20a8a383fa35480055ace00408",
+    "phase": "cloud-plan",
+    "status": "waiting-cloud",
+    "checkpoints": [
+        {
+            "id": "descriptor-verified",
+            "status": "completed",
+            "evidenceDigest": "sha256:225e632322e0923ccb30396fd176926c46da6cb6a3c8add55ef3747f3f208d65",
+            "completedAt": "2026-08-17T01:21:00Z"
+        },
+        {
+            "id": "activation-complete",
+            "status": "completed",
+            "evidenceDigest": "sha256:8f1c8a9f44dc2c364acca5e638fa68a19fbf373e40a5d3074ecdf93225a287ad",
+            "completedAt": "2026-08-17T01:24:00Z"
+        },
+        {
+            "id": "install-frozen",
+            "status": "completed",
+            "evidenceDigest": "sha256:c457c4bd2f201f1633138dc40a470d03053527e95fd0a07af89301531c08ac50",
+            "completedAt": "2026-08-17T01:38:00Z"
+        },
+        {
+            "id": "waiting-cloud",
+            "status": "pending"
+        }
+    ],
+    "externalRefs": {
+        "activationId": "act-01hzlandingkite2e",
+        "sourceCommit": "323deb2d3fcc824f9a9322689b036378a0ff8660"
+    },
+    "createdAt": "2026-08-17T01:20:00Z",
+    "updatedAt": "2026-08-17T01:38:00Z"
+}

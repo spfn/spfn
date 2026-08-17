@@ -1,0 +1,82 @@
+{
+    "schemaVersion": 1,
+    "schema": "provider-operation-envelope.v1",
+    "cases": [
+        {
+            "negativeCaseId": "N-PROVIDER-01",
+            "reason": "An external write recorded as applied with no approval digest. Unit 09 section 4.2 requires an exact approved plan behind every resource-creating call.",
+            "caseIds": ["A2", "B9"],
+            "expectedInvalidPointers": ["/approvalDigest"],
+            "value": {
+                "schemaVersion": 1,
+                "operationId": "op-2026-08-17-install-05",
+                "activationId": "act-01hzlandingkite2e",
+                "provider": "vercel",
+                "action": "create",
+                "effect": "external-write",
+                "target": {
+                    "provider": "vercel",
+                    "accountId": "team_landingkite2e0001",
+                    "resourceId": "prj_landingkite2e0000",
+                    "environment": "production"
+                },
+                "planDigest": "sha256:f9df1e2433e5e6efa49ebad54f84178b57c8cb33ef23044aeb38c5171a23e440",
+                "approvalDigest": "",
+                "requestedScopes": ["project:write"],
+                "status": "applied",
+                "startedAt": "2026-08-17T01:52:00Z"
+            }
+        },
+        {
+            "negativeCaseId": "N-PROVIDER-02",
+            "reason": "Environment preview. V1 binds production only; a preview target would let a build write against a different environment than the one the customer approved.",
+            "caseIds": ["B6"],
+            "expectedInvalidPointers": ["/target/environment"],
+            "value": {
+                "schemaVersion": 1,
+                "operationId": "op-2026-08-17-install-06",
+                "activationId": "act-01hzlandingkite2e",
+                "provider": "vercel",
+                "action": "deploy",
+                "effect": "external-write",
+                "target": {
+                    "provider": "vercel",
+                    "accountId": "team_landingkite2e0001",
+                    "resourceId": "prj_landingkite2e0000",
+                    "environment": "preview"
+                },
+                "planDigest": "sha256:f9df1e2433e5e6efa49ebad54f84178b57c8cb33ef23044aeb38c5171a23e440",
+                "approvalDigest": "sha256:0c954cdfc3543d32ed78d58fbfad54b03458ef5803ed9ace71c1bb233cd6ec23",
+                "requestedScopes": ["deployment:write"],
+                "status": "applied",
+                "startedAt": "2026-08-17T01:52:00Z"
+            }
+        },
+        {
+            "negativeCaseId": "N-PROVIDER-03",
+            "reason": "A provider access token in the envelope. Provider grants live in the Keychain and never in an operation record.",
+            "caseIds": ["F1"],
+            "expectedInvalidPointers": ["/accessToken"],
+            "value": {
+                "schemaVersion": 1,
+                "operationId": "op-2026-08-17-install-07",
+                "activationId": "act-01hzlandingkite2e",
+                "provider": "supabase",
+                "action": "discover",
+                "effect": "read",
+                "target": {
+                    "provider": "supabase",
+                    "accountId": "org_landingkite2e0001",
+                    "resourceId": "abcdefghijklmnopqrst",
+                    "environment": "production"
+                },
+                "planDigest": "sha256:f9df1e2433e5e6efa49ebad54f84178b57c8cb33ef23044aeb38c5171a23e440",
+                "approvalDigest": null,
+                "requestedScopes": ["organizations:read"],
+                "status": "planned",
+                "startedAt": "2026-08-17T01:45:00Z",
+                "accessToken": "sbp_redacted"
+            }
+        }
+    ]
+}

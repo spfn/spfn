@@ -1,0 +1,30 @@
+{
+    "schemaVersion": 1,
+    "descriptorId": "landing-kit-setup-2026-08",
+    "productId": "landing-kit",
+    "productKind": "kit",
+    "issuedAt": "2026-08-17T00:00:00Z",
+    "expiresAt": "2026-09-17T00:00:00Z",
+    "setupUrl": "https://start.superfunction.xyz/setup/landing-kit",
+    "displayName": "Landing Kit",
+    "supportUrl": "https://superfunction.xyz/support/landing-kit",
+    "cli": {
+        "package": "spfn",
+        "recommendedVersion": "0.3.0-beta.5",
+        "minimumVersion": "0.3.0-beta.5"
+    },
+    "catalogUrl": "https://packages.superfunction.xyz/kits/landing-kit/catalog",
+    "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
+    "payloadKind": "landing-kit/setup-payload@1",
+    "payloadDigest": "sha256:f6e80925359a310a70f23b46b3d43aca63adba15553a12c1ee54318453608b07",
+    "payload": {
+        "schemaVersion": 1,
+        "kitId": "campaign-landing",
+        "productSku": "campaign-landing",
+        "toolingEntry": "@superfunction/landing-kit/tooling",
+        "locales": ["ko", "en"],
+        "requiredGates": ["kit-check", "typecheck", "test", "build", "db-status", "health"],
+        "guideTopics": ["install", "deploy", "landing", "update", "recover", "operations"],
+        "licenseKeyPrefix": "spfnl_"
+    }
+}
