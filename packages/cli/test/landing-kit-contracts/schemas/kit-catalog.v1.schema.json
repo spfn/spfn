@@ -28,6 +28,11 @@
                     "sequence": { "type": "integer", "minimum": 0 },
                     "releaseClass": { "enum": ["security", "maintenance", "feature", "breaking"] },
                     "manifestUrl": { "type": "string", "pattern": "^https://[a-z0-9.-]+(:[0-9]+)?(/[^\\s?#]*)?$" },
+                    "replacementVersion": {
+                        "type": "string",
+                        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)*$",
+                        "description": "Optional, from unit 05 section 2.2. Where a revoked release has a successor, this names it so a client can say what to move to instead of only that the release is gone. Carried as data; no selection logic reads it yet."
+                    },
                     "status": {
                         "enum": ["active", "superseded", "revoked"],
                         "description": "Unit 05 section 2.2, which is the approved source: active means a new install, update or rebuild may take it; superseded means it is no longer recommended automatically but an entitled client may still rebuild that exact version; revoked blocks new metadata and tarball acquisition. Selecting the latest release picks the newest active one, so a superseded release stays reachable by exact version but is never chosen on its own. Wave 1 shipped a temporary stable/revoked pair before unit 05 was consulted; I0-C3 retired it."

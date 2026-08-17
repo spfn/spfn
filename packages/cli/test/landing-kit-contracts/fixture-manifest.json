@@ -3,7 +3,7 @@
     "contractSet": "landing-kit/i0",
     "origin": "spfn-course/packages/landing-kit/contracts",
     "design": "docs/product/kits/landing-kit/units",
-    "contractSetDigest": "sha256:26c77d6f6b623e81a1145fe984e8db9d1dfbba904ac82a11170898385145f374",
+    "contractSetDigest": "sha256:7e1819231c2f04e2b1024a8dd0df4c064a462161b7cefbe8d07d4bb48f98b35f",
     "contracts": [
         {
             "id": "setup-descriptor-envelope",
@@ -235,7 +235,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:a1d2ee4790974b13a9880304efdd5ca9f54ea79c9d5d549689a413ff3540cca6"
+            "sha256": "sha256:78caa254425d610da002d4b3181a52957ac988a292d23fb0443ae5efa78ae21b"
         },
         {
             "path": "fixtures/negative/landing-kit-setup-payload.json",
@@ -304,7 +304,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:a42424452bfae72622502ab3e619eb3542d016354a893aca6a3468e59225e096"
+            "sha256": "sha256:28d4f455e8680a287546d3529cf722829f06191e8549c3140b000626f2fc9ff8"
         },
         {
             "path": "fixtures/positive/kit-error-vocabulary.json",
@@ -379,7 +379,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:0073283d3e2956de74ac332a64c77f0e6d4645cd606df237c4cb933cedbb6bcc"
+            "sha256": "sha256:92e9cb44ab920e0dadf560f996d7421e84a673b517c18ce2b1be8ef527dfb0d5"
         },
         {
             "path": "fixtures/positive/landing-kit-setup-payload.json",
@@ -497,7 +497,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:bbce15dd56eb7a495a1baa5a7b23d9f7acc182834360dbef16c491c32886fee8"
+            "sha256": "sha256:b58d3ff69503ce2787fe1bf2e720c427f64425801c302e40de5504c0e37a1c2d"
         },
         {
             "path": "schemas/kit-error-vocabulary.v1.schema.json",
@@ -534,7 +534,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:b5ec223dc5305a647d711a78a91a51cd6c7788830efac675d2f292b646c4e2e9"
+            "sha256": "sha256:112a8bebdd6dc649269770bb5981e89fe4babdb7cf13ce74f1057fd411c2977b"
         },
         {
             "path": "schemas/landing-kit-setup-payload.v1.schema.json",

@@ -48,6 +48,16 @@ export interface KitCatalogRelease
      * and tarball acquisition outright.
      */
     status: 'active' | 'superseded' | 'revoked';
+    /**
+     * Optional, from unit 05 section 2.2. Where a revoked release has a
+     * successor, this names it, so a report can say what to move to instead of
+     * only that the release is gone.
+     *
+     * Carried through the view deliberately unread. Nothing selects on it yet,
+     * and inventing that behaviour here would put a policy in the generic CLI
+     * that no approved design has decided.
+     */
+    replacementVersion?: string;
 }
 
 export interface KitCatalogView
