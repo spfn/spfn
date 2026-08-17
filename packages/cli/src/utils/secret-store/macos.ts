@@ -10,6 +10,14 @@ export class MacosKeychainStore implements SecretStore
     readonly id = 'macos-keychain';
     readonly label = 'macOS Keychain';
 
+    /** The keychain service the items live under. */
+    private readonly service: string;
+
+    constructor(service: string = KEYCHAIN_SERVICE)
+    {
+        this.service = service;
+    }
+
     async isAvailable(): Promise<boolean>
     {
         if (process.platform !== 'darwin')
@@ -36,7 +44,7 @@ export class MacosKeychainStore implements SecretStore
             // -w prints only the password to stdout.
             const { stdout } = await execa('security', [
                 'find-generic-password',
-                '-s', KEYCHAIN_SERVICE,
+                '-s', this.service,
                 '-a', name,
                 '-w',
             ]);
@@ -56,7 +64,7 @@ export class MacosKeychainStore implements SecretStore
         await execa('security', [
             'add-generic-password',
             '-U',
-            '-s', KEYCHAIN_SERVICE,
+            '-s', this.service,
             '-a', name,
             '-w', value,
         ]);
@@ -68,7 +76,7 @@ export class MacosKeychainStore implements SecretStore
         {
             await execa('security', [
                 'delete-generic-password',
-                '-s', KEYCHAIN_SERVICE,
+                '-s', this.service,
                 '-a', name,
             ]);
         }

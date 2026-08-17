@@ -1,0 +1,237 @@
+/**
+ * Where a Kit's local credential lives, and the two-step dance that puts it
+ * there (unit 06 section 3.3).
+ *
+ * The credential is stored in the OS keychain under a service of its own,
+ * `superfunction.spfn.kit`, so it is never reachable through the env-secret
+ * path that `spfn secret` uses. What is committed to the repository is only
+ * enough to *find* the item again — kit ID, activation ID, client ID — never
+ * the value and never the expiry, which changes on every rotation and would
+ * make the committed file wrong minutes after it was written.
+ *
+ * The dance matters. A first activation has no activation ID yet, so the CLI
+ * generates the credential locally, writes it under a `pending` account, and
+ * only then calls activation. If the response is lost in the network the same
+ * pending value re-drives the same idempotent call, and a second slot is never
+ * consumed. Once the server answers, the item moves to its final account. If
+ * the license is refused, the pending item is deleted.
+ */
+
+import { randomUUID } from 'node:crypto';
+import { detectStore, type SecretStore } from '../utils/secret-store/index.js';
+
+/** The keychain service Kit credentials live under. Never the env-secret one. */
+export const KIT_KEYCHAIN_SERVICE = 'superfunction.spfn.kit';
+
+export interface KitCredentialRecord
+{
+    /** The opaque local credential the control plane issued or accepted. */
+    credential: string;
+    /** When registry access from this credential stops working. */
+    accessExpiresAt: string;
+    /** Server generation. A lower one than the server's is stale. */
+    generation: number;
+}
+
+export interface KitCredentialIdentity
+{
+    kitId: string;
+    localClientId: string;
+    /** Present once the server has answered an activation. */
+    activationId?: string;
+    /** Present only while the first activation is still in flight. */
+    installationId?: string;
+}
+
+/** `<kitId>:<activationId>:<localClientId>` — the settled item. */
+export function finalAccount(kitId: string, activationId: string, localClientId: string): string
+{
+    return `${kitId}:${activationId}:${localClientId}`;
+}
+
+/** `<kitId>:pending:<installationId>:<localClientId>` — the in-flight item. */
+export function pendingAccount(kitId: string, installationId: string, localClientId: string): string
+{
+    return `${kitId}:pending:${installationId}:${localClientId}`;
+}
+
+/** Identity of the item held while a first activation is in flight. */
+export type PendingIdentity = Required<Pick<KitCredentialIdentity, 'kitId' | 'installationId' | 'localClientId'>>;
+
+/** Identity of the settled item, once the server has answered. */
+export type SettledIdentity = Required<Pick<KitCredentialIdentity, 'kitId' | 'activationId' | 'localClientId'>>;
+
+export interface KitCredentialStore
+{
+    readonly id: string;
+    isAvailable(): Promise<boolean>;
+    readPending(identity: PendingIdentity): Promise<KitCredentialRecord | null>;
+    savePending(identity: PendingIdentity, record: KitCredentialRecord): Promise<void>;
+    /** Move the pending item to its final account. Returns what was moved. */
+    promote(identity: Required<KitCredentialIdentity>, record?: KitCredentialRecord): Promise<KitCredentialRecord>;
+    read(identity: SettledIdentity): Promise<KitCredentialRecord | null>;
+    save(identity: SettledIdentity, record: KitCredentialRecord): Promise<void>;
+    remove(account: string): Promise<void>;
+}
+
+/** A client-generated credential proposal for the pending activation. */
+export function newCandidateCredential(): string
+{
+    return `lcc_${randomUUID().replace(/-/g, '')}`;
+}
+
+/**
+ * The real store: the platform keychain, under the Kit service.
+ *
+ * The record is stored as JSON so a rotation replaces value, expiry and
+ * generation together — a credential whose generation is remembered separately
+ * from its value is a credential that can be believed current after it is not.
+ */
+export class KeychainKitCredentialStore implements KitCredentialStore
+{
+    readonly id: string;
+
+    private readonly store: SecretStore;
+
+    constructor(store: SecretStore = detectStore(KIT_KEYCHAIN_SERVICE))
+    {
+        this.store = store;
+        this.id = store.id;
+    }
+
+    isAvailable(): Promise<boolean>
+    {
+        return this.store.isAvailable();
+    }
+
+    async readPending(identity: PendingIdentity): Promise<KitCredentialRecord | null>
+    {
+        return this.readAccount(pendingAccount(identity.kitId, identity.installationId, identity.localClientId));
+    }
+
+    async savePending(identity: PendingIdentity, record: KitCredentialRecord): Promise<void>
+    {
+        await this.store.set(
+            pendingAccount(identity.kitId, identity.installationId, identity.localClientId),
+            JSON.stringify(record),
+        );
+    }
+
+    async promote(identity: Required<KitCredentialIdentity>, record?: KitCredentialRecord): Promise<KitCredentialRecord>
+    {
+        const pending = pendingAccount(identity.kitId, identity.installationId, identity.localClientId);
+        const value = record ?? await this.readAccount(pending);
+
+        if (value === null)
+        {
+            throw new Error('There is no pending Kit credential to promote.');
+        }
+
+        // Written before deleted: a crash between the two leaves a duplicate,
+        // which the next run cleans up. The other order loses the credential.
+        await this.save(identity, value);
+        await this.store.delete(pending);
+
+        return value;
+    }
+
+    async read(identity: SettledIdentity): Promise<KitCredentialRecord | null>
+    {
+        return this.readAccount(finalAccount(identity.kitId, identity.activationId, identity.localClientId));
+    }
+
+    async save(identity: SettledIdentity, record: KitCredentialRecord): Promise<void>
+    {
+        await this.store.set(
+            finalAccount(identity.kitId, identity.activationId, identity.localClientId),
+            JSON.stringify(record),
+        );
+    }
+
+    async remove(account: string): Promise<void>
+    {
+        await this.store.delete(account);
+    }
+
+    private async readAccount(account: string): Promise<KitCredentialRecord | null>
+    {
+        const raw = await this.store.get(account);
+
+        if (raw === null)
+        {
+            return null;
+        }
+
+        try
+        {
+            const parsed = JSON.parse(raw);
+
+            return typeof parsed?.credential === 'string' && typeof parsed?.generation === 'number'
+                ? parsed as KitCredentialRecord
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
+
+/**
+ * An in-process store for tests and for the fake control plane.
+ *
+ * It exists so no test has to write to a developer's real keychain to prove
+ * that a missing credential is reported as missing.
+ */
+export class MemoryKitCredentialStore implements KitCredentialStore
+{
+    readonly id = 'memory';
+
+    readonly items = new Map<string, KitCredentialRecord>();
+
+    async isAvailable(): Promise<boolean>
+    {
+        return true;
+    }
+
+    async readPending(identity: PendingIdentity): Promise<KitCredentialRecord | null>
+    {
+        return this.items.get(pendingAccount(identity.kitId, identity.installationId, identity.localClientId)) ?? null;
+    }
+
+    async savePending(identity: PendingIdentity, record: KitCredentialRecord): Promise<void>
+    {
+        this.items.set(pendingAccount(identity.kitId, identity.installationId, identity.localClientId), record);
+    }
+
+    async promote(identity: Required<KitCredentialIdentity>, record?: KitCredentialRecord): Promise<KitCredentialRecord>
+    {
+        const pending = pendingAccount(identity.kitId, identity.installationId, identity.localClientId);
+        const value = record ?? this.items.get(pending) ?? null;
+
+        if (value === null)
+        {
+            throw new Error('There is no pending Kit credential to promote.');
+        }
+
+        await this.save(identity, value);
+        this.items.delete(pending);
+
+        return value;
+    }
+
+    async read(identity: SettledIdentity): Promise<KitCredentialRecord | null>
+    {
+        return this.items.get(finalAccount(identity.kitId, identity.activationId, identity.localClientId)) ?? null;
+    }
+
+    async save(identity: SettledIdentity, record: KitCredentialRecord): Promise<void>
+    {
+        this.items.set(finalAccount(identity.kitId, identity.activationId, identity.localClientId), record);
+    }
+
+    async remove(account: string): Promise<void>
+    {
+        this.items.delete(account);
+    }
+}

@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### spfn (CLI)
+
+- `spfn kit` — the generic installer for licensed Superfunction Kits: `install`, `restore`,
+  `status`, `check`, `plan`, `update`, `resume` and `abandon`. It hard-codes no product;
+  which Kit, which packages and which files are managed all come from the signed setup
+  descriptor and release manifest, and product-specific judgement comes from the tooling the
+  CLI discovers among the packages the manifest installs.
+- A license key can only arrive through a masked prompt or `--license-key-stdin` — no option
+  takes one as an argument. The local credential lives in the OS keychain under its own
+  service (`superfunction.spfn.kit`), and the short-lived registry session reaches the
+  package manager only through the child process environment.
+- Every subcommand supports `--json`, prints newline-delimited events with a stable machine
+  code and a safe next command, and never prompts in that mode. Exit codes follow the Kit
+  contract: `2` waiting for a person, `3` resumable, `4` refused before any write, `5`
+  service unavailable, `10` protocol incompatibility.
+- Operations are journalled and resumable. A resume re-reads the project and accepts a
+  recorded checkpoint only when its evidence still matches; a lock left behind by a dead
+  process is reconciled against the journal rather than deleted.
+- The Kit control-plane client is not part of this build yet, so `install`, `restore` and
+  `update` report `CLI_CONTROL_PLANE_CLIENT_ABSENT` until it ships.
+
 ## [@spfn/core@0.3.0-beta.4, @spfn/auth@0.3.0-beta.4] - 2026-08-10
 
 ### Added

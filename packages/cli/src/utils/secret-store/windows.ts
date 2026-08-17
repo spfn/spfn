@@ -40,6 +40,14 @@ export class WindowsCredentialStore implements SecretStore
     readonly id = 'windows-credential-manager';
     readonly label = 'Windows Credential Manager';
 
+    /** The credential service the items live under. */
+    private readonly service: string;
+
+    constructor(service: string = KEYCHAIN_SERVICE)
+    {
+        this.service = service;
+    }
+
     async isAvailable(): Promise<boolean>
     {
         if (process.platform !== 'win32')
@@ -59,7 +67,7 @@ export class WindowsCredentialStore implements SecretStore
             throw new Error(INSTALL_HINT);
         }
 
-        return new keyring.Entry(KEYCHAIN_SERVICE, name);
+        return new keyring.Entry(this.service, name);
     }
 
     async get(name: string): Promise<string | null>

@@ -55,7 +55,7 @@ with `--pm`. In a pnpm workspace, `create` installs from the workspace root.
 
 Registered top-level commands: `create`, `init`, `add`, `dev`, `build`, `start`,
 `provision`, `codegen`, `contract`, `key`, `setup`, `db`, `env`, `ops`, `secret`,
-`cloud`.
+`cloud`, `kit`.
 
 ### `spfn create <name>`
 
@@ -507,6 +507,76 @@ carry the entry point, so the message names the thing to do.
 Because the package is the app's, it is resolved **from the directory the command runs in**.
 Run `spfn ops token` from the app's root; running it elsewhere reports the package as
 missing, and the message names the directory it looked in.
+
+### `spfn kit`
+
+Install, verify and update a **Superfunction Kit** — a licensed product that ships as a
+signed release: an SPFN scaffold, an exact dependency graph, files the Kit manages on the
+customer's behalf, and its own tooling. `spfn kit` is the generic installer for all of
+them. It hard-codes no product: which Kit, which packages and which files are managed all
+come from the signed setup descriptor and release manifest, and every judgement specific to
+a product comes from that product's own `/tooling` entry, which the CLI *discovers* among
+the packages the manifest installs.
+
+There is one binary and one command group. No Kit gets its own CLI.
+
+| Subcommand | Description |
+|------------|-------------|
+| `kit install <setup-url> <dir>` | Install the newest entitled stable release into a new or empty directory: verify the setup link, activate the license, create the SPFN base, materialize the managed files, install the exact graph, run migrations, run the gates, write the lock and make the first commit |
+| `kit restore` | Reinstall the exact release a clean clone records, using the committed lock and this machine's credential. Rewrites no source file |
+| `kit status` | Read-only report: installed release, activation, credential, managed drift, migrations, open operation. Anything the CLI could not determine is reported as `unknown` |
+| `kit check` | Read-only contract check with stable diagnostic codes, the path each is about, and the command that would fix it |
+| `kit plan [--to <release>]` | What an update would change, with the approval digest. Writes nothing |
+| `kit update [--to <release>] [--approve-plan <digest>]` | Update through the signed update edges, then gates, lock and commit |
+| `kit resume [operation-id]` | Continue an operation that stopped — after re-reading the project and confirming the recorded checkpoints still hold |
+| `kit abandon [operation-id]` | Record that an operation will not be finished, and report what it left behind. Deletes and rolls back nothing |
+
+**Secrets never travel as arguments.** There is no `--license-key <value>` option, by
+design: a secret on a command line is in the process table, the shell history and every log
+that records an argv. A key arrives either through a masked prompt or through
+`--license-key-stdin`. Once activation succeeds the key is discarded and only the local
+credential the server issued remains, in the OS keychain under its own service
+(`superfunction.spfn.kit`), separate from the env secrets `spfn secret` manages. The
+short-lived registry session is handed to the package-manager child process in its
+environment and nowhere else — the committed `.npmrc` references the variable, never a
+value.
+
+**`--json` is the agent surface.** Every subcommand takes it, prints newline-delimited
+events with a stable `code`, `phase` and safe next command, and never opens a prompt. A
+JSON-mode command that needs a secret exits `2` and reports `input: masked-stdin`.
+
+| Exit | Meaning |
+|-----:|---------|
+| `0` | Completed, or an idempotent no-op |
+| `2` | Waiting for a person: a secret on stdin, or an exact plan approval |
+| `3` | Recoverable failure — `spfn kit resume` can continue it |
+| `4` | Refused before any write: drift, compatibility, entitlement or a busy project |
+| `5` | An external service could not be reached |
+| `10` | This CLI and the release speak different protocol versions |
+
+**What an install does not do.** It stops at a verified local repository: no cloud account
+is linked, nothing is pushed, nothing is deployed. That is a checkpoint for the agent to
+continue from, not a finished product install.
+
+**Approval is exact.** A breaking release or an external effect requires the digest of the
+very plan being run (`--approve-plan`), which can only be obtained by reading the plan.
+There is no blanket `--yes`.
+
+**One operation at a time.** A project holds a filesystem lock while a write operation
+runs. A lock left behind by a dead process is not simply deleted — it is reconciled against
+the operation journal, and reclaimed only when that journal agrees the work is over or the
+caller is resuming exactly the operation it belongs to.
+
+Generated state lives under `.spfn/`: `license.json` and `kit-lock.json` are committed and
+hold public identifiers only; `operations/` is per-machine and gitignored.
+
+The Kit control-plane client is not part of this build yet, so `install`, `restore` and
+`update` report `CLI_CONTROL_PLANE_CLIENT_ABSENT` (exit 5) until it ships. `status` and
+`check` still work: an unreachable remote never hides local state, so they read the lock,
+the license file, the drift and the open operation from disk and report everything else as
+`unknown`. The command surface, journal, lock, keychain and verification are complete and
+exercised against a fake control plane, registry, database, Git and provider in
+`test/kit/`.
 
 ---
 

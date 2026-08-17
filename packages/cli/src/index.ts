@@ -15,6 +15,7 @@ import { envCommand } from './commands/env.js';
 import { opsCommand } from './commands/ops/index.js';
 import { secretCommand } from './commands/secret/index.js';
 import { cloudCommand } from './commands/cloud/index.js';
+import { kitCommand } from './commands/kit/index.js';
 import { getCliVersion } from './utils/version.js';
 
 // Export types
@@ -51,6 +52,7 @@ program.addCommand(envCommand);
 program.addCommand(opsCommand);
 program.addCommand(secretCommand);
 program.addCommand(cloudCommand);
+program.addCommand(kitCommand);
 
 export async function run(): Promise<void>
 {

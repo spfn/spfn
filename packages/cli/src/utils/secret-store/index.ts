@@ -48,19 +48,23 @@ export interface SecretStore
 /**
  * The keychain store for the current platform. Always returns a store; callers must
  * check `isAvailable()` before use.
+ *
+ * `service` names the keychain service the items live under, and defaults to the
+ * one env secrets use. `spfn kit` passes its own so a Kit credential can never be
+ * read back by the env-secret path, or the other way round.
  */
-export function detectStore(): SecretStore
+export function detectStore(service: string = KEYCHAIN_SERVICE): SecretStore
 {
     switch (process.platform)
     {
         case 'darwin':
-            return new MacosKeychainStore();
+            return new MacosKeychainStore(service);
         case 'win32':
-            return new WindowsCredentialStore();
+            return new WindowsCredentialStore(service);
         case 'linux':
-            return new LinuxSecretToolStore();
+            return new LinuxSecretToolStore(service);
         default:
-            return new MacosKeychainStore();
+            return new MacosKeychainStore(service);
     }
 }
 
