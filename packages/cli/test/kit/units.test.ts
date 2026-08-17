@@ -39,6 +39,7 @@ import {
 import { readManifest, resolveUpdateEdges } from '../../src/kit/manifest.js';
 import { executeProviderOperation, type ProviderOperationEnvelopeV1 } from '../../src/kit/provider.js';
 import { createChildEnv, registryNpmrc, REGISTRY_TOKEN_ENV } from '../../src/kit/child-env.js';
+import { registryMetadataPath } from '../../src/kit/http/registry.js';
 import { scanTextForSecrets, scanValueForSecrets, redactSecrets } from '../../src/kit/secret-scan.js';
 import { atLeast, compareVersions, satisfiesRange } from '../../src/kit/version.js';
 import { isKitError } from '../../src/kit/errors.js';
@@ -781,6 +782,19 @@ describe('the child environment and secret hygiene', () =>
         expect(env.HOME).toBe('/home/x');
         expect(env.DATABASE_URL).toBeUndefined();
         expect(env[REGISTRY_TOKEN_ENV]).toBe('spfnr_session_1');
+    });
+
+    it('asks the registry for a scoped package the way an npm client does', () =>
+    {
+        // The private proxy parses a path before it authorizes it, and the two
+        // shapes it accepts are the two pnpm sends: `@scope%2Fname` and
+        // `@scope/name`. `encodeURIComponent` over the whole name produces a
+        // third — `%40scope%2Fname` — which the proxy refuses as
+        // non-canonical, so an install died at its first packument while
+        // pnpm's own request a moment later would have been served.
+        expect(registryMetadataPath('@superfunction/landing-kit')).toBe('@superfunction%2Flanding-kit');
+        expect(registryMetadataPath('@spfn/core')).toBe('@spfn%2Fcore');
+        expect(registryMetadataPath('lodash')).toBe('lodash');
     });
 
     it('writes an .npmrc that references the token variable and never its value', () =>

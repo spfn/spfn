@@ -56,6 +56,28 @@ export interface RegistryMetadataResult
     detail?: string;
 }
 
+/**
+ * A package name as a registry client puts it on the wire.
+ *
+ * `encodeURIComponent` escapes the `@` as well, which produces
+ * `%40scope%2Fname` — a third shape no npm client sends and the private proxy
+ * refuses as non-canonical, because a path it cannot name exactly is a path it
+ * cannot authorize exactly. What pnpm asks for is `@scope%2Fname`: the scope
+ * marker stays literal and only the separator is escaped, and this CLI has to
+ * ask the same way pnpm does or the two get different answers.
+ */
+export function registryMetadataPath(packageName: string): string
+{
+    const [scope, name] = packageName.slice(1).split('/');
+
+    if (!packageName.startsWith('@') || name === undefined)
+    {
+        return encodeURIComponent(packageName);
+    }
+
+    return `@${encodeURIComponent(scope)}%2F${encodeURIComponent(name)}`;
+}
+
 export class KitRegistryProxyClient
 {
     private readonly registryUrl: string;
@@ -72,7 +94,7 @@ export class KitRegistryProxyClient
     {
         const call = {
             method: 'GET' as const,
-            url: `${this.registryUrl}${encodeURIComponent(packageName)}`,
+            url: `${this.registryUrl}${registryMetadataPath(packageName)}`,
             bearer: credential,
         };
         const response = await requestJson(call, this.http);
