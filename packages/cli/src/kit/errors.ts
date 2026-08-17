@@ -61,16 +61,26 @@ export type KitErrorCode = keyof typeof KIT_ERROR_EXIT;
 /**
  * Codes this build may emit that are *not* Kit failures.
  *
- * `CLI_` names sit outside the frozen `KIT_` vocabulary on purpose: the Kit
+ * `CLI_` names sit outside the frozen `KIT_` vocabulary on purpose: that
  * vocabulary is closed and shared across three repositories, so a condition it
- * has no code for gets a name that cannot be mistaken for one. Both mean "this
- * machine could not reach the service", which is exit 5.
+ * has no code for gets a name that cannot be mistaken for one. This table is
+ * where such a condition goes; adding to `KIT_ERROR_EXIT` instead would be a
+ * contract change, and is not something this repository may make.
  */
 export const CLI_ONLY_ERROR_EXIT = {
     /** The control-plane client is not in this build (arrives with I4c). */
     CLI_CONTROL_PLANE_CLIENT_ABSENT: KIT_EXIT.UNAVAILABLE,
     /** The control plane answered nothing usable. */
     CLI_CONTROL_PLANE_UNAVAILABLE: KIT_EXIT.UNAVAILABLE,
+    /**
+     * A package exports this Kit's tooling, and loading it threw.
+     *
+     * Refused rather than unavailable: nothing is unreachable and waiting will
+     * not help. Something in the installed graph does not run on this Node, and
+     * the fix is to that package or to the runtime — which is what exit 4 tells
+     * an agent to go and do, where exit 5 would tell it to try again later.
+     */
+    CLI_TOOLING_LOAD_FAILED: KIT_EXIT.REFUSED,
 } as const;
 
 export type CliOnlyErrorCode = keyof typeof CLI_ONLY_ERROR_EXIT;

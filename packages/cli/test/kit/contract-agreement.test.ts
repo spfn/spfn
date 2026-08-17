@@ -29,7 +29,7 @@ import {
     validateSetupDescriptorEnvelope,
     type ValidationResult,
 } from '../../src/kit/validate.js';
-import { KIT_ERROR_EXIT, KIT_EXIT } from '../../src/kit/errors.js';
+import { CLI_ONLY_ERROR_EXIT, KIT_ERROR_EXIT, KIT_EXIT } from '../../src/kit/errors.js';
 import { digestOfJson } from '../../src/kit/digest.js';
 
 const CONTRACTS = join(fileURLToPath(new URL('..', import.meta.url)), 'landing-kit-contracts');
@@ -224,6 +224,40 @@ describe('the enums in the code are the enums in the schemas', () =>
         expect([...PROVIDER_IDS]).toEqual(schema.$defs.provider.enum);
         expect([...PROVIDER_ACTIONS]).toEqual(schema.properties.action.enum);
         expect([...PROVIDER_STATUSES]).toEqual(schema.$defs.status.enum);
+    });
+});
+
+/**
+ * The frozen vocabulary is closed, and this repository does not own it.
+ *
+ * When the CLI meets a condition the contract has no code for, the code goes
+ * in the `CLI_` table instead — which is what that table is for, and is not a
+ * contract change. These two assertions are the fence: the frozen names stay
+ * exactly as the design lists them (the case above), and nothing in the
+ * CLI-only table can be mistaken for one of them.
+ */
+describe('the CLI-only codes stay outside the frozen vocabulary', () =>
+{
+    it('names every one of them `CLI_`, and shares no name with the contract', () =>
+    {
+        const cliOnly = Object.keys(CLI_ONLY_ERROR_EXIT);
+        const frozen = new Set(Object.keys(KIT_ERROR_EXIT));
+
+        expect(cliOnly.length).toBeGreaterThan(0);
+
+        for (const code of cliOnly)
+        {
+            expect(code.startsWith('CLI_'), code).toBe(true);
+            expect(frozen.has(code), code).toBe(false);
+        }
+    });
+
+    it('gives each of them an exit code the design already defines', () =>
+    {
+        for (const exit of Object.values(CLI_ONLY_ERROR_EXIT))
+        {
+            expect(Object.values(KIT_EXIT)).toContain(exit);
+        }
     });
 });
 

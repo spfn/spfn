@@ -689,7 +689,7 @@ export class FakeKitWorld
             {
                 if (specifier !== `${FAKE_KIT_PACKAGE}/tooling`)
                 {
-                    throw new Error(`no export ${specifier}`);
+                    throw missingExportError(specifier);
                 }
 
                 return { default: world.tooling() };
@@ -760,6 +760,24 @@ function defaultRelease(): FakeReleaseSpec
 function fakeIntegrity(seed: string): string
 {
     return `sha512-${createHash('sha512').update(seed).digest('base64').replace(/=+$/, '').slice(0, 86)}==`;
+}
+
+/**
+ * What Node throws for a package that has no `./tooling` export.
+ *
+ * Spelled with the real code, because the CLI now tells "there is no such
+ * export" apart from "the export is there and it would not load" — and a
+ * fixture that threw a bare `Error` would make every package look broken.
+ */
+export function missingExportError(specifier: string): Error & { code: string }
+{
+    const error = new Error(
+        `Package subpath './tooling' is not defined by "exports" in the package.json of ${specifier}`,
+    ) as Error & { code: string };
+
+    error.code = 'ERR_PACKAGE_PATH_NOT_EXPORTED';
+
+    return error;
 }
 
 /** A real subresource integrity value over real bytes. */

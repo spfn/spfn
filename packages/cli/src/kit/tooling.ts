@@ -20,6 +20,7 @@ import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, existsS
 import { join, relative, sep } from 'node:path';
 import { KitError } from './errors.js';
 import { sha256Digest } from './digest.js';
+import { redactSecrets } from './secret-scan.js';
 import { managedPaths, type KitReleaseManifestView } from './manifest.js';
 
 /** What a product's `/tooling` entry must export (unit 06 section 2.3). */
@@ -123,10 +124,21 @@ export async function discoverTooling(options: DiscoverToolingOptions): Promise<
         {
             loaded = await options.load(specifier);
         }
-        catch
+        catch (error)
         {
-            // A package without a `./tooling` export is the normal case.
-            continue;
+            // A package without a `./tooling` export is the normal case, and
+            // the only one worth passing over. A package that *has* the export
+            // and could not be loaded is a different fact entirely, and
+            // treating the two alike is what made a broken entry point look
+            // like a Kit with no tooling at all — and its real cause arrive as
+            // "no installed package provides tooling", which named the wrong
+            // thing and sent whoever read it to the wrong place.
+            if (isMissingExport(error, specifier, entry.name))
+            {
+                continue;
+            }
+
+            throw toolingLoadFailure(error, specifier);
         }
 
         const tooling = asTooling(loaded);
@@ -151,6 +163,85 @@ export async function discoverTooling(options: DiscoverToolingOptions): Promise<
             packages: options.manifest.packages.length,
         },
     });
+}
+
+/**
+ * Node's codes for "there is no such export", and nothing else.
+ *
+ * `ERR_PACKAGE_PATH_NOT_EXPORTED` is unambiguous. The two module-not-found
+ * codes are not: they mean the export is missing when the thing not found is
+ * the specifier we asked for, and they mean the tooling module loaded and one
+ * of *its own* imports is missing when it is anything else. The second is a
+ * broken package, and passing over it silently is the defect this guards.
+ */
+const MISSING_EXPORT_CODES = new Set(['ERR_PACKAGE_PATH_NOT_EXPORTED', 'ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND']);
+
+export function isMissingExport(error: unknown, specifier: string, packageName: string): boolean
+{
+    const code = codeOf(error);
+
+    if (!MISSING_EXPORT_CODES.has(code))
+    {
+        return false;
+    }
+    if (code === 'ERR_PACKAGE_PATH_NOT_EXPORTED')
+    {
+        return true;
+    }
+
+    // Quoted, because that is how Node writes the thing it could not find:
+    // `Cannot find module '<specifier>'`. An unquoted substring test matches
+    // the *file path* of a tooling entry whose own import is missing — the
+    // path contains the specifier — and would pass that broken package over
+    // as if it had no tooling at all.
+    const message = messageOf(error);
+
+    return [specifier, packageName].some(name => message.includes(`'${name}'`) || message.includes(`"${name}"`));
+}
+
+/**
+ * A load failure, described without describing this machine.
+ *
+ * The runtime's own code is the useful half — `ERR_UNSUPPORTED_NODE_MODULES_
+ * TYPE_STRIPPING` says exactly what to fix — and it is a constant, so it
+ * travels as-is. The message is a stranger's text that routinely contains
+ * absolute paths, so it is trimmed to one line, stripped of anything
+ * path-shaped, and capped. The stack never travels at all.
+ */
+export function toolingLoadFailure(error: unknown, specifier: string): KitError
+{
+    return new KitError('CLI_TOOLING_LOAD_FAILED', 'A package exports this Kit\'s tooling, but it could not be loaded.', {
+        evidence: {
+            specifier,
+            cause: codeOf(error) || 'unknown',
+            detail: safeDetail(messageOf(error)),
+        },
+        next: { command: 'spfn kit status --json', requiresHumanApproval: false },
+    });
+}
+
+/** The first line, with paths and anything secret-shaped taken out. */
+function safeDetail(message: string): string
+{
+    const firstLine = message.split('\n')[0] ?? '';
+    const withoutPaths = firstLine
+        .replace(/(?:file:\/\/)?(?:[A-Za-z]:)?[\\/][^\s'"()]*[\\/][^\s'"()]*/g, '<path>')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return redactSecrets(withoutPaths).slice(0, 200);
+}
+
+function codeOf(error: unknown): string
+{
+    const code = (error as { code?: unknown } | null)?.code;
+
+    return typeof code === 'string' ? code : '';
+}
+
+function messageOf(error: unknown): string
+{
+    return error instanceof Error ? error.message : String(error);
 }
 
 function asTooling(loaded: unknown): KitToolingV1 | null
