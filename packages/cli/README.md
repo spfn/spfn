@@ -579,6 +579,21 @@ arrives the same way — one scaffold archive, verified against the manifest's i
 before a single file is expanded, and refused outright if it names a path that would leave
 the project directory or overwrite a file that is already there.
 
+**An artifact is written as what it is.** A managed bridge is a file, and its
+bytes are the file. The scaffold and the Agent Pack are archives, and the CLI expands them —
+the pack into `.spfn/agent-pack/`, because a release's guides, schemas and checklists are a
+directory and belong to the release rather than among customer source. Both are proven
+against the manifest's digest before they are opened, and both refuse an entry that is a
+symlink or that would be written outside the project. What the pack expanded to is recorded
+in `.spfn/agent-pack.json` so drift can compare the tree file by file.
+
+**A materialize that stopped can be resumed.** Coming back to a half-written tree compares
+rather than overwrites: a file already holding exactly the bytes the release would write
+counts as done and the resume continues past it, and a file holding anything else is refused
+with that file left exactly as it was found. An update is the one operation that replaces —
+and only after drift has already been refused, so every managed file is known to hold the
+previous release's bytes rather than somebody's edit.
+
 **Release files are paid content, and are fetched as such.** Managed files, agent packs and
 the scaffold archive go out with the same bearer the private registry takes, and a refusal
 comes back in the same vocabulary — so "this machine's credential has been replaced" never

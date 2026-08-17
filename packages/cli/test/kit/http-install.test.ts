@@ -221,7 +221,8 @@ describe('an install against real HTTP services', () =>
 
         expect(readFileSync(join(target, 'src', 'app', 'api', 'landing', 'route.ts'), 'utf8'))
             .toBe(`// managed bridge ${world.latest.spec.version}\n`);
-        expect(readFileSync(join(target, 'AGENTS.md'), 'utf8')).toBe(`# Agent Pack ${world.latest.spec.version}\n`);
+        expect(readFileSync(join(target, '.spfn/agent-pack/agents-block.md'), 'utf8'))
+            .toBe(`# Agent Pack ${world.latest.spec.version}\n`);
     });
 
     it('proves every package of the graph through the registry proxy before installing', async () =>

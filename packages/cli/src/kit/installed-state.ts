@@ -44,7 +44,7 @@ export interface InstalledKitLockV1
     cliVersion: string;
     packages: KitPackageEntry[];
     managedResources: KitManagedResource[];
-    agentPack: { path: string; version: string; targetDigest: string };
+    agentPack: { path: string; version: string; targetDigest: string; root?: string };
     installedAt: string;
 }
 
@@ -148,6 +148,10 @@ export function lockFromManifest(
             path: manifest.agentPack.path,
             version: manifest.agentPack.version,
             targetDigest: manifest.agentPack.targetDigest,
+            // Present when the pack is an archive that expanded into a
+            // directory, which is how drift knows to compare the tree rather
+            // than look for one file that was never written.
+            root: manifest.agentPack.root,
         },
         installedAt: context.installedAt,
     };

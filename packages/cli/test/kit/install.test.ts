@@ -88,7 +88,9 @@ describe('table A — allowlisted link, empty target, valid entitled license', (
 
         expect(lock?.release).toBe('1.0.0');
         expect(lock?.kitId).toBe('campaign-landing');
-        expect(existsSync(join(target, 'AGENTS.md'))).toBe(true);
+        // The Agent Pack is an archive, so it lands as a tree rather than
+        // as one document at the manifest's path.
+        expect(existsSync(join(target, '.spfn/agent-pack/agents-block.md'))).toBe(true);
         expect(existsSync(join(target, 'src/app/api/landing/route.ts'))).toBe(true);
         expect(existsSync(join(target, '.git'))).toBe(true);
 
@@ -407,7 +409,7 @@ describe('table A — abandon', () =>
 
         // Files, activation and history all stay; only the open operation ends.
         expect(existsSync(join(target, 'package.json'))).toBe(true);
-        expect(existsSync(join(target, 'AGENTS.md'))).toBe(true);
+        expect(existsSync(join(target, '.spfn/agent-pack/agents-block.md'))).toBe(true);
 
         const store = new JournalStore(target, { now: () => world.now() });
 

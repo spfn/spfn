@@ -33,7 +33,8 @@ import { executeOperation, type OperationStep, type StepOutcome } from './../run
 import { resolveSetupDescriptor } from './../setup-descriptor.js';
 import { newCandidateCredential, type KitCredentialRecord } from './../credentials.js';
 import { discoverTooling, runIsolated, validateMutationPlan, assertWritesWithinAllowlist } from './../tooling.js';
-import { managedPaths, type KitReleaseManifestView } from './../manifest.js';
+import { type KitReleaseManifestView } from './../manifest.js';
+import { readAgentPackRecord, writeAgentPackRecord } from './../agent-pack.js';
 import { lockFromManifest, writeInstalledLock, writeLicenseFile, readLicenseFile } from './../installed-state.js';
 import { fileDigest } from './../drift.js';
 import type { KitAdapters } from './../ports.js';
@@ -45,6 +46,7 @@ import {
     requireCredential,
     resolveRelease,
     runLocalGates,
+    type MaterializeTarget,
 } from './shared.js';
 
 export interface InstallRequest
@@ -265,12 +267,10 @@ function installSteps(options: StepFactoryOptions): OperationStep[]
                         artifact: resource.artifact,
                         targetDigest: resource.targetDigest,
                     })),
-                    {
-                        path: manifest.agentPack.path,
-                        artifact: manifest.agentPack.artifact,
-                        targetDigest: manifest.agentPack.targetDigest,
-                    },
+                    agentPackTarget(manifest),
                 ]);
+
+                recordAgentPack(projectDir, manifest, written);
 
                 // The registry reference, never the session itself.
                 writeFileSync(join(projectDir, '.npmrc'), registryNpmrc(scopesOf(manifest), adapters.registryUrl), 'utf8');
@@ -462,11 +462,63 @@ async function verifyToolingPlan(options: StepFactoryOptions, projectDir: string
     return discovered;
 }
 
+/**
+ * The Agent Pack, as an archive rather than as a file.
+ *
+ * Coordinator judgement of the second G2 run: a scaffold is a tar, a managed
+ * bridge is the file's own bytes, and the Agent Pack is a tar the CLI expands.
+ * Writing a tar to `AGENTS.md` — which is what a file-shaped read of this
+ * target does — puts an archive where a document belongs.
+ */
+function agentPackTarget(manifest: KitReleaseManifestView): MaterializeTarget
+{
+    return {
+        path: manifest.agentPack.path,
+        artifact: manifest.agentPack.artifact,
+        targetDigest: manifest.agentPack.targetDigest,
+        kind: 'tree',
+        root: manifest.agentPack.root,
+    };
+}
+
+/** What the pack expanded to, so drift has something it can compare. */
+function recordAgentPack(
+    projectDir: string,
+    manifest: KitReleaseManifestView,
+    written: Record<string, string>,
+): void
+{
+    const prefix = `${manifest.agentPack.root.replace(/\/+$/, '')}/`;
+
+    writeAgentPackRecord(projectDir, {
+        schemaVersion: 1,
+        version: manifest.agentPack.version,
+        artifact: manifest.agentPack.artifact,
+        targetDigest: manifest.agentPack.targetDigest,
+        root: manifest.agentPack.root,
+        files: Object.fromEntries(Object.entries(written).filter(([path]) => path.startsWith(prefix))),
+    });
+}
+
+/**
+ * The digests of everything this release manages, right now.
+ *
+ * The shape has to match what the materialize step *returned*, because a
+ * resume compares the two: the step's own evidence on the first pass, this on
+ * the second. So the Agent Pack contributes the files it expanded to — read
+ * from the record the expansion wrote — and not the manifest path, where a
+ * tree leaves no file at all.
+ */
 function currentManagedDigests(projectDir: string, manifest: KitReleaseManifestView): Record<string, string | null>
 {
     const digests: Record<string, string | null> = {};
 
-    for (const path of managedPaths(manifest))
+    for (const resource of manifest.managedResources)
+    {
+        digests[resource.path] = fileDigest(projectDir, resource.path);
+    }
+
+    for (const path of Object.keys(readAgentPackRecord(projectDir)?.files ?? {}))
     {
         digests[path] = fileDigest(projectDir, path);
     }
