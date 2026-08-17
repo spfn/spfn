@@ -579,6 +579,13 @@ arrives the same way — one scaffold archive, verified against the manifest's i
 before a single file is expanded, and refused outright if it names a path that would leave
 the project directory or overwrite a file that is already there.
 
+**Release files are paid content, and are fetched as such.** Managed files, agent packs and
+the scaffold archive go out with the same bearer the private registry takes, and a refusal
+comes back in the same vocabulary — so "this machine's credential has been replaced" never
+arrives disguised as "that file is missing". The setup descriptor, the release catalog and
+the manifests stay public and carry no bearer: they are locators and promises about a
+release, and nothing anyone paid for is inside them.
+
 **Credentials rotate before they expire, not after.** A local credential opens the registry
 for a limited window. When that window is close to closing, the CLI asks the control plane
 for a replacement and writes it to the keychain *before* using it — a rotation that was not

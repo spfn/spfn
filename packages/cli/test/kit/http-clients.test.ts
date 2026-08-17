@@ -13,7 +13,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { HttpCatalogPort, HttpLicensePort, HttpRegistryPort, secondsUntil } from '../../src/kit/http/control-plane.js';
+import {
+    HttpCatalogPort,
+    HttpLicensePort,
+    HttpRegistryPort,
+    readGeneration,
+    secondsUntil,
+} from '../../src/kit/http/control-plane.js';
 import {
     HttpArtifactPort,
     KitRegistryProxyClient,
@@ -348,6 +354,60 @@ describe('keeping the local credential usable', () =>
     });
 });
 
+describe('whose count of a credential\'s generation is believed', () =>
+{
+    it('records the generation the server states when it activates', async () =>
+    {
+        const result = await licensePort().activate({
+            kitId: KIT_ID,
+            installationId: 'op-20260817-install-aa11',
+            localClientId: 'lc-local-name',
+            licenseKey,
+            candidateCredential: newCandidateCredential(),
+        });
+
+        expect(result.generation).toBe(fixture.currentClient(result.activationId as string)?.generation);
+        expect(result.generation).toBe(1);
+    });
+
+    it('records the generation the server states when it rotates, not a local count', async () =>
+    {
+        const credentials = new MemoryKitCredentialStore();
+        const identity = { kitId: KIT_ID, activationId: '', localClientId: 'lc-local-name' };
+        const { activationId, credential } = await activate();
+
+        identity.activationId = activationId;
+
+        // The stored record is behind the server: another machine has rotated
+        // since. A local `+1` would write 6 where the server says 12.
+        await credentials.save(identity, {
+            credential,
+            accessExpiresAt: new Date(Date.now() - 1_000).toISOString(),
+            generation: 5,
+        });
+
+        (fixture.currentClient(activationId) as { generation: number }).generation = 11;
+
+        await registryPort(credentials, () => new Date().toISOString()).issueSession({ ...identity, credential });
+
+        const stored = await credentials.read(identity);
+
+        expect(fixture.currentClient(activationId)?.generation).toBe(12);
+        expect(stored?.generation).toBe(12);
+    });
+
+    it('falls back to its own count only for a control plane that states none', () =>
+    {
+        expect(readGeneration({ generation: 7 }, 1)).toBe(7);
+        expect(readGeneration({}, 3)).toBe(3);
+        expect(readGeneration(null, 3)).toBe(3);
+        // A number that could not be a generation is not one.
+        expect(readGeneration({ generation: 0 }, 3)).toBe(3);
+        expect(readGeneration({ generation: 1.5 }, 3)).toBe(3);
+        expect(readGeneration({ generation: '9' }, 3)).toBe(3);
+    });
+});
+
 describe('the registry proxy client', () =>
 {
     async function entitledMachine(): Promise<{ credential: string; activationId: string }>
@@ -488,25 +548,113 @@ describe('the registry proxy client', () =>
 
 describe('the release-artifact client', () =>
 {
-    it('fetches an artifact from the store the catalog sits in', async () =>
+    /** A port that fetches with whatever bearer the case wants to present. */
+    function artifactPort(credential: string | null): HttpArtifactPort
     {
+        return new HttpArtifactPort({
+            baseUrl: artifactBaseFromCatalogUrl(`${fixture.releaseStoreUrl(KIT_ID)}/catalog`),
+            credential: async () => credential,
+            timeoutMs: 5_000,
+        });
+    }
+
+    async function entitled(): Promise<string>
+    {
+        const credential = newCandidateCredential();
+
+        await activate(credential);
         fixture.release.artifacts['artifact/1.0.0/AGENTS.md'] = new Uint8Array(Buffer.from('# Agent Pack\n'));
 
-        const base = artifactBaseFromCatalogUrl(`${fixture.releaseStoreUrl(KIT_ID)}/catalog`);
-        const bytes = await new HttpArtifactPort({ baseUrl: base, timeoutMs: 5_000 }).fetch('artifact/1.0.0/AGENTS.md');
+        return credential;
+    }
+
+    it('fetches an artifact from the store the catalog sits in, with the registry bearer', async () =>
+    {
+        const bytes = await artifactPort(await entitled()).fetch('artifact/1.0.0/AGENTS.md');
 
         expect(Buffer.from(bytes).toString('utf8')).toBe('# Agent Pack\n');
     });
 
     it('reports an artifact the store does not have as unavailable', async () =>
     {
-        const base = artifactBaseFromCatalogUrl(`${fixture.releaseStoreUrl(KIT_ID)}/catalog`);
-        const failed = await new HttpArtifactPort({ baseUrl: base, timeoutMs: 5_000 })
+        const failed = await artifactPort(await entitled())
             .fetch('artifact/1.0.0/missing')
             .catch(error => error as KitError);
 
         expect(isKitError(failed) && failed.code).toBe('CLI_CONTROL_PLANE_UNAVAILABLE');
         expect((failed as KitError).evidence.status).toBe(404);
+    });
+
+    it('refuses before fetching when this machine has no credential to present', async () =>
+    {
+        const failed = await artifactPort(null).fetch('artifact/1.0.0/AGENTS.md').catch(error => error as KitError);
+
+        expect(isKitError(failed) && failed.code).toBe('KIT_CREDENTIAL_MISSING');
+        expect((failed as KitError).next?.command).toBe('spfn kit recover --json');
+        // Nothing was asked of the store: there was nothing to ask with.
+        expect(fixture.requests.filter(request => request.path.includes('/kits/'))).toHaveLength(0);
+    });
+
+    it('reads a bearer the store cannot parse as a missing credential', async () =>
+    {
+        await entitled();
+
+        const failed = await artifactPort('not-a-credential')
+            .fetch('artifact/1.0.0/AGENTS.md')
+            .catch(error => error as KitError);
+
+        expect(isKitError(failed) && failed.code).toBe('KIT_CREDENTIAL_MISSING');
+        expect((failed as KitError).evidence.reason).toBe('credential-malformed');
+    });
+
+    it('reads a superseded credential as stale, the same as the npm proxy does', async () =>
+    {
+        const credential = await entitled();
+        const identity = { kitId: KIT_ID, activationId: '', localClientId: 'lc-local-name' };
+
+        identity.activationId = fixture.activations[0].activationId;
+
+        // Another machine rotates, which supersedes this one's credential.
+        const credentials = new MemoryKitCredentialStore();
+
+        await credentials.save(identity, { credential, accessExpiresAt: new Date(0).toISOString(), generation: 1 });
+        await registryPort(credentials, () => new Date().toISOString()).issueSession({ ...identity, credential });
+
+        const failed = await artifactPort(credential)
+            .fetch('artifact/1.0.0/AGENTS.md')
+            .catch(error => error as KitError);
+
+        expect(isKitError(failed) && failed.code).toBe('KIT_CREDENTIAL_STALE');
+        expect((failed as KitError).evidence.reason).toBe('credential-rejected');
+    });
+
+    it.each([
+        ['a revoked licence', 'license-revoked', () => fixture.addLicense(licenseKey, { revoked: true })],
+        ['a deactivated activation', 'activation-deactivated', () => (fixture.activations[0].deactivated = true)],
+    ])('reads %s as an entitlement refusal, not as a credential problem', async (_case, reason, revoke) =>
+    {
+        const credential = await entitled();
+
+        revoke();
+
+        const failed = await artifactPort(credential)
+            .fetch('artifact/1.0.0/AGENTS.md')
+            .catch(error => error as KitError);
+
+        expect(isKitError(failed) && failed.code).toBe('KIT_ENTITLEMENT_EXPIRED');
+        expect((failed as KitError).evidence.reason).toBe(reason);
+        expect((failed as KitError).evidence.status).toBe(403);
+    });
+
+    it('leaves the public documents public — no bearer is sent for them', async () =>
+    {
+        fixture.release.catalog = { schemaVersion: 1, document: { kitId: KIT_ID }, signature: { keyId: 'k1' } };
+
+        // No activation at all, so there is no credential in existence.
+        const document = await new HttpCatalogPort({ timeoutMs: 5_000 })
+            .fetchSignedCatalog(`${fixture.releaseStoreUrl(KIT_ID)}/catalog`);
+
+        expect(document).toMatchObject({ schemaVersion: 1 });
     });
 
     it.each([

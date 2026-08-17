@@ -116,21 +116,38 @@ export function createKitRemotePorts(options: KitRemotePortsOptions): KitRemoteP
     const http: KitHttpOptions = { fetchImpl: options.fetchImpl, timeoutMs: options.timeoutMs };
     const catalog = new HttpCatalogPort(http);
     const registryClient = new KitRegistryProxyClient({ ...http, registryUrl: options.endpoints.registryUrl });
+    // Release files are paid content, so they are fetched with the same bearer
+    // the npm proxy takes. It comes from the licence file the activation step
+    // wrote — which is why nothing fetches an artifact before then.
+    const credentialForCheckout = async (): Promise<string | null> =>
+    {
+        const license = readLicenseFile(kitPaths(options.projectDir).licenseFile);
+
+        if (license === null)
+        {
+            return null;
+        }
+
+        const record = await options.credentials.read({
+            kitId: license.kitId,
+            activationId: license.activationId,
+            localClientId: license.localClientId,
+        });
+
+        return record?.credential ?? null;
+    };
     const artifacts = new HttpArtifactPort({
         ...http,
         baseUrl: () => artifactBaseFromCatalogUrl(requireCatalogUrl(options.projectDir)),
+        credential: credentialForCheckout,
     });
     const probe = registryEntitlementProbe(registryClient, async request =>
     {
-        const credential = await options.credentials.read({
-            kitId: request.kitId,
-            activationId: request.activationId,
-            localClientId: readLicenseFile(kitPaths(options.projectDir).licenseFile)?.localClientId ?? '',
-        });
+        const credential = await credentialForCheckout();
 
         return credential === null
             ? null
-            : { packageName: kitPackageName(request.kitId), credential: credential.credential };
+            : { packageName: kitPackageName(request.kitId), credential };
     });
 
     return {
