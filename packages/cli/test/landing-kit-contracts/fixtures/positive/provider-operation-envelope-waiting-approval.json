@@ -1,0 +1,22 @@
+{
+    "schemaVersion": 1,
+    "operationId": "op-2026-08-17-install-01",
+    "activationId": "act-01hzlandingkite2e",
+    "provider": "vercel",
+    "action": "create",
+    "effect": "external-write",
+    "target": {
+        "provider": "vercel",
+        "accountId": "team_landingkite2e0001",
+        "accountLabel": "Landing Kit E2E",
+        "resourceId": "prj_landingkite2e0000",
+        "resourceLabel": "landing-kit-e2e",
+        "environment": "production",
+        "region": "icn1"
+    },
+    "planDigest": "sha256:f9df1e2433e5e6efa49ebad54f84178b57c8cb33ef23044aeb38c5171a23e440",
+    "approvalDigest": null,
+    "requestedScopes": ["team:read", "project:read", "project:write", "deployment:write"],
+    "status": "waiting-approval",
+    "startedAt": "2026-08-17T01:40:00Z"
+}

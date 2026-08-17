@@ -1,0 +1,51 @@
+{
+    "schemaVersion": 1,
+    "operationId": "op-2026-08-17-install-01",
+    "type": "install",
+    "kitId": "landing-kit",
+    "sourceRelease": null,
+    "targetRelease": "1.0.0",
+    "manifestDigest": "sha256:19ccd51444b6cbe4e3bbc17589a2172beb25c9226fd397ef0de79f9fd9c0a2bb",
+    "planDigest": "sha256:e5a8456eb9270999b6376a8df9370376a897fc20a8a383fa35480055ace00408",
+    "phase": "settlement",
+    "status": "waiting-settlement",
+    "checkpoints": [
+        {
+            "id": "waiting-cloud",
+            "status": "completed",
+            "evidenceDigest": "sha256:f9df1e2433e5e6efa49ebad54f84178b57c8cb33ef23044aeb38c5171a23e440",
+            "completedAt": "2026-08-17T02:10:00Z"
+        },
+        {
+            "id": "provider-provisioned",
+            "status": "completed",
+            "evidenceDigest": "sha256:e7d75d44c3ab6e5a843a3dac4e9684c1de798bf2e1e26bc6ba2e653622eea2db",
+            "completedAt": "2026-08-17T02:28:00Z"
+        },
+        {
+            "id": "promoted",
+            "status": "completed",
+            "evidenceDigest": "sha256:f2c4e8b45bd5e93072ba17d657d7cb811e7553da3edbe4c095db419f3e79d81a",
+            "completedAt": "2026-08-17T02:55:00Z"
+        },
+        {
+            "id": "browser-captured",
+            "status": "completed",
+            "evidenceDigest": "sha256:ad0c6adf4a3bb98a0837c694fc810446fbdc4d48fa56a4c581802aa9cf5f56b7",
+            "completedAt": "2026-08-17T03:04:00Z"
+        },
+        {
+            "id": "waiting-settlement",
+            "status": "pending",
+            "resumeAfter": "2026-08-17T03:35:00Z"
+        }
+    ],
+    "externalRefs": {
+        "activationId": "act-01hzlandingkite2e",
+        "sourceCommit": "323deb2d3fcc824f9a9322689b036378a0ff8660",
+        "pushedCommit": "418ba4de8449a74e5932e60b426f27e67abfe4af",
+        "deploymentId": "dpl-landingkite2e0001"
+    },
+    "createdAt": "2026-08-17T01:20:00Z",
+    "updatedAt": "2026-08-17T03:04:00Z"
+}

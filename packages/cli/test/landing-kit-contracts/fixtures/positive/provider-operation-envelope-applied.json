@@ -1,0 +1,28 @@
+{
+    "schemaVersion": 1,
+    "operationId": "op-2026-08-17-install-01",
+    "activationId": "act-01hzlandingkite2e",
+    "provider": "github",
+    "action": "create",
+    "effect": "external-write",
+    "target": {
+        "provider": "github",
+        "accountId": "O_kgDOLandingKitOwner",
+        "accountLabel": "landing-kit-e2e-owner",
+        "resourceId": "R_kgDOLandingKitE2E",
+        "resourceLabel": "landing-kit-e2e",
+        "environment": "production"
+    },
+    "planDigest": "sha256:f9df1e2433e5e6efa49ebad54f84178b57c8cb33ef23044aeb38c5171a23e440",
+    "approvalDigest": "sha256:0c954cdfc3543d32ed78d58fbfad54b03458ef5803ed9ace71c1bb233cd6ec23",
+    "requestedScopes": ["metadata:read", "contents:write", "administration:write"],
+    "status": "applied",
+    "startedAt": "2026-08-17T01:52:00Z",
+    "completedAt": "2026-08-17T01:53:00Z",
+    "evidence": {
+        "planDigest": "sha256:f9df1e2433e5e6efa49ebad54f84178b57c8cb33ef23044aeb38c5171a23e440",
+        "approvalDigest": "sha256:0c954cdfc3543d32ed78d58fbfad54b03458ef5803ed9ace71c1bb233cd6ec23",
+        "sourceCommit": "323deb2d3fcc824f9a9322689b036378a0ff8660",
+        "repositoryId": "R_kgDOLandingKitE2E"
+    }
+}

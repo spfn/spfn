@@ -1,0 +1,30 @@
+{
+    "schemaVersion": 1,
+    "operationId": "op-2026-08-24-update-01",
+    "type": "update",
+    "kitId": "landing-kit",
+    "sourceRelease": "1.0.0",
+    "targetRelease": "1.1.0",
+    "manifestDigest": "sha256:5a90c1dcbcd22746c5608d51d77f310682720601b4317470a17c8cbfa79a7b9f",
+    "planDigest": "sha256:f9df1e2433e5e6efa49ebad54f84178b57c8cb33ef23044aeb38c5171a23e440",
+    "phase": "plan-approval",
+    "status": "waiting-approval",
+    "checkpoints": [
+        {
+            "id": "catalog-verified",
+            "status": "completed",
+            "evidenceDigest": "sha256:225e632322e0923ccb30396fd176926c46da6cb6a3c8add55ef3747f3f208d65",
+            "completedAt": "2026-08-24T09:02:00Z"
+        },
+        {
+            "id": "plan-approved",
+            "status": "pending"
+        }
+    ],
+    "externalRefs": {
+        "activationId": "act-01hzlandingkite2e",
+        "sourceCommit": "418ba4de8449a74e5932e60b426f27e67abfe4af"
+    },
+    "createdAt": "2026-08-24T09:00:00Z",
+    "updatedAt": "2026-08-24T09:02:00Z"
+}

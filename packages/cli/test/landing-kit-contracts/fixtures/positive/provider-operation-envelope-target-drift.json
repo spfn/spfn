@@ -1,0 +1,22 @@
+{
+    "schemaVersion": 1,
+    "operationId": "op-2026-08-24-update-01",
+    "activationId": "act-01hzlandingkite2e",
+    "provider": "supabase",
+    "action": "configure",
+    "effect": "external-write",
+    "target": {
+        "provider": "supabase",
+        "accountId": "org_landingkite2e0001",
+        "resourceId": "abcdefghijklmnopqrst",
+        "environment": "production",
+        "region": "ap-northeast-2"
+    },
+    "planDigest": "sha256:f9df1e2433e5e6efa49ebad54f84178b57c8cb33ef23044aeb38c5171a23e440",
+    "approvalDigest": "sha256:0c954cdfc3543d32ed78d58fbfad54b03458ef5803ed9ace71c1bb233cd6ec23",
+    "requestedScopes": ["organizations:read", "projects:write"],
+    "status": "target-drift",
+    "startedAt": "2026-08-24T09:10:00Z",
+    "completedAt": "2026-08-24T09:10:05Z",
+    "failureCode": "CLOUD_TARGET_DRIFT"
+}

@@ -1,0 +1,73 @@
+{
+    "schemaVersion": 1,
+    "schema": "kit-operation-journal.v1",
+    "cases": [
+        {
+            "negativeCaseId": "N-JOURNAL-01",
+            "reason": "The journal stores a license key. Unit 06 section 5.2 forbids license key, credential, registry session, DB URL, provider token, email challenge and raw command environment.",
+            "caseIds": ["B2", "F1"],
+            "expectedInvalidPointers": ["/licenseKey"],
+            "value": {
+                "schemaVersion": 1,
+                "operationId": "op-2026-08-17-install-02",
+                "type": "install",
+                "kitId": "landing-kit",
+                "sourceRelease": null,
+                "targetRelease": "1.0.0",
+                "manifestDigest": "sha256:19ccd51444b6cbe4e3bbc17589a2172beb25c9226fd397ef0de79f9fd9c0a2bb",
+                "planDigest": "sha256:e5a8456eb9270999b6376a8df9370376a897fc20a8a383fa35480055ace00408",
+                "phase": "activation",
+                "status": "active",
+                "checkpoints": [{ "id": "descriptor-verified", "status": "completed" }],
+                "externalRefs": {},
+                "createdAt": "2026-08-17T01:20:00Z",
+                "updatedAt": "2026-08-17T01:21:00Z",
+                "licenseKey": "spfnl_redacted"
+            }
+        },
+        {
+            "negativeCaseId": "N-JOURNAL-02",
+            "reason": "An unknown checkpoint ID. Resume identity is a closed set: a checkpoint a resume cannot name is a checkpoint it cannot verify.",
+            "caseIds": ["B8", "B10"],
+            "expectedInvalidPointers": ["/checkpoints/0/id"],
+            "value": {
+                "schemaVersion": 1,
+                "operationId": "op-2026-08-17-install-03",
+                "type": "install",
+                "kitId": "landing-kit",
+                "sourceRelease": null,
+                "targetRelease": "1.0.0",
+                "manifestDigest": "sha256:19ccd51444b6cbe4e3bbc17589a2172beb25c9226fd397ef0de79f9fd9c0a2bb",
+                "planDigest": "sha256:e5a8456eb9270999b6376a8df9370376a897fc20a8a383fa35480055ace00408",
+                "phase": "unknown-phase",
+                "status": "active",
+                "checkpoints": [{ "id": "almost-done", "status": "pending" }],
+                "externalRefs": {},
+                "createdAt": "2026-08-17T01:20:00Z",
+                "updatedAt": "2026-08-17T01:21:00Z"
+            }
+        },
+        {
+            "negativeCaseId": "N-JOURNAL-03",
+            "reason": "Status waiting is not one of the three named wait states, so a scheduler cannot tell approval, cloud and settlement apart.",
+            "caseIds": ["B8", "C8"],
+            "expectedInvalidPointers": ["/status"],
+            "value": {
+                "schemaVersion": 1,
+                "operationId": "op-2026-08-17-install-04",
+                "type": "install",
+                "kitId": "landing-kit",
+                "sourceRelease": null,
+                "targetRelease": "1.0.0",
+                "manifestDigest": "sha256:19ccd51444b6cbe4e3bbc17589a2172beb25c9226fd397ef0de79f9fd9c0a2bb",
+                "planDigest": "sha256:e5a8456eb9270999b6376a8df9370376a897fc20a8a383fa35480055ace00408",
+                "phase": "settlement",
+                "status": "waiting",
+                "checkpoints": [{ "id": "waiting-settlement", "status": "pending" }],
+                "externalRefs": {},
+                "createdAt": "2026-08-17T01:20:00Z",
+                "updatedAt": "2026-08-17T03:04:00Z"
+            }
+        }
+    ]
+}

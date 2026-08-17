@@ -1,0 +1,99 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "spfn://landing-kit/contracts/provider-operation-envelope/v1",
+    "title": "ProviderOperationEnvelopeV1",
+    "description": "One envelope for every GitHub, Vercel and Supabase operation. It carries identity, approval and outcome only. Provider-specific judgement (which plan counts as commercial, which region pairs, which scopes a call needs) lives in the adapters and never in this envelope.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schemaVersion",
+        "operationId",
+        "activationId",
+        "provider",
+        "action",
+        "effect",
+        "target",
+        "planDigest",
+        "approvalDigest",
+        "requestedScopes",
+        "status",
+        "startedAt"
+    ],
+    "properties": {
+        "schemaVersion": { "const": 1 },
+        "operationId": { "$ref": "#/$defs/publicId" },
+        "activationId": { "$ref": "#/$defs/publicId" },
+        "provider": { "$ref": "#/$defs/provider" },
+        "action": { "enum": ["discover", "authorize", "create", "bind", "configure", "deploy", "promote", "rollback"] },
+        "effect": { "enum": ["read", "external-write", "destructive"] },
+        "target": { "$ref": "#/$defs/targetIdentity" },
+        "planDigest": { "$ref": "#/$defs/digest" },
+        "approvalDigest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "requestedScopes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "startedAt": { "$ref": "#/$defs/instant" },
+        "completedAt": { "$ref": "#/$defs/instant" },
+        "failureCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$" },
+        "evidence": { "$ref": "#/$defs/cloudOperationEvidence" }
+    },
+    "$defs": {
+        "publicId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$" },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "instant": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,3})?Z$" },
+        "provider": { "enum": ["github", "vercel", "supabase"] },
+        "status": {
+            "description": "Section 3.4 and 4: a closed browser is not a denial. Only an explicit provider deny becomes approval-denied; silence becomes waiting-approval and then approval-expired.",
+            "enum": [
+                "planned",
+                "waiting-approval",
+                "approval-denied",
+                "approval-expired",
+                "price-unresolved",
+                "target-drift",
+                "applied",
+                "failed"
+            ]
+        },
+        "targetIdentity": {
+            "description": "Unit 04 section 3.4 stable tuple: provider + provider account/team ID + provider project ID + environment. Display names, IP, instance, region, build URL and custom domain are not identity.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["provider", "accountId", "resourceId", "environment"],
+            "properties": {
+                "provider": { "$ref": "#/$defs/provider" },
+                "accountId": { "type": "string", "minLength": 1, "maxLength": 200 },
+                "accountLabel": { "type": "string", "minLength": 1, "maxLength": 200 },
+                "resourceId": { "type": "string", "minLength": 1, "maxLength": 200 },
+                "resourceLabel": { "type": "string", "minLength": 1, "maxLength": 200 },
+                "environment": { "const": "production" },
+                "region": { "type": "string", "minLength": 1, "maxLength": 60 }
+            }
+        },
+        "cloudOperationEvidence": {
+            "description": "Unit 09 section 12. Secret-free evidence a resume re-reads from each provider before it trusts the journal phase.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["planDigest", "approvalDigest", "sourceCommit"],
+            "properties": {
+                "planDigest": { "$ref": "#/$defs/digest" },
+                "approvalDigest": { "$ref": "#/$defs/digest" },
+                "sourceCommit": { "$ref": "#/$defs/commit" },
+                "repositoryId": { "type": "string", "minLength": 1 },
+                "supabaseProjectRef": { "type": "string", "minLength": 1 },
+                "backupId": { "type": "string", "minLength": 1 },
+                "migrationDigest": { "$ref": "#/$defs/digest" },
+                "vercelProjectId": { "type": "string", "minLength": 1 },
+                "deploymentGeneration": { "type": "integer", "minimum": 1 },
+                "stagedDeploymentId": { "type": "string", "minLength": 1 },
+                "currentDeploymentId": { "type": "string", "minLength": 1 },
+                "publicBaseUrl": { "type": "string", "pattern": "^https://[a-z0-9.-]+(/[^\\s?#]*)?$" },
+                "healthEvidenceDigest": { "$ref": "#/$defs/digest" }
+            }
+        }
+    }
+}
