@@ -254,7 +254,11 @@ function installSteps(options: StepFactoryOptions): OperationStep[]
             summary: 'Creating the SPFN base and writing the release\'s managed files',
             async run(): Promise<StepOutcome>
             {
-                await adapters.scaffold.createBase({ targetDir: projectDir, name: projectNameFor(projectDir) });
+                await adapters.scaffold.createBase({
+                    targetDir: projectDir,
+                    name: projectNameFor(projectDir),
+                    scaffold: manifest.scaffold,
+                });
 
                 const written = await materializeTargets(adapters, projectDir, [
                     ...manifest.managedResources.map(resource => ({
@@ -291,6 +295,7 @@ function installSteps(options: StepFactoryOptions): OperationStep[]
 
                 const evidence = await installFrozenGraph(adapters, {
                     projectDir,
+                    kitId: manifest.kitId,
                     activationId: credential.license.activationId,
                     localClientId: credential.license.localClientId,
                     credential: credential.record.credential,

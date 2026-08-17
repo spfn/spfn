@@ -219,6 +219,8 @@ export async function materializeTargets(
 export interface FrozenInstallOptions
 {
     projectDir: string;
+    /** Which Kit's keychain item holds the credential, for a rotation. */
+    kitId: string;
     activationId: string;
     localClientId: string;
     credential: string;
@@ -251,9 +253,12 @@ export async function installFrozenGraph(
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1)
     {
         const session = await adapters.registry.issueSession({
+            kitId: options.kitId,
             activationId: options.activationId,
             localClientId: options.localClientId,
             credential: options.credential,
+            // The retry only means something if it presents something else.
+            forceRotation: attempt > 1,
         });
 
         if (session.status === 'credential-stale')
