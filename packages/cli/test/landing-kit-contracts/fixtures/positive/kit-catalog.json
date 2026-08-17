@@ -8,14 +8,14 @@
             "sequence": 1,
             "releaseClass": "feature",
             "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
-            "status": "stable"
+            "status": "superseded"
         },
         {
             "version": "1.1.0",
             "sequence": 2,
             "releaseClass": "maintenance",
             "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.1.0",
-            "status": "stable"
+            "status": "active"
         },
         {
             "version": "1.0.1",

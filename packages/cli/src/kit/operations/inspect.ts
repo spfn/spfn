@@ -26,7 +26,7 @@ import { kitPaths } from './../paths.js';
 import { readInstalledLock, readLicenseFile } from './../installed-state.js';
 import type { KitDiagnostic } from './../tooling.js';
 import type { KitAdapters } from './../ports.js';
-import { latestStableRelease, verifiedCatalog } from './shared.js';
+import { latestActiveRelease, verifiedCatalog } from './shared.js';
 
 export type Unknowable<T> = T | 'unknown';
 
@@ -123,7 +123,7 @@ export async function runStatus(request: InspectRequest, adapters: KitAdapters |
         try
         {
             const catalog = await verifiedCatalog(adapters, lock.catalogUrl);
-            const latest = latestStableRelease(catalog);
+            const latest = latestActiveRelease(catalog);
 
             report.catalogSequence = catalog.sequence;
             report.updateAvailable = latest.version === lock.release ? null : latest.version;

@@ -37,7 +37,16 @@ export interface KitCatalogRelease
     sequence: number;
     releaseClass: 'security' | 'maintenance' | 'feature' | 'breaking';
     manifestUrl: string;
-    status: 'stable' | 'revoked';
+    /**
+     * Unit 05 section 2.2, the approved vocabulary.
+     *
+     * `active` may be installed, updated to or rebuilt. `superseded` is no
+     * longer recommended on its own but an entitled client may still rebuild
+     * that exact version — which is why picking the latest release filters on
+     * active while an explicit version does not. `revoked` blocks new metadata
+     * and tarball acquisition outright.
+     */
+    status: 'active' | 'superseded' | 'revoked';
 }
 
 export interface KitCatalogView

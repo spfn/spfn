@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { readCatalog } from '../src/kit/ports.js';
 import { verifySignedDocument } from '../src/kit/signature.js';
-import { latestStableRelease } from '../src/kit/operations/shared.js';
+import { latestActiveRelease } from '../src/kit/operations/shared.js';
 // @ts-expect-error - plain ESM, held byte-identically in three repositories.
 import { runConformance } from './landing-kit-contracts/conformance/run.mjs';
 
@@ -32,7 +32,7 @@ const CONTRACTS_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'landi
 
 /** spfn-course and capabilities pin this same value. Three different values
  *  would mean three repositories reading three different contracts. */
-const FROZEN_CONTRACT_SET_DIGEST = 'sha256:f2973474921e58697a5d05a750ea03123680fb5bdcc7f6064639089dd4c983b0';
+const FROZEN_CONTRACT_SET_DIGEST = 'sha256:26c77d6f6b623e81a1145fe984e8db9d1dfbba904ac82a11170898385145f374';
 
 const EXPECTED_CONTRACTS = [
     'setup-descriptor-envelope',
@@ -227,10 +227,16 @@ describe('Landing Kit I0 contracts (CLI scope)', () =>
         expect(catalog!.sequence).toBe(4);
         expect(catalog!.releases).toHaveLength(3);
 
-        // Highest-sequence stable release wins, and the revoked one is never offered.
-        const latest = latestStableRelease(catalog!);
+        // Unit 05 section 2.2: the newest active release wins. The superseded
+        // one stays in the catalog so an entitled client can rebuild that exact
+        // version, but it is never chosen on a client's behalf; the revoked one
+        // is never offered at all.
+        expect(catalog!.releases.map(release => release.status))
+            .toEqual(['superseded', 'active', 'revoked']);
+
+        const latest = latestActiveRelease(catalog!);
         expect(latest.version).toBe('1.1.0');
-        expect(latest.status).toBe('stable');
+        expect(latest.status).toBe('active');
     });
 
     it('keeps the catalog contract to the fields the CLI reads', () =>

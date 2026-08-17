@@ -3,7 +3,7 @@
     "contractSet": "landing-kit/i0",
     "origin": "spfn-course/packages/landing-kit/contracts",
     "design": "docs/product/kits/landing-kit/units",
-    "contractSetDigest": "sha256:f2973474921e58697a5d05a750ea03123680fb5bdcc7f6064639089dd4c983b0",
+    "contractSetDigest": "sha256:26c77d6f6b623e81a1145fe984e8db9d1dfbba904ac82a11170898385145f374",
     "contracts": [
         {
             "id": "setup-descriptor-envelope",
@@ -198,7 +198,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:9c67b8a2b7d0d9a30a1e3c51d4a7581ec3f7b1b976ebfea5a8538fedc6874d01"
+            "sha256": "sha256:fdd7d3738d76fa6a5974809f1ce79a1130eb4098ee085a4a75706c6b0b421419"
         },
         {
             "path": "fixtures/negative/kit-error-vocabulary.json",
@@ -304,7 +304,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:c6a38033a4083b885f2134539a71102e0c87552a067a25ee347d5211f1117ae3"
+            "sha256": "sha256:a42424452bfae72622502ab3e619eb3542d016354a893aca6a3468e59225e096"
         },
         {
             "path": "fixtures/positive/kit-error-vocabulary.json",
@@ -478,7 +478,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:d7a9c6463a32d289246cf1fbbe07177d33dd732199973d26c3ee16dfc646f99d"
+            "sha256": "sha256:320d35e7ff5ff4e18b2ec36a57dd45574c103daa90bf6dd6308b66e7bf326e0d"
         },
         {
             "path": "schemas/case-map.v1.schema.json",
@@ -497,7 +497,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:e79b3cfa86b759e09545fec2373335b46e16c132bd13fdbd484896ad6cb9a554"
+            "sha256": "sha256:bbce15dd56eb7a495a1baa5a7b23d9f7acc182834360dbef16c491c32886fee8"
         },
         {
             "path": "schemas/kit-error-vocabulary.v1.schema.json",

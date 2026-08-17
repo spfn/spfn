@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "spfn://landing-kit/contracts/kit-catalog/v1",
     "title": "KitCatalogV1",
-    "description": "The minimum a release catalog must carry for the generic CLI to read it. Transcribed from the view the CLI already consumes: KitCatalogView and KitCatalogRelease in spfn packages/cli/src/kit/ports.ts, read by readCatalog and used by latestStableRelease.\n\nUnlike every other contract in this set, this one is open rather than closed. It describes a generic view of a larger signed catalog snapshot, not the whole document — a real snapshot also carries channel, issuance and expiry fields, and each release carries a manifest digest. Setting additionalProperties false here would reject the very documents the contract exists to describe, so the schema states a floor and leaves the rest to the snapshot's own contract.",
+    "description": "The minimum a release catalog must carry for the generic CLI to read it. Transcribed from the view the CLI consumes: KitCatalogView and KitCatalogRelease in spfn packages/cli/src/kit/ports.ts, read by readCatalog and used by latestActiveRelease.\n\nUnlike every other contract in this set, this one is open rather than closed. It describes a generic view of a larger signed catalog snapshot, not the whole document — a real snapshot also carries channel, issuance and expiry fields, and each release carries a manifest digest. Setting additionalProperties false here would reject the very documents the contract exists to describe, so the schema states a floor and leaves the rest to the snapshot's own contract.",
     "type": "object",
     "required": ["schemaVersion", "kitId", "sequence", "releases"],
     "properties": {
@@ -29,8 +29,8 @@
                     "releaseClass": { "enum": ["security", "maintenance", "feature", "breaking"] },
                     "manifestUrl": { "type": "string", "pattern": "^https://[a-z0-9.-]+(:[0-9]+)?(/[^\\s?#]*)?$" },
                     "status": {
-                        "enum": ["stable", "revoked"],
-                        "description": "The two states the CLI distinguishes: latestStableRelease selects on stable, and a revoked release is never offered. Unit 05's signed snapshot draws a finer distinction (active, superseded, revoked); this generic view collapses it, and reconciling the two is recorded as an open question rather than decided here."
+                        "enum": ["active", "superseded", "revoked"],
+                        "description": "Unit 05 section 2.2, which is the approved source: active means a new install, update or rebuild may take it; superseded means it is no longer recommended automatically but an entitled client may still rebuild that exact version; revoked blocks new metadata and tarball acquisition. Selecting the latest release picks the newest active one, so a superseded release stays reachable by exact version but is never chosen on its own. Wave 1 shipped a temporary stable/revoked pair before unit 05 was consulted; I0-C3 retired it."
                     }
                 }
             }

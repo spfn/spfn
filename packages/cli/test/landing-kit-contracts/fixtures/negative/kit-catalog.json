@@ -4,7 +4,7 @@
     "cases": [
         {
             "negativeCaseId": "N-CATALOG-01",
-            "reason": "A release status the CLI does not distinguish. latestStableRelease selects on `stable`; a third value would be silently treated as not-stable, so an unreadable status has to be a rejection rather than a guess.",
+            "reason": "The retired Wave 1 status `stable`. Unit 05 section 2.2 is the approved vocabulary — active, superseded, revoked — and this case exists so the temporary pair cannot quietly come back: a client that met `stable` would have to guess whether it meant active or superseded, and those differ on whether the release may be chosen automatically.",
             "caseIds": ["A10", "D10"],
             "expectedInvalidPointers": ["/releases/0/status"],
             "value": {
@@ -17,7 +17,7 @@
                         "sequence": 1,
                         "releaseClass": "feature",
                         "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
-                        "status": "draft"
+                        "status": "stable"
                     }
                 ]
             }
