@@ -47,7 +47,8 @@ dbCommand
 dbCommand
     .command('status')
     .description('Show applied/pending migration status (function packages + project)')
-    .action(dbStatus);
+    .option('--json', 'print one machine-readable report instead of the human summary')
+    .action((options: { json?: boolean }) => dbStatus({ json: options.json === true }));
 
 dbCommand
     .command('studio')

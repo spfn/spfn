@@ -30,6 +30,8 @@ import {
     registryEntitlementProbe,
 } from './registry.js';
 import { RegistryVerifyingPackageManager } from './package-manager.js';
+import { createHttpSetupFetcher } from './setup.js';
+import type { SetupFetcher } from '../setup-descriptor.js';
 import type { KitHttpOptions } from './transport.js';
 
 /** Where a Kit's services live when nothing says otherwise. */
@@ -97,6 +99,8 @@ export interface KitRemotePortsOptions extends KitHttpOptions
 
 export interface KitRemotePorts
 {
+    /** Fetches the setup descriptor, one allowlist-checked hop at a time. */
+    setupFetcher: SetupFetcher;
     catalog: HttpCatalogPort;
     license: HttpLicensePort;
     registry: HttpRegistryPort;
@@ -130,6 +134,7 @@ export function createKitRemotePorts(options: KitRemotePortsOptions): KitRemoteP
     });
 
     return {
+        setupFetcher: createHttpSetupFetcher(http),
         catalog,
         license: new HttpLicensePort({ ...http, baseUrl: options.endpoints.controlPlaneUrl }, probe),
         registry: new HttpRegistryPort({

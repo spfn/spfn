@@ -2,21 +2,110 @@ import chalk from 'chalk';
 
 import { validateDatabasePrerequisites } from './utils/drizzle.js';
 import { getMigrationStatus, migrationTargets } from '../../utils/migration-status.js';
+import type { MigrationStatus } from '../../utils/migration-status.js';
+
+/**
+ * The machine-readable form of `spfn db status`.
+ *
+ * It exists because "are there migrations waiting" is a question another
+ * program has to answer without reading prose — `spfn kit install` decides
+ * whether to run migrations from it. So the three states a caller must tell
+ * apart get fields of their own rather than being inferred from an exit code:
+ * a project with no database configured, a database that could not be reached,
+ * and a database that answered.
+ */
+export interface DbStatusReportV1
+{
+    schemaVersion: 1;
+    /** Whether a connection string is configured for this project at all. */
+    configured: boolean;
+    /** Whether the configured database answered. False when it did not. */
+    reachable: boolean;
+    /** Why it could not be read, in a word. Absent when it was read. */
+    reason?: 'not-configured' | 'unreachable';
+    targets: {
+        name: string;
+        total: number;
+        applied: number;
+        pending: number;
+        pendingTags: string[];
+    }[];
+    /** `<target>/<tag>` for every migration still waiting. */
+    pending: string[];
+    pendingCount: number;
+}
+
+/**
+ * Read a migration status into the report.
+ *
+ * `pending` is flattened to one identifier per waiting migration because a
+ * caller counting work to do should not have to walk two levels to do it; the
+ * per-target detail stays in `targets` for anything that wants it.
+ */
+export function migrationStatusReport(status: MigrationStatus): DbStatusReportV1
+{
+    const targets = migrationTargets(status).map(target => ({
+        name: target.name,
+        total: target.total,
+        applied: target.applied,
+        pending: target.pending,
+        pendingTags: [...target.pendingTags],
+    }));
+    const pending = targets.flatMap(target => target.pendingTags.map(tag => `${target.name}/${tag}`));
+
+    return {
+        schemaVersion: 1,
+        configured: true,
+        reachable: true,
+        targets,
+        pending,
+        pendingCount: targets.reduce((sum, target) => sum + target.pending, 0),
+    };
+}
+
+/** The report for a database that could not be read, and why. */
+export function unreadableStatusReport(reason: 'not-configured' | 'unreachable'): DbStatusReportV1
+{
+    return {
+        schemaVersion: 1,
+        configured: reason !== 'not-configured',
+        reachable: false,
+        reason,
+        targets: [],
+        pending: [],
+        pendingCount: 0,
+    };
+}
 
 /**
  * Show applied/pending migration status for function packages and the project.
  *
  * Entry point for "why are the package tables missing?" — reports what
  * `spfn db migrate` would apply, without touching the database.
+ *
+ * `--json` prints one object and nothing else, and exits 0 whenever it has an
+ * answer — including "no database is configured", which is an answer. The
+ * human path is unchanged: it still explains itself and still exits 1 when it
+ * cannot read the status, because a person reading a broken status wants the
+ * shell to notice.
  */
-export async function dbStatus(): Promise<void>
+export async function dbStatus(options: { json?: boolean } = {}): Promise<void>
 {
+    const json = options.json === true;
+
     try
     {
         validateDatabasePrerequisites();
     }
     catch (error)
     {
+        if (json)
+        {
+            printReport(unreadableStatusReport('not-configured'));
+
+            return;
+        }
+
         // Error already logged in validateDatabasePrerequisites
         process.exit(1);
     }
@@ -29,9 +118,23 @@ export async function dbStatus(): Promise<void>
     }
     catch (error)
     {
+        if (json)
+        {
+            printReport(unreadableStatusReport('unreachable'));
+
+            return;
+        }
+
         console.error(chalk.red('❌ Failed to read migration status'));
         console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
         process.exit(1);
+    }
+
+    if (json)
+    {
+        printReport(migrationStatusReport(status));
+
+        return;
     }
 
     const targets = migrationTargets(status);
@@ -69,4 +172,18 @@ export async function dbStatus(): Promise<void>
     {
         console.log(chalk.yellow(`\n⚠️  ${pendingTotal} pending migration(s) — run: pnpm spfn db migrate\n`));
     }
+}
+
+/**
+ * The report, on one line, marked so a caller can find it.
+ *
+ * Anything else on the way here — a driver's warning, a dotenv notice — is
+ * still on stdout, and a reader that took the whole stream as JSON would break
+ * on it. The marker makes the report findable in a stream it does not control.
+ */
+export const DB_STATUS_JSON_MARKER = '#spfn-db-status#';
+
+function printReport(report: DbStatusReportV1): void
+{
+    console.log(`${DB_STATUS_JSON_MARKER}${JSON.stringify(report)}`);
 }

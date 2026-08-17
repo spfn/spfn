@@ -82,14 +82,25 @@ export function createChildEnv(options: ChildEnvOptions = {}): Record<string, st
 /**
  * An `.npmrc` that points at the private registry and reads the token from the
  * environment — the file references the secret, it never contains it.
+ *
+ * Every scope the release publishes under gets a line. A release whose packages
+ * span two scopes and whose `.npmrc` names one leaves the other resolving
+ * wherever the machine's own configuration happens to point, which is both a
+ * broken install and a request sent somewhere nobody chose.
+ *
+ * The auth key keeps its trailing slash. npm and pnpm match a stored
+ * credential against the registry URI as written, and `//host/npm` does not
+ * match a registry of `//host/npm/` — the token is simply never sent, and the
+ * install fails as unauthorized with the credential sitting right there.
  */
-export function registryNpmrc(scope: string, registryUrl: string): string
+export function registryNpmrc(scopes: string | readonly string[], registryUrl: string): string
 {
-    const host = registryUrl.replace(/^https?:/, '').replace(/\/$/, '');
+    const authKey = `${registryUrl.replace(/^https?:/, '').replace(/\/*$/, '/')}:_authToken`;
+    const names = typeof scopes === 'string' ? [scopes] : [...new Set(scopes)];
 
     return [
-        `${scope}:registry=${registryUrl}`,
-        `${host}:_authToken=\${${REGISTRY_TOKEN_ENV}}`,
+        ...names.map(scope => `${scope}:registry=${registryUrl}`),
+        `${authKey}=\${${REGISTRY_TOKEN_ENV}}`,
         'always-auth=true',
         '',
     ].join('\n');

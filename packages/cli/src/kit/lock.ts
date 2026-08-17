@@ -18,7 +18,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { KitError } from './errors.js';
-import { kitPaths, type KitPaths } from './paths.js';
+import { ensureOperationsDir, kitPaths, type KitPaths } from './paths.js';
 import { RESUMABLE_STATUSES, TERMINAL_STATUSES, type KitOperationJournalV1 } from './journal.js';
 
 export interface KitLockOwner
@@ -198,7 +198,10 @@ function tryCreateLockDir(paths: KitPaths): boolean
 {
     try
     {
-        mkdirSync(paths.operationsDir, { recursive: true });
+        // Through the helper, so the lock directory is covered by the ignore
+        // rule from the moment it exists rather than from whenever something
+        // else got round to writing one.
+        ensureOperationsDir(paths.root);
         mkdirSync(paths.lockDir);
 
         return true;
