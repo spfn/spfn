@@ -2,7 +2,7 @@
     "schemaVersion": 1,
     "operationId": "op-2026-08-17-install-01",
     "type": "install",
-    "kitId": "landing-kit",
+    "kitId": "campaign-landing",
     "sourceRelease": null,
     "targetRelease": "1.0.0",
     "manifestDigest": "sha256:19ccd51444b6cbe4e3bbc17589a2172beb25c9226fd397ef0de79f9fd9c0a2bb",

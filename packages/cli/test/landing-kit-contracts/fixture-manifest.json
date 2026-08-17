@@ -3,7 +3,7 @@
     "contractSet": "landing-kit/i0",
     "origin": "spfn-course/packages/landing-kit/contracts",
     "design": "docs/product/kits/landing-kit/units",
-    "contractSetDigest": "sha256:98bc3551dddae1dac67cc07cdfcc1155e1a7d9fb88899958247c1475977f2dab",
+    "contractSetDigest": "sha256:033b0c06924effe3c10af3a498a18f9be389f971ef306535ec442c9cc5b47894",
     "contracts": [
         {
             "id": "setup-descriptor-envelope",
@@ -185,7 +185,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:7531da8e9ae5696e8a8840ae45288924934fca2c11b52bc647b4af85f3ba569e"
+            "sha256": "sha256:2f14b431fb052f70e8d97a6f2293eb0f27046f96e4a7133a633ccbccfa4c0e16"
         },
         {
             "path": "fixtures/negative/kit-release-evidence.json",
@@ -203,7 +203,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:36d471cb445f1de79846a1934a29722ffb8011a50fed75124e1798c9adf4d4ae"
+            "sha256": "sha256:a1d2ee4790974b13a9880304efdd5ca9f54ea79c9d5d549689a413ff3540cca6"
         },
         {
             "path": "fixtures/negative/landing-kit-setup-payload.json",
@@ -212,7 +212,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:127edb4ac8f243994607f3c33486bc9f5c145fe1e02bee800602ca0974838014"
+            "sha256": "sha256:f40a7fe822e57b2c337c56be8198d2c6fc30572a709a5cb44e1cadf0a8361dc7"
         },
         {
             "path": "fixtures/negative/landing-report-envelope.json",
@@ -252,7 +252,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:c845cf0606adcbf8281321ce249cde56c7916f81e8761f73acefff8f2ed5d4c5"
+            "sha256": "sha256:771c32c62cd5244d68e9765491b7459c1f01f76b14be51357f92b0b970020495"
         },
         {
             "path": "fixtures/positive/kit-error-vocabulary.json",
@@ -271,7 +271,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:1516d8de7e21a92cbe66ff7f5862dc91cf2242b557bf49c3ca956e5496900593"
+            "sha256": "sha256:16a5d906ace9224d53def4c8f8ce7231e2f00781a82408091fa16bccb27398f5"
         },
         {
             "path": "fixtures/positive/kit-operation-journal-waiting-cloud.json",
@@ -281,7 +281,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:e4e614d7ff71398fdcf1c855ffe5cf169cf6d829297492aca06af883338d7473"
+            "sha256": "sha256:dd8d04f8312a25085ad663d89874d397b265c218ee53940c5c5892935cb83708"
         },
         {
             "path": "fixtures/positive/kit-operation-journal-waiting-settlement.json",
@@ -291,7 +291,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:6fa50dc6d91d00d82cf44ca4f27fe9e22fa0781e0b197e6916f360a28e64757e"
+            "sha256": "sha256:42fc7407f64e42332f2c544e4fc7c5e513b952a14fd90f7c0f39e750689b85a5"
         },
         {
             "path": "fixtures/positive/kit-release-evidence-release-ready.json",
@@ -318,7 +318,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:cc9c830588d8f5c8e216ddf018a18cc23b7b9bdcd8c8e8da8e89ea2abdd9e632"
+            "sha256": "sha256:6890d2bbd7672f44c95d9f271ad5482cf2c1783d5482ac5acdda31010594220f"
         },
         {
             "path": "fixtures/positive/kit-release-manifest.json",
@@ -327,7 +327,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:57deae162300bf19c5c94026335bf2c2191e1e78f9d2a856e5d652d91d1abb0b"
+            "sha256": "sha256:0073283d3e2956de74ac332a64c77f0e6d4645cd606df237c4cb933cedbb6bcc"
         },
         {
             "path": "fixtures/positive/landing-kit-setup-payload.json",
@@ -336,7 +336,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:9bf7fe3ff111555a5720eab23ec77f018cbe3f3ad12f7788a6d33b8cb6ca5e78"
+            "sha256": "sha256:0c2eee7dd8919f16ca71df665dd04824e75fa67c7c7a8613f5cc8c7fe4123b4b"
         },
         {
             "path": "fixtures/positive/landing-report-compare.json",
@@ -416,7 +416,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:3a8aabac04aa194b5c2d4863deb8b8d5679d35971d78e68a322d35634fde443b"
+            "sha256": "sha256:bb41ef0a57f7014db5db992d8c3901edcc8d37cc8eccb114961016b4320e8ab1"
         },
         {
             "path": "schemas/case-map.v1.schema.json",
@@ -462,7 +462,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:a824a058fa174817fb9ae690e882c388fcc9378bba89e7362c2e852147cf59e7"
+            "sha256": "sha256:b5ec223dc5305a647d711a78a91a51cd6c7788830efac675d2f292b646c4e2e9"
         },
         {
             "path": "schemas/landing-kit-setup-payload.v1.schema.json",
@@ -471,7 +471,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:9cb8be8f8a4d8c088762493d630b7a91fe8d1684b8b0530c0eda98904109c00b"
+            "sha256": "sha256:8fdef379383be18b4986a6fb9af4a26bddfeb2bded70f123c5776e09aad95a49"
         },
         {
             "path": "schemas/landing-report-envelope.v1.schema.json",

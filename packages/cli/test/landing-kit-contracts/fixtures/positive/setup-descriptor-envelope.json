@@ -16,10 +16,10 @@
     "catalogUrl": "https://packages.superfunction.xyz/kits/landing-kit/catalog",
     "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
     "payloadKind": "landing-kit/setup-payload@1",
-    "payloadDigest": "sha256:552b612f12e82c4c3635b5e2666fdf53321962568ffa7727c9e12865853c7ce0",
+    "payloadDigest": "sha256:f6e80925359a310a70f23b46b3d43aca63adba15553a12c1ee54318453608b07",
     "payload": {
         "schemaVersion": 1,
-        "kitId": "landing-kit",
+        "kitId": "campaign-landing",
         "productSku": "campaign-landing",
         "toolingEntry": "@superfunction/landing-kit/tooling",
         "locales": ["ko", "en"],

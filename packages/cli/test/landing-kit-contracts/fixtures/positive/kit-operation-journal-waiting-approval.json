@@ -2,7 +2,7 @@
     "schemaVersion": 1,
     "operationId": "op-2026-08-24-update-01",
     "type": "update",
-    "kitId": "landing-kit",
+    "kitId": "campaign-landing",
     "sourceRelease": "1.0.0",
     "targetRelease": "1.1.0",
     "manifestDigest": "sha256:5a90c1dcbcd22746c5608d51d77f310682720601b4317470a17c8cbfa79a7b9f",

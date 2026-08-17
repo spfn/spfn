@@ -29,7 +29,7 @@ const CONTRACTS_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'landi
 
 /** spfn-course and capabilities pin this same value. Three different values
  *  would mean three repositories reading three different contracts. */
-const FROZEN_CONTRACT_SET_DIGEST = 'sha256:98bc3551dddae1dac67cc07cdfcc1155e1a7d9fb88899958247c1475977f2dab';
+const FROZEN_CONTRACT_SET_DIGEST = 'sha256:033b0c06924effe3c10af3a498a18f9be389f971ef306535ec442c9cc5b47894';
 
 const EXPECTED_CONTRACTS = [
     'setup-descriptor-envelope',
