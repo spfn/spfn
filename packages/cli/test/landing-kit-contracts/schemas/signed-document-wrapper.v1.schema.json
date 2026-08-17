@@ -1,0 +1,38 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "spfn://landing-kit/contracts/signed-document-wrapper/v1",
+    "title": "SignedDocumentWrapperV1",
+    "description": "Detached signature wrapper shared by the setup descriptor, the release catalog and the release manifest. A signature that travels inside the bytes it covers cannot be checked without first deciding which bytes to strip, so the signature sits outside: the contract object rides as `document`, and `signature.value` covers that object's canonical JSON (RFC 8785). The document keeps the exact bytes its own schema describes, which is what lets one validator check both a fetched document and a fixture. Added in I0-C2 after Wave 1 found the frozen envelopes had no place to put a signature.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["schemaVersion", "document", "signature"],
+    "properties": {
+        "schemaVersion": { "const": 1 },
+        "document": {
+            "type": "object",
+            "description": "The signed contract object, verified against its own schema separately. The wrapper deliberately says nothing about its shape so one wrapper serves every document kind."
+        },
+        "signature": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["keyId", "algorithm", "value"],
+            "properties": {
+                "keyId": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                    "description": "Names which trusted key signed. An unknown key ID is refused rather than verified against whichever key happens to be on hand."
+                },
+                "algorithm": {
+                    "const": "ed25519",
+                    "description": "Ed25519 only. A single accepted value means a producer cannot negotiate the verifier down to something weaker."
+                },
+                "value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "description": "Base64 detached signature over the canonical JSON of `document`."
+                }
+            }
+        }
+    }
+}

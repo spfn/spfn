@@ -1,0 +1,46 @@
+{
+    "schemaVersion": 1,
+    "schema": "kit-catalog.v1",
+    "cases": [
+        {
+            "negativeCaseId": "N-CATALOG-01",
+            "reason": "A release status the CLI does not distinguish. latestStableRelease selects on `stable`; a third value would be silently treated as not-stable, so an unreadable status has to be a rejection rather than a guess.",
+            "caseIds": ["A10", "D10"],
+            "expectedInvalidPointers": ["/releases/0/status"],
+            "value": {
+                "schemaVersion": 1,
+                "kitId": "campaign-landing",
+                "sequence": 4,
+                "releases": [
+                    {
+                        "version": "1.0.0",
+                        "sequence": 1,
+                        "releaseClass": "feature",
+                        "manifestUrl": "https://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
+                        "status": "draft"
+                    }
+                ]
+            }
+        },
+        {
+            "negativeCaseId": "N-CATALOG-02",
+            "reason": "A release points at a plain-http manifest URL. The manifest is fetched before its signature can be checked, so the transport has to be the trusted one.",
+            "caseIds": ["A2", "F4"],
+            "expectedInvalidPointers": ["/releases/0/manifestUrl"],
+            "value": {
+                "schemaVersion": 1,
+                "kitId": "campaign-landing",
+                "sequence": 4,
+                "releases": [
+                    {
+                        "version": "1.0.0",
+                        "sequence": 1,
+                        "releaseClass": "feature",
+                        "manifestUrl": "http://packages.superfunction.xyz/kits/landing-kit/manifests/1.0.0",
+                        "status": "stable"
+                    }
+                ]
+            }
+        }
+    ]
+}

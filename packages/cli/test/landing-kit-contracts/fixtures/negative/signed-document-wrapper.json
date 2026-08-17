@@ -1,0 +1,37 @@
+{
+    "schemaVersion": 1,
+    "schema": "signed-document-wrapper.v1",
+    "cases": [
+        {
+            "negativeCaseId": "N-SIGNED-01",
+            "reason": "The wrapper names an algorithm other than ed25519. One accepted value is the whole point: a producer that could pick the algorithm could negotiate the verifier down to something it can forge.",
+            "caseIds": ["A1", "F4"],
+            "expectedInvalidPointers": ["/signature/algorithm"],
+            "value": {
+                "schemaVersion": 1,
+                "document": { "schemaVersion": 1, "kitId": "campaign-landing" },
+                "signature": {
+                    "keyId": "landing-kit-release-2026",
+                    "algorithm": "none",
+                    "value": "U3ludGhldGljRml4dHVyZVNpZ25hdHVyZQ=="
+                }
+            }
+        },
+        {
+            "negativeCaseId": "N-SIGNED-02",
+            "reason": "A sibling field sits beside the signed document. Anything outside `document` is not covered by the signature, so a wrapper that accepted extra keys would let an attacker append unsigned content to a validly signed message.",
+            "caseIds": ["F4"],
+            "expectedInvalidPointers": ["/unsignedNote"],
+            "value": {
+                "schemaVersion": 1,
+                "document": { "schemaVersion": 1, "kitId": "campaign-landing" },
+                "signature": {
+                    "keyId": "landing-kit-release-2026",
+                    "algorithm": "ed25519",
+                    "value": "U3ludGhldGljRml4dHVyZVNpZ25hdHVyZQ=="
+                },
+                "unsignedNote": "trust me"
+            }
+        }
+    ]
+}
