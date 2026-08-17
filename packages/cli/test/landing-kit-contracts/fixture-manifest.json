@@ -3,7 +3,7 @@
     "contractSet": "landing-kit/i0",
     "origin": "spfn-course/packages/landing-kit/contracts",
     "design": "docs/product/kits/landing-kit/units",
-    "contractSetDigest": "sha256:7e1819231c2f04e2b1024a8dd0df4c064a462161b7cefbe8d07d4bb48f98b35f",
+    "contractSetDigest": "sha256:ea3855e5aed0f06661254827ff49e7005b0d702fd7e9f8d3798c8a5336623a04",
     "contracts": [
         {
             "id": "setup-descriptor-envelope",
@@ -159,7 +159,7 @@
             "repos": [
                 "spfn-course"
             ],
-            "sha256": "sha256:28a7a0233040051ed8e0f577556bb0cd7d3e8afa5c603f6ef84a1694a15caa45"
+            "sha256": "sha256:76a70bd3f1988d9b88676f95499961a0919a47651d3893f9911423a48168a165"
         },
         {
             "path": "conformance/json-schema.mjs",
@@ -284,7 +284,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:771c32c62cd5244d68e9765491b7459c1f01f76b14be51357f92b0b970020495"
+            "sha256": "sha256:93e5892620ccda9b14e01025b9895b8cb34a3d5f1c398772dd06ab7c4ee9226f"
         },
         {
             "path": "fixtures/negative/signed-document-wrapper.json",
@@ -461,6 +461,15 @@
             "sha256": "sha256:605cb81d45902422f04cadb8ec014f9d9e98d1dd08786bc7fd634d87090c532f"
         },
         {
+            "path": "fixtures/positive/setup-descriptor-envelope-port.json",
+            "role": "positive",
+            "contract": "setup-descriptor-envelope",
+            "repos": [
+                "spfn-course"
+            ],
+            "sha256": "sha256:85b8f77c9f4489366ab3029b4ee599eac126dd6423a057388f2da99167e72fa3"
+        },
+        {
             "path": "fixtures/positive/setup-descriptor-envelope.json",
             "role": "positive",
             "contract": "setup-descriptor-envelope",
@@ -583,7 +592,7 @@
                 "spfn-course",
                 "spfn"
             ],
-            "sha256": "sha256:0b462f57a5f89fecf0f61d72493132424ec647c1b45425618cd40ddf26fe278c"
+            "sha256": "sha256:ce0da47ef8d6c795ea95c40678d7fc4b50a3098783f5e0a03845af83c08a015e"
         },
         {
             "path": "schemas/signed-document-wrapper.v1.schema.json",
