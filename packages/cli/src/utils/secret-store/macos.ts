@@ -1,9 +1,36 @@
 /**
  * macOS Keychain store via the built-in `security` CLI — no extra dependencies.
+ *
+ * Reads and deletes name an item; only a write carries a secret, and a secret
+ * must never reach `security`'s argument list. Anything in an argv is readable
+ * by every other process on the machine through `ps` for as long as the command
+ * runs, so `set` sends its command down `security -i` (batch commands on stdin)
+ * instead, and passes the value as `-X <hex>`.
+ *
+ * Hex rather than a quoted literal for two reasons: a batch line is parsed one
+ * line at a time, so a value with a newline — a PEM key, say — could not be
+ * written at all as a literal, and hex needs no quoting rules to be right.
  */
 
 import { execa } from 'execa';
 import { KEYCHAIN_SERVICE, type SecretStore } from './index.js';
+
+/**
+ * One argument of a `security -i` batch line.
+ *
+ * The batch parser understands double quotes with `\"` and `\\` escapes, and
+ * nothing spans a line — so a control character in a *name* is refused rather
+ * than escaped, because there is no spelling of it the parser would read back.
+ */
+function batchArgument(label: string, value: string): string
+{
+    if (/[\x00-\x1f\x7f]/.test(value))
+    {
+        throw new Error(`${label} contains a control character the keychain command cannot carry.`);
+    }
+
+    return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
 
 export class MacosKeychainStore implements SecretStore
 {
@@ -60,14 +87,18 @@ export class MacosKeychainStore implements SecretStore
 
     async set(name: string, value: string): Promise<void>
     {
-        // -U updates the item in place when it already exists.
-        await execa('security', [
+        // -U updates the item in place when it already exists. The command goes
+        // in on stdin and the value goes in as hex, so nothing secret is ever an
+        // argument of the process another local user can list.
+        const command = [
             'add-generic-password',
             '-U',
-            '-s', this.service,
-            '-a', name,
-            '-w', value,
-        ]);
+            '-s', batchArgument('Keychain service', this.service),
+            '-a', batchArgument('Keychain item name', name),
+            '-X', Buffer.from(value, 'utf8').toString('hex'),
+        ].join(' ');
+
+        await execa('security', ['-i'], { input: `${command}\n` });
     }
 
     async delete(name: string): Promise<void>

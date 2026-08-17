@@ -20,6 +20,7 @@
  */
 
 import type { KitGate, KitReleaseManifestView } from './manifest.js';
+import type { KitScaffoldDescriptor } from './scaffold.js';
 import type { KitCredentialStore } from './credentials.js';
 import type { SetupFetcher } from './setup-descriptor.js';
 import type { TrustedKey } from './signature.js';
@@ -110,7 +111,23 @@ export interface RegistrySession
 
 export interface RegistryPort
 {
-    issueSession(request: { activationId: string; localClientId: string; credential: string }): Promise<RegistrySession>;
+    /**
+     * `kitId` names the keychain item the credential lives in, so a port that
+     * rotates an expired credential can put the replacement back where the next
+     * command will look for it. A port that never rotates ignores it.
+     */
+    issueSession(request: {
+        kitId?: string;
+        activationId: string;
+        localClientId: string;
+        credential: string;
+        /**
+         * Set on a retry after the registry refused the last credential. The
+         * local record can look perfectly current while the server has already
+         * stopped honouring it, and re-presenting it would fail identically.
+         */
+        forceRotation?: boolean;
+    }): Promise<RegistrySession>;
 }
 
 export interface PackageInstallResult
@@ -176,8 +193,19 @@ export interface GitPort
 
 export interface ScaffoldPort
 {
-    /** `spfn create --mode full --skip-install --skip-git`, by meaning. */
-    createBase(request: { targetDir: string; name: string }): Promise<void>;
+    /**
+     * The project's base, as the release publishes it.
+     *
+     * `scaffold` is what the signed manifest declared: which archive, and the
+     * integrity it has to match. It is passed in rather than looked up because
+     * a scaffold that came from anywhere but the release under installation is
+     * not this release's scaffold.
+     */
+    createBase(request: {
+        targetDir: string;
+        name: string;
+        scaffold?: KitScaffoldDescriptor;
+    }): Promise<void>;
 }
 
 export interface ArtifactPort

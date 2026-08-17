@@ -17,7 +17,7 @@
  * the license is refused, the pending item is deleted.
  */
 
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { detectStore, type SecretStore } from '../utils/secret-store/index.js';
 
 /** The keychain service Kit credentials live under. Never the env-secret one. */
@@ -74,10 +74,32 @@ export interface KitCredentialStore
     remove(account: string): Promise<void>;
 }
 
-/** A client-generated credential proposal for the pending activation. */
+/**
+ * A client-generated credential proposal for the pending activation.
+ *
+ * The shape is the control plane's, not this CLI's: `spfnlc_` marks it a local
+ * client credential, the 16 hex characters before the dot are the public id the
+ * server files it under, and the rest is 32 bytes of randomness the server only
+ * ever stores a hash of. Getting the shape wrong is not a cosmetic mistake —
+ * the service rejects the activation outright.
+ */
 export function newCandidateCredential(): string
 {
-    return `lcc_${randomUUID().replace(/-/g, '')}`;
+    return `spfnlc_${randomBytes(8).toString('hex')}.${randomBytes(32).toString('base64url')}`;
+}
+
+/**
+ * The public id a credential carries, or null when it carries none.
+ *
+ * Used to address the credential in a control-plane path. The value before the
+ * dot is public by construction; the part after it is the secret and is never
+ * returned from here.
+ */
+export function credentialPublicId(credential: string): string | null
+{
+    const match = /^spfn[a-z]*_([0-9a-f]{16})\./.exec(credential);
+
+    return match === null ? null : match[1];
 }
 
 /**

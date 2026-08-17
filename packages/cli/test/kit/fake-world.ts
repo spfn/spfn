@@ -23,7 +23,9 @@ import type { KitMutationPlan, KitToolingV1 } from '../../src/kit/tooling.js';
 
 export const FAKE_SETUP_ORIGIN = 'https://start.superfunction.xyz';
 export const FAKE_SETUP_URL = `${FAKE_SETUP_ORIGIN}/setup/landing-kit`;
-export const FAKE_CATALOG_URL = 'https://packages.superfunction.xyz/kits/landing-kit/catalog';
+/** Where the release documents and artifacts of the fake world live. */
+export const FAKE_RELEASE_STORE_URL = 'https://packages.superfunction.xyz/kits/landing-kit';
+export const FAKE_CATALOG_URL = `${FAKE_RELEASE_STORE_URL}/catalog`;
 export const FAKE_LICENSE_KEY = 'spfnl_fixture_key_0001';
 export const FAKE_CLI_VERSION = '0.3.0-beta.5';
 export const FAKE_KIT_PACKAGE = '@superfunction/landing-kit';
@@ -42,6 +44,8 @@ export interface FakeReleaseSpec
     /** Packages that carry migrations. */
     withMigrations?: boolean;
     status?: 'active' | 'superseded' | 'revoked';
+    /** What the release's scaffold archive holds: path → content. */
+    scaffoldFiles?: Record<string, string>;
 }
 
 export interface FakeWorldOptions
@@ -52,6 +56,15 @@ export interface FakeWorldOptions
     /** The CLI version the descriptor demands. */
     minimumCliVersion?: string;
     now?: string;
+    /**
+     * Where the catalog, the manifests and the artifacts are addressed from.
+     *
+     * The HTTP tests point this at a loopback fixture so the documents this
+     * world builds are the documents a real client fetches over a real socket.
+     */
+    releaseStoreUrl?: string;
+    /** Where the registry proxy and the npm packages are addressed from. */
+    registryUrl?: string;
 }
 
 export interface FakeFaults
@@ -89,7 +102,9 @@ export class FakeKitWorld
 {
     readonly kitId: string;
     readonly setupUrl = FAKE_SETUP_URL;
-    readonly catalogUrl = FAKE_CATALOG_URL;
+    readonly releaseStoreUrl: string;
+    readonly catalogUrl: string;
+    readonly registryUrl: string;
     readonly licenseKey = FAKE_LICENSE_KEY;
     readonly credentials = new MemoryKitCredentialStore();
     readonly adapters: KitAdapters;
@@ -137,6 +152,9 @@ export class FakeKitWorld
         this.privateKey = keys.privateKey;
         this.publicKeyDer = keys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
         this.kitId = options.kitId ?? 'campaign-landing';
+        this.releaseStoreUrl = (options.releaseStoreUrl ?? FAKE_RELEASE_STORE_URL).replace(/\/+$/, '');
+        this.catalogUrl = `${this.releaseStoreUrl}/catalog`;
+        this.registryUrl = options.registryUrl ?? 'https://packages.superfunction.xyz/npm/';
         this.clockSeconds = Date.parse(options.now ?? '2026-08-17T00:00:00Z') / 1000;
 
         for (const spec of options.releases ?? [defaultRelease()])
@@ -260,6 +278,13 @@ export class FakeKitWorld
 
         this.artifacts.set(agentPackArtifact, Buffer.from(agentPackContent, 'utf8'));
 
+        // A real ustar archive, so a real scaffold port has something to expand
+        // and a real integrity to check it against.
+        const scaffoldArtifact = `artifact/${spec.version}/scaffold.tar`;
+        const scaffoldBytes = buildTar(spec.scaffoldFiles ?? defaultScaffoldFiles(spec.version));
+
+        this.artifacts.set(scaffoldArtifact, scaffoldBytes);
+
         const manifest = {
             schemaVersion: 1,
             kitId: this.kitId,
@@ -279,14 +304,14 @@ export class FakeKitWorld
             },
             scaffold: {
                 recipeVersion: '1.0.0',
-                artifact: `landing-kit/scaffold/${spec.version}.tar`,
-                integrity: fakeIntegrity(`scaffold-${spec.version}`),
+                artifact: scaffoldArtifact,
+                integrity: sriOf(scaffoldBytes),
             },
             packages: [
                 {
                     name: '@spfn/core',
                     version: '0.3.0-beta.5',
-                    integrity: fakeIntegrity('core'),
+                    integrity: this.publishTarball('@spfn/core', '0.3.0-beta.5'),
                     provenanceDigest: sha256Digest('core-provenance'),
                     exportContractDigest: sha256Digest('core-exports'),
                     migrationSetDigest: null,
@@ -294,7 +319,7 @@ export class FakeKitWorld
                 {
                     name: FAKE_KIT_PACKAGE,
                     version: spec.version,
-                    integrity: fakeIntegrity(`kit-${spec.version}`),
+                    integrity: this.publishTarball(FAKE_KIT_PACKAGE, spec.version),
                     provenanceDigest: sha256Digest(`kit-provenance-${spec.version}`),
                     exportContractDigest: sha256Digest(`kit-exports-${spec.version}`),
                     migrationSetDigest: spec.withMigrations === true ? sha256Digest(`kit-migrations-${spec.version}`) : null,
@@ -327,19 +352,72 @@ export class FakeKitWorld
             gates: spec.gates ?? ['kit-check', 'typecheck', 'test', 'build'],
         };
 
+        const manifestUrl = `${this.releaseStoreUrl}/manifests/${spec.version}`;
+
         return {
             spec: spec as BuiltRelease['spec'],
             manifest,
-            manifestUrl: `https://packages.superfunction.xyz/kits/landing-kit/manifests/${spec.version}`,
+            manifestUrl,
             catalogEntry: {
                 version: spec.version,
                 sequence: spec.sequence,
                 releaseClass: (spec.releaseClass ?? 'feature') as KitCatalogRelease['releaseClass'],
-                manifestUrl: `https://packages.superfunction.xyz/kits/landing-kit/manifests/${spec.version}`,
+                manifestUrl,
                 status: spec.status ?? 'active',
             },
         };
     }
+
+    /** The signed catalog document, as the release store would serve it. */
+    signedCatalog(): unknown
+    {
+        return this.sign({
+            schemaVersion: 1,
+            kitId: this.kitId,
+            sequence: this.latest.spec.sequence,
+            releases: this.releases.map(entry => entry.catalogEntry),
+        });
+    }
+
+    /** The bytes of one release artifact, or null when there is no such name. */
+    artifactBytes(artifact: string): Uint8Array | null
+    {
+        return this.artifacts.get(artifact) ?? null;
+    }
+
+    /** Everything the release store would serve, by artifact name. */
+    artifactStore(): Record<string, Uint8Array>
+    {
+        return Object.fromEntries(this.artifacts);
+    }
+
+    /**
+     * A package tarball with the integrity the manifest declares for it.
+     *
+     * The digest in the manifest and the digest of the bytes a registry serves
+     * have to be the same number for an exact install to be provable at all —
+     * so the bytes are made here, once, and the manifest records what they hash
+     * to rather than a plausible-looking constant.
+     */
+    private publishTarball(name: string, version: string): string
+    {
+        const existing = this.packageTarballs.find(entry => entry.name === name && entry.version === version);
+
+        if (existing !== undefined)
+        {
+            return existing.integrity;
+        }
+
+        const bytes = buildTar({ 'package/package.json': `${JSON.stringify({ name, version }, null, 4)}\n` });
+        const integrity = sriOf(bytes);
+
+        this.packageTarballs.push({ name, version, bytes, integrity });
+
+        return integrity;
+    }
+
+    /** Every package tarball the manifests point at. */
+    readonly packageTarballs: { name: string; version: string; bytes: Uint8Array; integrity: string }[] = [];
 
     private releaseSpec(version: string): FakeReleaseSpec | undefined
     {
@@ -364,7 +442,7 @@ export class FakeKitWorld
         return {
             cliVersion: options.cliVersion ?? FAKE_CLI_VERSION,
             controlPlaneUrl: 'https://start.superfunction.xyz',
-            registryUrl: 'https://packages.superfunction.xyz/npm/',
+            registryUrl: this.registryUrl,
             trustedKeys: this.trustedKeys,
             clock: { now: () => world.tick() },
             credentials: this.credentials,
@@ -387,12 +465,7 @@ export class FakeKitWorld
                         throw new Error('catalog unreachable');
                     }
 
-                    return world.sign({
-                        schemaVersion: 1,
-                        kitId: world.kitId,
-                        sequence: world.latest.spec.sequence,
-                        releases: world.releases.map(entry => entry.catalogEntry),
-                    });
+                    return world.signedCatalog();
                 },
                 async fetchSignedManifest(url: string)
                 {
@@ -664,4 +737,87 @@ function defaultRelease(): FakeReleaseSpec
 function fakeIntegrity(seed: string): string
 {
     return `sha512-${createHash('sha512').update(seed).digest('base64').replace(/=+$/, '').slice(0, 86)}==`;
+}
+
+/** A real subresource integrity value over real bytes. */
+export function sriOf(bytes: Uint8Array, algorithm: 'sha256' | 'sha512' = 'sha512'): string
+{
+    return `${algorithm}-${createHash(algorithm).update(bytes).digest('base64')}`;
+}
+
+/** The base a release scaffolds when the spec does not name its own. */
+export function defaultScaffoldFiles(version: string): Record<string, string>
+{
+    return {
+        'package.json': `${JSON.stringify({ name: 'kit-scaffold', private: true, version: '0.0.0' }, null, 4)}\n`,
+        'pnpm-lock.yaml': 'lockfileVersion: 9.0\n',
+        'src/app/page.tsx': `export default function Page() { return null; } // ${version}\n`,
+        'src/server/router.ts': 'export const appRouter = {};\n',
+    };
+}
+
+/**
+ * A POSIX ustar archive of the given files.
+ *
+ * Written by hand rather than shelled out to `tar`, so the tests do not depend
+ * on which `tar` a machine happens to have, and so a deliberately malformed
+ * archive is as easy to produce as a well-formed one.
+ */
+export function buildTar(files: Record<string, string | Uint8Array>, overrides: TarOverrides = {}): Uint8Array
+{
+    const blocks: Buffer[] = [];
+
+    for (const [path, content] of Object.entries(files))
+    {
+        const bytes = typeof content === 'string' ? Buffer.from(content, 'utf8') : Buffer.from(content);
+
+        blocks.push(tarHeader(overrides.rename?.(path) ?? path, bytes.length, overrides.typeFlag ?? '0'));
+        blocks.push(bytes);
+
+        const padding = (512 - (bytes.length % 512)) % 512;
+
+        if (padding > 0)
+        {
+            blocks.push(Buffer.alloc(padding));
+        }
+    }
+
+    blocks.push(Buffer.alloc(1024));
+
+    return new Uint8Array(Buffer.concat(blocks));
+}
+
+export interface TarOverrides
+{
+    /** Rewrite each entry's path, for the archives that must be refused. */
+    rename?: (path: string) => string;
+    /** Entry type, e.g. `2` for a symlink the reader must refuse. */
+    typeFlag?: string;
+}
+
+function tarHeader(path: string, size: number, typeFlag: string): Buffer
+{
+    const header = Buffer.alloc(512);
+
+    header.write(path.slice(0, 100), 0, 100, 'utf8');
+    header.write('000644 \0', 100, 8, 'ascii');
+    header.write('000000 \0', 108, 8, 'ascii');
+    header.write('000000 \0', 116, 8, 'ascii');
+    header.write(`${size.toString(8).padStart(11, '0')} `, 124, 12, 'ascii');
+    header.write('00000000000 ', 136, 12, 'ascii');
+    header.write(typeFlag, 156, 1, 'ascii');
+    header.write('ustar\0', 257, 6, 'ascii');
+    header.write('00', 263, 2, 'ascii');
+    header.fill(' ', 148, 156);
+
+    let checksum = 0;
+
+    for (const byte of header)
+    {
+        checksum += byte;
+    }
+
+    header.write(`${checksum.toString(8).padStart(6, '0')}\0 `, 148, 8, 'ascii');
+
+    return header;
 }

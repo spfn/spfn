@@ -570,13 +570,47 @@ caller is resuming exactly the operation it belongs to.
 Generated state lives under `.spfn/`: `license.json` and `kit-lock.json` are committed and
 hold public identifiers only; `operations/` is per-machine and gitignored.
 
-The Kit control-plane client is not part of this build yet, so `install`, `restore` and
-`update` report `CLI_CONTROL_PLANE_CLIENT_ABSENT` (exit 5) until it ships. `status` and
-`check` still work: an unreachable remote never hides local state, so they read the lock,
-the license file, the drift and the open operation from disk and report everything else as
-`unknown`. The command surface, journal, lock, keychain and verification are complete and
-exercised against a fake control plane, registry, database, Git and provider in
-`test/kit/`.
+**Exactness is proved, not assumed.** Before the package manager runs, every package the
+signed manifest names is fetched through the licensed registry proxy and checked twice: the
+version's integrity against the digest the manifest pinned, then the bytes that actually
+arrived against that same digest. The first says the registry agrees with the release; only
+the second says the file on this disk is the file the release described. The project's base
+arrives the same way — one scaffold archive, verified against the manifest's integrity
+before a single file is expanded, and refused outright if it names a path that would leave
+the project directory or overwrite a file that is already there.
+
+**Credentials rotate before they expire, not after.** A local credential opens the registry
+for a limited window. When that window is close to closing, the CLI asks the control plane
+for a replacement and writes it to the keychain *before* using it — a rotation that was not
+recorded can never have happened. A credential another machine has already replaced is
+reported as stale rather than as missing: the two mean different things, and only one of
+them means someone else's machine changed.
+
+**Nothing secret is ever an argument.** That now includes the keychain write itself: the
+`security` command goes in on stdin and the value goes in hex-encoded, so a local `ps` sees
+`security -i` and nothing else. It also means a keychain item can hold a value a quoted
+command line could not have carried at all, such as a multi-line key.
+
+Six of the ten places `spfn kit` touches the outside world are real in this build: signed
+catalogs and manifests, licence activation, credential rotation, the registry proxy,
+release artifacts and the scaffold. The four that remain are local process work — running
+the install, the migrations, the release's gates and Git — so `install`, `restore` and
+`update` still report `CLI_CONTROL_PLANE_CLIENT_ABSENT` (exit 5) until an integration
+supplies those and registers the whole set through the exported `setKitAdapterFactory` and
+`createKitRemotePorts`. `status` and `check` work either way: an unreachable remote never
+hides local state, so they read the lock, the license file, the drift and the open
+operation from disk and report everything else as `unknown`.
+
+`SPFN_KIT_CONTROL_PLANE_URL` and `SPFN_KIT_REGISTRY_URL` point a project that has *not yet
+been activated* at a staging or local control plane. They are ignored once it has: the
+addresses a checkout recorded when it was licensed are the addresses it keeps, so a stray
+shell variable cannot move an activated project onto another service.
+
+The command surface, journal, lock, keychain, verification and the whole install →
+activation → exact frozen install → restore path are exercised in `test/kit/` — the remote
+half against a loopback HTTP fixture answering with the licence service's and the registry
+proxy's own statuses and error bodies, the scaffold against real archives on real temporary
+directories, and the local half against fakes.
 
 ---
 

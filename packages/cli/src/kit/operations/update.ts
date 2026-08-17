@@ -319,6 +319,7 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
 
                 const evidence = await installFrozenGraph(adapters, {
                     projectDir,
+                    kitId: manifest.kitId,
                     activationId: credential.license.activationId,
                     localClientId: credential.license.localClientId,
                     credential: credential.record.credential,

@@ -141,6 +141,7 @@ export async function runRestore(request: RestoreRequest, adapters: KitAdapters)
 
                 const evidence = await installFrozenGraph(adapters, {
                     projectDir: request.projectDir,
+                    kitId: lock.kitId,
                     activationId: credential.license.activationId,
                     localClientId: credential.license.localClientId,
                     credential: credential.record.credential,
