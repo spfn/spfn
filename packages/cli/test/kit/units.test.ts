@@ -11,7 +11,13 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { assertAllowedSetupUrl, resolveSetupDescriptor, SETUP_ORIGIN_ALLOWLIST } from '../../src/kit/setup-descriptor.js';
+import {
+    assertAllowedSetupUrl,
+    resolveSetupAllowlist,
+    resolveSetupDescriptor,
+    SETUP_ALLOWLIST_ENV,
+    SETUP_ORIGIN_ALLOWLIST,
+} from '../../src/kit/setup-descriptor.js';
 import { JournalStore, TERMINAL_STATUSES, type KitOperationJournalV1 } from '../../src/kit/journal.js';
 import { acquireOperationLock, readLockOwner } from '../../src/kit/lock.js';
 import {
@@ -69,6 +75,26 @@ function codeOf(run: () => unknown): string
     throw new Error('expected a refusal');
 }
 
+/** The `reason` a refusal carries — which refusal, not merely that one came. */
+function reasonOf(run: () => unknown): string
+{
+    try
+    {
+        run();
+    }
+    catch (error)
+    {
+        if (isKitError(error))
+        {
+            return String(error.evidence.reason ?? 'no-reason');
+        }
+
+        throw error;
+    }
+
+    throw new Error('expected a refusal');
+}
+
 async function asyncCodeOf(run: () => Promise<unknown>): Promise<string>
 {
     try
@@ -107,6 +133,96 @@ describe('setup URL allowlist', () =>
         {
             expect(codeOf(() => assertAllowedSetupUrl(url)), url).toBe('KIT_SETUP_URL_INVALID');
         }
+    });
+
+    it('refuses a loopback setup link until something says it is allowed', () =>
+    {
+        // The shipped list holds no loopback origin, and an http link is
+        // refused as http — the same refusal, with the same reason, as before
+        // the variable existed.
+        for (const url of ['http://127.0.0.1:8790/setup/landing-kit', 'http://localhost:8790/setup/landing-kit'])
+        {
+            expect(reasonOf(() => assertAllowedSetupUrl(url)), url).toBe('not-https');
+        }
+    });
+
+    it('accepts a loopback origin the environment names, and replaces the shipped list', () =>
+    {
+        const allowlist = resolveSetupAllowlist({
+            [SETUP_ALLOWLIST_ENV]: 'http://127.0.0.1:8790, http://localhost:8790',
+        });
+
+        expect(assertAllowedSetupUrl('http://127.0.0.1:8790/setup/landing-kit', allowlist).origin)
+            .toBe('http://127.0.0.1:8790');
+        expect(assertAllowedSetupUrl('http://localhost:8790/setup/landing-kit', allowlist).origin)
+            .toBe('http://localhost:8790');
+
+        // Replaced, not extended: the shipped origin is no longer on the list.
+        expect(reasonOf(() => assertAllowedSetupUrl(FAKE_SETUP_URL, allowlist))).toBe('origin-not-allowlisted');
+    });
+
+    it('refuses plain http for every host but the two loopback names', () =>
+    {
+        for (const entry of [
+            'http://evil.example',
+            'http://127.0.0.1.evil.example',
+            'http://localhost.evil.example',
+            'http://10.0.0.5:8790',
+            'http://[::1]:8790',
+        ])
+        {
+            expect(reasonOf(() => resolveSetupAllowlist({ [SETUP_ALLOWLIST_ENV]: entry })), entry)
+                .toBe('plain-http-off-loopback');
+        }
+    });
+
+    it('refuses a variable holding anything but bare origins', () =>
+    {
+        const cases: [string, string][] = [
+            ['https://start.superfunction.xyz/setup/landing-kit', 'not-a-bare-origin'],
+            ['https://start.superfunction.xyz?x=1', 'not-a-bare-origin'],
+            ['https://start.superfunction.xyz#x', 'not-a-bare-origin'],
+            ['https://user:pass@start.superfunction.xyz', 'has-userinfo'],
+            ['ftp://start.superfunction.xyz', 'unsupported-scheme'],
+            ['start.superfunction.xyz', 'unparseable-origin'],
+            [',,', 'empty-list'],
+        ];
+
+        for (const [entry, reason] of cases)
+        {
+            expect(reasonOf(() => resolveSetupAllowlist({ [SETUP_ALLOWLIST_ENV]: entry })), entry).toBe(reason);
+        }
+    });
+
+    it('refuses the whole variable when one entry of several is wrong', () =>
+    {
+        expect(reasonOf(() => resolveSetupAllowlist({
+            [SETUP_ALLOWLIST_ENV]: 'http://127.0.0.1:8790,http://evil.example',
+        }))).toBe('plain-http-off-loopback');
+    });
+
+    it('reads an unset or blank variable as "use the shipped list"', () =>
+    {
+        expect(resolveSetupAllowlist({})).toEqual([...SETUP_ORIGIN_ALLOWLIST]);
+        expect(resolveSetupAllowlist({ [SETUP_ALLOWLIST_ENV]: '   ' })).toEqual([...SETUP_ORIGIN_ALLOWLIST]);
+    });
+
+    it('compares origins as origins, whatever spelling the variable used', () =>
+    {
+        // A trailing slash names the same origin, so it has to produce the same
+        // allowlist rather than one no link can ever match.
+        expect(resolveSetupAllowlist({ [SETUP_ALLOWLIST_ENV]: 'https://certification.superfunction.xyz:8443/' }))
+            .toEqual(['https://certification.superfunction.xyz:8443']);
+    });
+
+    it('admits an explicit port on the locator, and nothing else in the authority', () =>
+    {
+        const allowlist = ['https://certification.superfunction.xyz:8443'];
+
+        expect(assertAllowedSetupUrl('https://certification.superfunction.xyz:8443/setup/landing-kit', allowlist).port)
+            .toBe('8443');
+        expect(codeOf(() => assertAllowedSetupUrl('https://certification.superfunction.xyz:80a/setup/landing-kit', allowlist)))
+            .toBe('KIT_SETUP_URL_INVALID');
     });
 
     it('re-checks every redirect hop against the same allowlist', async () =>

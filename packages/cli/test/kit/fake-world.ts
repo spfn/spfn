@@ -66,6 +66,14 @@ export interface FakeWorldOptions
     releaseStoreUrl?: string;
     /** Where the registry proxy and the npm packages are addressed from. */
     registryUrl?: string;
+    /**
+     * Where the setup descriptor is served from.
+     *
+     * A certification run points this at a loopback control plane, which is
+     * the whole reason the allowlist can be widened by environment: the
+     * descriptor has to come from the service under test, not from production.
+     */
+    setupOrigin?: string;
 }
 
 export interface FakeFaults
@@ -102,7 +110,8 @@ interface BuiltRelease
 export class FakeKitWorld
 {
     readonly kitId: string;
-    readonly setupUrl = FAKE_SETUP_URL;
+    readonly setupOrigin: string;
+    readonly setupUrl: string;
     readonly releaseStoreUrl: string;
     readonly catalogUrl: string;
     readonly registryUrl: string;
@@ -153,6 +162,8 @@ export class FakeKitWorld
         this.privateKey = keys.privateKey;
         this.publicKeyDer = keys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
         this.kitId = options.kitId ?? 'campaign-landing';
+        this.setupOrigin = (options.setupOrigin ?? FAKE_SETUP_ORIGIN).replace(/\/+$/, '');
+        this.setupUrl = `${this.setupOrigin}/setup/landing-kit`;
         this.releaseStoreUrl = (options.releaseStoreUrl ?? FAKE_RELEASE_STORE_URL).replace(/\/+$/, '');
         this.catalogUrl = `${this.releaseStoreUrl}/catalog`;
         this.registryUrl = options.registryUrl ?? 'https://packages.superfunction.xyz/npm/';

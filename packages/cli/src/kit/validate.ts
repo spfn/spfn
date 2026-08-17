@@ -32,7 +32,15 @@ export const PATTERNS = {
     version: /^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)*$/,
     commit: /^[0-9a-f]{40}$/,
     httpsUrl: /^https:\/\/[a-z0-9.-]+(:[0-9]+)?(\/[^\s?#]*)?$/,
-    setupUrl: /^https:\/\/[a-z0-9.-]+\/setup\/[a-z0-9][a-z0-9._-]{0,79}$/,
+    /**
+     * I0-C5. An explicit port is allowed because a certification environment
+     * serves the descriptor from one; the port is digits only, so widening the
+     * authority cannot be read as permission for arbitrary text in it. What
+     * stays refused is everything that could carry a secret or move the fetch:
+     * plain http, userinfo, a query, a fragment. Which origins are acceptable
+     * is the CLI allowlist's decision and not this pattern's.
+     */
+    setupUrl: /^https:\/\/[a-z0-9.-]+(:[0-9]{1,5})?\/setup\/[a-z0-9][a-z0-9._-]{0,79}$/,
     payloadKind: /^[a-z0-9][a-z0-9./-]{0,79}@[0-9]+$/,
     failureCode: /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/,
 } as const;

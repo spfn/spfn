@@ -620,6 +620,16 @@ one. `SPFN_KIT_TRUSTED_KEYS` supplies a list for a staging run or a release rehe
 JSON array of `{ "keyId", "publicKey" }` with base64 SPKI keys. It *replaces* the built-in
 list rather than adding to it.
 
+`SPFN_KIT_SETUP_ALLOWLIST` names the origins a setup link may be fetched from, as a
+comma-separated list of bare origins. It follows the same rule as the key list — it
+*replaces* the shipped one, so it can only ever narrow what this CLI will fetch a descriptor
+from — and it is the one place plain `http` is accepted, for `localhost` and `127.0.0.1`
+only, matched literally so a name like `127.0.0.1.example.test` is not one of them. A path,
+a query, a fragment, userinfo, or a non-loopback `http` entry makes the whole variable
+invalid rather than being quietly trimmed. A setup link may carry an explicit port, which is
+what lets a certification environment serve one; the link itself must still be `https`
+unless its origin is loopback *and* on the list.
+
 `SPFN_KIT_CONTROL_PLANE_URL` and `SPFN_KIT_REGISTRY_URL` point a project that has *not yet
 been activated* at a staging or local control plane. They are ignored once it has: the
 addresses a checkout recorded when it was licensed are the addresses it keeps, so a stray

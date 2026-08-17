@@ -23,6 +23,7 @@ import {
     PROVIDER_ACTIONS,
     PROVIDER_IDS,
     PROVIDER_STATUSES,
+    PATTERNS,
     validateOperationJournal,
     validateProviderOperationEnvelope,
     validateSetupDescriptorEnvelope,
@@ -40,12 +41,49 @@ function contract(relativePath: string): any
 
 type Validator = (value: unknown) => ValidationResult;
 
-const SCOPE: { name: string; validate: Validator; schema: string; positives: string[]; negative: string }[] = [
+/**
+ * A positive case built here instead of copied from the frozen set.
+ *
+ * I0-C5 added `fixtures/positive/setup-descriptor-envelope-port.json` at the
+ * origin, but the frozen manifest scopes that file to spfn-course alone, and
+ * the conformance runner refuses a copy carrying a file the manifest does not
+ * list for this repository. So the case is rebuilt from the fixture this
+ * repository *is* given, by changing the one field it is about. When the origin
+ * regenerates the manifest with that file scoped to spfn too, this becomes an
+ * ordinary path in `positives` and this comment goes away.
+ */
+interface DerivedPositive
+{
+    name: string;
+    from: string;
+    build: (fixture: any) => unknown;
+}
+
+const PORT_ORIGIN = 'https://certification.superfunction.xyz:8443';
+
+const SCOPE: {
+    name: string;
+    validate: Validator;
+    schema: string;
+    positives: string[];
+    derived?: DerivedPositive[];
+    negative: string;
+}[] = [
     {
         name: 'setup-descriptor-envelope',
         validate: validateSetupDescriptorEnvelope,
         schema: 'schemas/setup-descriptor-envelope.v1.schema.json',
         positives: ['fixtures/positive/setup-descriptor-envelope.json'],
+        derived: [{
+            name: 'a locator with an explicit port (I0-C5)',
+            from: 'fixtures/positive/setup-descriptor-envelope.json',
+            build: (fixture: any) => ({
+                ...fixture,
+                setupUrl: `${PORT_ORIGIN}/setup/landing-kit`,
+                catalogUrl: `${PORT_ORIGIN}/kits/landing-kit/catalog`,
+                manifestUrl: `${PORT_ORIGIN}/kits/landing-kit/manifests/1.0.0`,
+            }),
+        }],
         negative: 'fixtures/negative/setup-descriptor-envelope.json',
     },
     {
@@ -85,6 +123,14 @@ describe('the runtime validators agree with the frozen I0 schemas', () =>
                 expect(result.issues, `${path}: ${JSON.stringify(result.issues)}`).toEqual([]);
                 expect(result.valid).toBe(true);
             }
+
+            for (const derived of scope.derived ?? [])
+            {
+                const result = scope.validate(derived.build(contract(derived.from)));
+
+                expect(result.issues, `${derived.name}: ${JSON.stringify(result.issues)}`).toEqual([]);
+                expect(result.valid).toBe(true);
+            }
         });
 
         it(`refuses every negative fixture of ${scope.name} at the pointer it names`, () =>
@@ -105,6 +151,59 @@ describe('the runtime validators agree with the frozen I0 schemas', () =>
             }
         });
     }
+});
+
+/**
+ * The patterns are transcribed by hand, so they are the part most likely to
+ * drift — and drift silently, because a stricter copy simply refuses something
+ * the contract allows and reports it as the caller's mistake. That is exactly
+ * what happened to `setupUrl` between I0-C5 and G2: the schema admitted a port,
+ * the copy did not, and a certification run read the refusal as its own bad
+ * URL. Comparing the source strings is what turns that into a failing test
+ * rather than a lost afternoon.
+ */
+describe('the patterns in the code are the patterns in the schemas', () =>
+{
+    it('transcribes the setup descriptor\'s patterns exactly', () =>
+    {
+        const defs = contract('schemas/setup-descriptor-envelope.v1.schema.json').$defs;
+        const transcribed: Record<string, RegExp> = {
+            publicId: PATTERNS.publicId,
+            instant: PATTERNS.instant,
+            digest: PATTERNS.digest,
+            version: PATTERNS.version,
+            httpsUrl: PATTERNS.httpsUrl,
+            setupUrl: PATTERNS.setupUrl,
+        };
+
+        for (const [name, pattern] of Object.entries(transcribed))
+        {
+            // A JavaScript regex literal has to escape `/`; a JSON Schema
+            // pattern is a string and does not. Same expression, one spelling.
+            expect(pattern.source.replace(/\\\//g, '/'), `${name} drifted from the schema`)
+                .toBe(defs[name].pattern);
+        }
+    });
+
+    it('admits the port I0-C5 added, and nothing else in the authority', () =>
+    {
+        expect(PATTERNS.setupUrl.test('https://certification.superfunction.xyz:8443/setup/landing-kit')).toBe(true);
+        expect(PATTERNS.setupUrl.test('https://start.superfunction.xyz/setup/landing-kit')).toBe(true);
+
+        for (const url of [
+            'http://start.superfunction.xyz/setup/landing-kit',
+            'https://start.superfunction.xyz:80a/setup/landing-kit',
+            'https://start.superfunction.xyz:/setup/landing-kit',
+            'https://start.superfunction.xyz:123456/setup/landing-kit',
+            'https://user:pass@start.superfunction.xyz/setup/landing-kit',
+            'https://start.superfunction.xyz/setup/landing-kit?license=spfnl_x',
+            'https://start.superfunction.xyz/setup/landing-kit#spfnl_x',
+            'https://start.superfunction.xyz/downloads/landing-kit',
+        ])
+        {
+            expect(PATTERNS.setupUrl.test(url), url).toBe(false);
+        }
+    });
 });
 
 describe('the enums in the code are the enums in the schemas', () =>
