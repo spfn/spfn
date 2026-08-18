@@ -301,13 +301,38 @@ function installSteps(options: StepFactoryOptions): OperationStep[]
                 });
                 const tooling = await verifyToolingPlan(options, projectDir, context.journal.operationId);
 
+                // Written here rather than after the gates, because the gates
+                // read it. `kit-check` runs `spfn kit check`, which needs a
+                // lock to check against, and a lock written afterwards left it
+                // failing on a project that was in fact correctly installed.
+                // Everything the lock records — the release, the manifest
+                // digest, the package integrities — is settled the moment the
+                // exact graph is on disk, so this is also the earliest honest
+                // moment to claim the project *is* this release.
+                writeLock(options, projectDir, adapters.clock.now());
+
                 return { kind: 'done', evidence: { attempts: evidence.attempts, tooling: tooling.specifier } };
             },
             async verify()
             {
-                return existsSync(join(projectDir, 'node_modules'))
-                    ? { ok: true }
-                    : { ok: false, reason: 'dependencies-missing' };
+                if (!existsSync(join(projectDir, 'node_modules')))
+                {
+                    return { ok: false, reason: 'dependencies-missing' };
+                }
+
+                // A resume of an operation that installed its graph before this
+                // fix existed has no lock, and every later step that reads one
+                // would fail on a project that is otherwise finished. The
+                // checkpoint is being re-verified anyway, so the missing record
+                // is restored from the same manifest that produced the graph.
+                if (!existsSync(paths.lockFile))
+                {
+                    writeLock(options, projectDir, adapters.clock.now());
+                }
+
+                // Deliberately no evidence: this returns nothing to compare, so
+                // restoring the lock cannot look like the project having moved.
+                return { ok: true };
             },
         },
         {
@@ -373,14 +398,9 @@ function installSteps(options: StepFactoryOptions): OperationStep[]
             summary: 'Running the release gates and making the first commit',
             async run(): Promise<StepOutcome>
             {
+                // The lock is already there — written when the graph landed, so
+                // that these gates had something to check against.
                 const gates = await runLocalGates(adapters, projectDir, manifest.gates);
-
-                writeInstalledLock(paths.lockFile, lockFromManifest(manifest, {
-                    manifestUrl: options.manifestUrl,
-                    catalogUrl: options.descriptorCatalogUrl,
-                    cliVersion: adapters.cliVersion,
-                    installedAt: adapters.clock.now(),
-                }));
 
                 await adapters.git.init({ cwd: projectDir });
 
@@ -460,6 +480,24 @@ async function verifyToolingPlan(options: StepFactoryOptions, projectDir: string
     validateMutationPlan(isolated.value, { manifest: options.manifest });
 
     return discovered;
+}
+
+/**
+ * The record that says which release this project is.
+ *
+ * One writer, called from the step that settles the graph and again from that
+ * step's own re-verification. Two call sites rather than two spellings: a lock
+ * written one way on a first run and another way on a resume would be a project
+ * whose identity depended on how it got there.
+ */
+function writeLock(options: StepFactoryOptions, projectDir: string, installedAt: string): void
+{
+    writeInstalledLock(kitPaths(projectDir).lockFile, lockFromManifest(options.manifest, {
+        manifestUrl: options.manifestUrl,
+        catalogUrl: options.descriptorCatalogUrl,
+        cliVersion: options.adapters.cliVersion,
+        installedAt,
+    }));
 }
 
 /**

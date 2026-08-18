@@ -291,7 +291,9 @@ describe('table A — retries, waits and resumes', () =>
         expect(waiting.status).toBe('waiting');
         expect(waiting.exitCode).toBe(KIT_EXIT.INPUT_REQUIRED);
         expect(waiting.code).toBe('KIT_WAITING_DATABASE');
-        expect(existsSync(join(target, '.spfn', 'kit-lock.json'))).toBe(false);
+        // The graph is installed by this point, so the lock that names the
+        // release is already written — a wait is not an unfinished identity.
+        expect(readInstalledLock(join(target, '.spfn', 'kit-lock.json'))?.release).toBe('1.0.0');
         expect(new JournalStore(target, { now: () => world.now() }).readActive()?.status).toBe('waiting-cloud');
 
         world.faults.databaseConfigured = true;
@@ -319,7 +321,10 @@ describe('table A — retries, waits and resumes', () =>
         const failed = await runInstall(installRequest(world), world.adapters);
 
         expect(failed.code).toBe('KIT_GATE_FAILED');
-        expect(existsSync(join(target, '.spfn', 'kit-lock.json'))).toBe(false);
+        // The lock is already there: the gates read it, so it is written when
+        // the graph lands rather than after they pass. What a failed gate must
+        // not produce is a commit.
+        expect(existsSync(join(target, '.spfn', 'kit-lock.json'))).toBe(true);
         expect(existsSync(join(target, '.git'))).toBe(false);
 
         world.faults.failingGates.clear();
