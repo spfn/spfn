@@ -401,24 +401,11 @@ export class VercelHttpApi implements VercelApi
     }
 
     /**
-     * A build that is reachable and is not yet what visitors get.
+     * A build that is reachable and is not what visitors get.
      *
-     * It is a *production* build, and what keeps it off the domain is the
-     * project setting `ensureStagedProduction` writes: with custom-domain
-     * auto-assignment off, a new production deployment does not take the
-     * production hostname and only `promote` moves it. Unit 09 §9.1 states
-     * exactly that arrangement, and §6.2's verify step then asks whether the
-     * deployment is `READY` *in the production environment* — a question a
-     * preview build cannot answer yes to.
-     *
-     * Building a preview instead looks safer and is not. Vercel scopes
-     * encrypted environment variables per target, and unit 09 §9.1 keeps the
-     * runtime and build secrets in the production environment alone. A preview
-     * therefore builds without the registry credential, without the database
-     * and without the app's own origin — so it either fails outright or, worse,
-     * passes gates as a differently configured program than the one promotion
-     * would put in front of visitors. Verifying that build proves nothing about
-     * production.
+     * Vercel calls this a preview: a deployment with no `target`. Passing
+     * `target: 'production'` here would put it in front of visitors before a
+     * single gate had run.
      *
      * The repository is read from the project rather than passed in. Vercel
      * identifies a git source by the numeric repository id it stored when the
@@ -426,9 +413,11 @@ export class VercelHttpApi implements VercelApi
      * something a caller holding a commit could be expected to know.
      *
      * The commit is the `ref`, and there is no separate `sha`. A ref may be a
-     * branch, a tag or a commit, and naming the commit is exact: a request that
-     * named the production branch instead produced two deployments for one
-     * commit, and the second of those is a build nobody asked for.
+     * branch, a tag or a commit, and naming the commit is both exact and
+     * staged: a request that named the production branch instead produced two
+     * deployments for one commit — a production-target build for the branch
+     * and a preview for the sha — and the first of those is a production
+     * build nobody asked for.
      */
     async createStagedDeployment(request: { projectId: string; commit: string }): Promise<VercelDeployment>
     {
@@ -440,7 +429,6 @@ export class VercelHttpApi implements VercelApi
             body: {
                 name: link.name,
                 project: request.projectId,
-                target: 'production',
                 gitSource: {
                     type: link.type,
                     repoId: link.repoId,
