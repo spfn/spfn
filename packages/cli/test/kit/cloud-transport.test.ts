@@ -201,8 +201,18 @@ describe('the GitHub transport', () =>
 
         expect(calls[0].file).toBe('git');
         expect(JSON.stringify(calls[0].args)).not.toContain(TOKEN);
-        expect(calls[0].extraEnv?.GIT_CONFIG_VALUE_0).toContain(TOKEN);
         expect(calls[0].extraEnv?.GIT_TERMINAL_PROMPT).toBe('0');
+
+        // Basic, with the token as the password. GitHub's git-over-HTTPS
+        // endpoint refuses a bearer token outright — the same token, the same
+        // repository, `invalid credentials` because the scheme is wrong.
+        const header = calls[0].extraEnv?.GIT_CONFIG_VALUE_0 ?? '';
+        const prefix = 'Authorization: Basic ';
+
+        expect(header.startsWith(prefix)).toBe(true);
+        expect(header).not.toContain(TOKEN);
+        expect(Buffer.from(header.slice(prefix.length), 'base64').toString('utf8'))
+            .toBe(`x-access-token:${TOKEN}`);
     });
 });
 
@@ -294,17 +304,78 @@ describe('the Vercel transport', () =>
 
     it('builds a staged deployment with no production target', async () =>
     {
+        answer('GET', '/v9/projects/prj_1', {
+            id: 'prj_1',
+            name: 'landing',
+            link: { type: 'github', repoId: 1338078985, productionBranch: 'main' },
+        });
         answer('POST', '/v13/deployments', {
             id: 'dpl_1', url: 'landing-abc.vercel.app', readyState: 'BUILDING', projectId: 'prj_1',
         });
 
         const deployment = await vercel().createStagedDeployment({ projectId: 'prj_1', commit: 'a'.repeat(40) });
+        const body = seen[1].body as { target?: unknown; gitSource?: Record<string, unknown> };
 
         expect(deployment.target).toBe('staged');
         expect(deployment.state).toBe('building');
         expect(deployment.url).toBe('https://landing-abc.vercel.app');
         // No `target: production`: that would put it in front of visitors now.
-        expect((seen[0].body as Record<string, unknown>).target).toBeUndefined();
+        expect(body.target).toBeUndefined();
+        // The repository id Vercel requires, and the exact commit as `sha` —
+        // a request that named only a ref would build whatever the branch has
+        // moved to rather than the commit the gates passed on.
+        expect(body.gitSource?.repoId).toBe(1338078985);
+        expect(body.gitSource?.ref).toBe('a'.repeat(40));
+        // Naming the production branch as well made Vercel build the commit
+        // twice: once as a production-target build for the branch and once as
+        // a preview for the sha. One request, one deployment, no target.
+        expect(body.gitSource?.sha).toBeUndefined();
+    });
+
+    it('reads what visitors get from the alias, not from the newest production build', async () =>
+    {
+        answer('GET', '/v4/aliases', {
+            aliases: [
+                { alias: 'landing-git-main.vercel.app', deploymentId: 'dpl_newest' },
+                { alias: 'landing.vercel.app', deploymentId: 'dpl_live' },
+            ],
+        });
+        answer('GET', '/v13/deployments/dpl_live', {
+            id: 'dpl_live', readyState: 'READY', url: 'live.vercel.app', projectId: 'prj_1',
+            target: 'production', meta: { githubCommitSha: 'b'.repeat(40) },
+        });
+
+        const current = await vercel().currentProduction({
+            projectId: 'prj_1',
+            productionDomain: 'https://landing.vercel.app',
+        });
+
+        // A build can exist, be production-target and be newer while serving
+        // nobody. The alias is what a visitor's request resolves through.
+        expect(current?.id).toBe('dpl_live');
+        expect(seen.some(call => call.path.startsWith('/v6/deployments'))).toBe(false);
+    });
+
+    it('falls back to the newest production build when no domain was given', async () =>
+    {
+        answer('GET', '/v6/deployments', {
+            deployments: [{ uid: 'dpl_newest', readyState: 'READY', url: 'newest.vercel.app', target: 'production' }],
+        });
+
+        const current = await vercel().currentProduction({ projectId: 'prj_1' });
+
+        expect(current?.id).toBe('dpl_newest');
+    });
+
+    it('refuses to build when the hosting project is linked to no repository', async () =>
+    {
+        answer('GET', '/v9/projects/prj_1', { id: 'prj_1', name: 'landing' });
+
+        const failed = await vercel()
+            .createStagedDeployment({ projectId: 'prj_1', commit: 'a'.repeat(40) })
+            .catch((error: unknown) => error);
+
+        expect(isKitError(failed) && failed.code).toBe('KIT_DEPLOY_FAILED');
     });
 
     it('reads a deployment\'s readiness into the three states a gate branches on', async () =>

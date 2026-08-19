@@ -107,6 +107,12 @@ export class GithubHttpApi implements GithubApi
      * The token goes to git through `GIT_CONFIG_*`, which is an environment
      * variable rather than an argument. `git push -c http.extraheader=...` puts
      * the same token in the process table for every local user to read.
+     *
+     * The header is Basic and not Bearer. GitHub's REST API takes a bearer
+     * token; its git-over-HTTPS endpoint does not, and answers `invalid
+     * credentials` to one — the same token, the same repository, refused
+     * because the scheme is wrong. The username half is the constant GitHub
+     * documents for token authentication, and the token is the password.
      */
     async pushBranch(request: {
         repositoryId: string;
@@ -125,7 +131,8 @@ export class GithubHttpApi implements GithubApi
                 GIT_TERMINAL_PROMPT: '0',
                 GIT_CONFIG_COUNT: '1',
                 GIT_CONFIG_KEY_0: 'http.extraheader',
-                GIT_CONFIG_VALUE_0: `Authorization: Bearer ${token}`,
+                GIT_CONFIG_VALUE_0:
+                    `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
             },
         });
 
@@ -399,17 +406,34 @@ export class VercelHttpApi implements VercelApi
      * Vercel calls this a preview: a deployment with no `target`. Passing
      * `target: 'production'` here would put it in front of visitors before a
      * single gate had run.
+     *
+     * The repository is read from the project rather than passed in. Vercel
+     * identifies a git source by the numeric repository id it stored when the
+     * project was linked, refuses a request without it, and that id is not
+     * something a caller holding a commit could be expected to know.
+     *
+     * The commit is the `ref`, and there is no separate `sha`. A ref may be a
+     * branch, a tag or a commit, and naming the commit is both exact and
+     * staged: a request that named the production branch instead produced two
+     * deployments for one commit — a production-target build for the branch
+     * and a preview for the sha — and the first of those is a production
+     * build nobody asked for.
      */
     async createStagedDeployment(request: { projectId: string; commit: string }): Promise<VercelDeployment>
     {
+        const link = await this.readGitLink(request.projectId);
         const created = await cloudFetchJson<VercelDeploymentBody>(`${this.base}/v13/deployments${this.query()}`, {
             method: 'POST',
             token: await this.token(),
             provider: 'Vercel',
             body: {
-                name: request.projectId,
+                name: link.name,
                 project: request.projectId,
-                gitSource: { type: 'github', ref: request.commit },
+                gitSource: {
+                    type: link.type,
+                    repoId: link.repoId,
+                    ref: request.commit,
+                },
             },
         });
 
@@ -444,8 +468,18 @@ export class VercelHttpApi implements VercelApi
         return readDeployment(body, body.projectId ?? '', body.meta?.githubCommitSha ?? '');
     }
 
-    async currentProduction(request: { projectId: string }): Promise<VercelDeployment | null>
+    async currentProduction(request: { projectId: string; productionDomain?: string }): Promise<VercelDeployment | null>
     {
+        if (request.productionDomain !== undefined)
+        {
+            const served = await this.deploymentBehind(request.projectId, request.productionDomain);
+
+            if (served !== null)
+            {
+                return served;
+            }
+        }
+
         const body = await cloudFetchJson<{ deployments?: VercelDeploymentBody[] }>(
             `${this.base}/v6/deployments?projectId=${encodeURIComponent(request.projectId)}`
             + `&target=production&limit=1${this.query('&')}`,
@@ -481,6 +515,98 @@ export class VercelHttpApi implements VercelApi
         return { ...promoted, target: 'production' };
     }
 
+    async productionHistory(request: { projectId: string; limit?: number }): Promise<VercelDeployment[]>
+    {
+        const body = await cloudFetchJson<{ deployments?: VercelDeploymentBody[] }>(
+            `${this.base}/v6/deployments?projectId=${encodeURIComponent(request.projectId)}`
+            + `&target=production&limit=${request.limit ?? 20}${this.query('&')}`,
+            { token: await this.token(), provider: 'Vercel' },
+        );
+
+        return (body.deployments ?? []).map(deployment =>
+            readDeployment(deployment, request.projectId, deployment.meta?.githubCommitSha ?? ''));
+    }
+
+    /**
+     * Traffic back to a deployment that was production before.
+     *
+     * This is the call promotion makes, aimed backwards, which is what an
+     * instant rollback is: the older build is still there and still ready, so
+     * nothing rebuilds and the switch is an alias move. It is a method of its
+     * own rather than a second call to `promote` so the evidence can say which
+     * direction traffic went.
+     */
+    async rollback(request: { projectId: string; deploymentId: string }): Promise<VercelDeployment>
+    {
+        return this.promote(request);
+    }
+
+    async ensureStagedProduction(request: { projectId: string }): Promise<void>
+    {
+        await cloudFetchJson<unknown>(
+            `${this.base}/v9/projects/${encodeURIComponent(request.projectId)}${this.query()}`,
+            {
+                method: 'PATCH',
+                token: await this.token(),
+                provider: 'Vercel',
+                body: { autoAssignCustomDomains: false },
+            },
+        );
+    }
+
+    /**
+     * The deployment a hostname actually resolves to.
+     *
+     * The alias record is the only place this is true. A project reports a
+     * production target and a newest production build, and on a project where
+     * a build was made but never promoted both of those name a deployment no
+     * visitor is reaching. Asking the alias asks the thing that answers.
+     */
+    private async deploymentBehind(projectId: string, domain: string): Promise<VercelDeployment | null>
+    {
+        const host = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        const body = await cloudFetchJson<{ aliases?: { alias?: string; deploymentId?: string }[] }>(
+            `${this.base}/v4/aliases?projectId=${encodeURIComponent(projectId)}&limit=100${this.query('&')}`,
+            { token: await this.token(), provider: 'Vercel' },
+        );
+        const found = (body.aliases ?? []).find(entry => entry.alias === host);
+
+        if (found?.deploymentId === undefined)
+        {
+            return null;
+        }
+
+        return this.readDeployment({ deploymentId: found.deploymentId });
+    }
+
+    /** The git repository a project is linked to, as Vercel recorded it. */
+    private async readGitLink(projectId: string): Promise<{
+        name: string;
+        type: string;
+        repoId: number | string;
+        productionBranch: string;
+    }>
+    {
+        const body = await cloudFetchJson<VercelProjectBody>(
+            `${this.base}/v9/projects/${encodeURIComponent(projectId)}${this.query()}`,
+            { token: await this.token(), provider: 'Vercel' },
+        );
+
+        if (body.link === undefined || body.link.repoId === undefined)
+        {
+            throw new KitError('KIT_DEPLOY_FAILED', 'The hosting project is not linked to a repository.', {
+                evidence: { projectId },
+            });
+        }
+
+        return {
+            name: body.name,
+            type: body.link.type ?? 'github',
+            repoId: body.link.repoId,
+            productionBranch: body.link.productionBranch ?? 'main',
+        };
+    }
+
     /** `?teamId=` on a team account, and nothing at all on Hobby. */
     private query(separator = '?'): string
     {
@@ -497,6 +623,11 @@ interface VercelProjectBody
 {
     id: string;
     name: string;
+    link?: {
+        type?: string;
+        repoId?: number | string;
+        productionBranch?: string;
+    };
 }
 
 interface VercelDeploymentBody

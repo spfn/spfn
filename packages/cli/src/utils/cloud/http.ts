@@ -14,7 +14,9 @@ const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface CloudRequestInit
 {
-    method?: 'GET' | 'POST';
+    /** `PATCH` is here for the one provider setting a project has to be put
+     * into rather than created with — Vercel's staged production. */
+    method?: 'GET' | 'POST' | 'PATCH';
     token: string;
     body?: unknown;
     /** What to call the provider in error messages, e.g. `Vercel`. */
