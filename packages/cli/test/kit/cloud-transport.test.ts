@@ -302,7 +302,7 @@ describe('the Vercel transport', () =>
         expect(seen[0].path).toBe('/v9/projects/landing?teamId=team_1');
     });
 
-    it('builds a staged deployment with no production target', async () =>
+    it('builds the staged deployment in the production environment', async () =>
     {
         answer('GET', '/v9/projects/prj_1', {
             id: 'prj_1',
@@ -311,24 +311,29 @@ describe('the Vercel transport', () =>
         });
         answer('POST', '/v13/deployments', {
             id: 'dpl_1', url: 'landing-abc.vercel.app', readyState: 'BUILDING', projectId: 'prj_1',
+            target: 'production',
         });
 
         const deployment = await vercel().createStagedDeployment({ projectId: 'prj_1', commit: 'a'.repeat(40) });
         const body = seen[1].body as { target?: unknown; gitSource?: Record<string, unknown> };
 
-        expect(deployment.target).toBe('staged');
         expect(deployment.state).toBe('building');
         expect(deployment.url).toBe('https://landing-abc.vercel.app');
-        // No `target: production`: that would put it in front of visitors now.
-        expect(body.target).toBeUndefined();
-        // The repository id Vercel requires, and the exact commit as `sha` —
-        // a request that named only a ref would build whatever the branch has
-        // moved to rather than the commit the gates passed on.
+        // Unit 09 §9.1: the build is a production build and what keeps it off
+        // the domain is auto-assignment being off, which `ensureStagedProduction`
+        // writes. A preview build would be handed none of the encrypted
+        // production environment — no registry credential, no database, no
+        // origin — so it would either fail to install or pass the gates as a
+        // differently configured program than the one promotion serves.
+        expect(body.target).toBe('production');
+        expect(deployment.target).toBe('production');
+        // The repository id Vercel requires, and the exact commit as `ref` —
+        // a request that named only a branch would build whatever the branch
+        // has moved to rather than the commit the gates passed on.
         expect(body.gitSource?.repoId).toBe(1338078985);
         expect(body.gitSource?.ref).toBe('a'.repeat(40));
         // Naming the production branch as well made Vercel build the commit
-        // twice: once as a production-target build for the branch and once as
-        // a preview for the sha. One request, one deployment, no target.
+        // twice. One request, one deployment.
         expect(body.gitSource?.sha).toBeUndefined();
     });
 
