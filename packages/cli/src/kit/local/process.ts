@@ -36,6 +36,8 @@ export interface RunRequest
     extraEnv?: Record<string, string>;
     /** The one secret a child may receive, and only through its environment. */
     registryToken?: string;
+    /** Parent variable names this child may also read. Never secrets. */
+    passthrough?: readonly string[];
     timeoutMs?: number;
 }
 
@@ -59,7 +61,11 @@ export async function runCommand(request: RunRequest): Promise<RunResult>
     {
         const result = await execa(request.file, request.args, {
             cwd: request.cwd,
-            env: createChildEnv({ registryToken: request.registryToken, extra: request.extraEnv }),
+            env: createChildEnv({
+                registryToken: request.registryToken,
+                extra: request.extraEnv,
+                passthrough: request.passthrough,
+            }),
             extendEnv: false,
             timeout: request.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
             reject: false,

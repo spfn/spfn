@@ -81,6 +81,26 @@ export const CLI_ONLY_ERROR_EXIT = {
      * an agent to go and do, where exit 5 would tell it to try again later.
      */
     CLI_TOOLING_LOAD_FAILED: KIT_EXIT.REFUSED,
+    /**
+     * The recovery challenge was not one this activation could use.
+     *
+     * Wrong, expired, already spent or superseded by a newer request — the
+     * control plane deliberately does not distinguish them, and neither does
+     * this. Refused rather than resumable: nothing partial happened, the old
+     * credential is untouched, and the next step is a fresh `spfn kit recover`
+     * rather than a resume of anything.
+     */
+    CLI_RECOVERY_INVALID: KIT_EXIT.REFUSED,
+    /**
+     * An operation that may not touch customer source did.
+     *
+     * Unit 05 §12 decision 7 makes zero customer writes an invariant of every
+     * update and rollback, and unit 10 §11.2 makes the before/after digest the
+     * evidence for it. This is what that evidence disagreeing looks like: the
+     * operation stops without committing, so the checkout can be inspected as
+     * it stands rather than with the change already in history.
+     */
+    CLI_CUSTOMER_SOURCE_CHANGED: KIT_EXIT.REFUSED,
 } as const;
 
 export type CliOnlyErrorCode = keyof typeof CLI_ONLY_ERROR_EXIT;

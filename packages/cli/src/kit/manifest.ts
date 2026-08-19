@@ -300,8 +300,25 @@ export function assertManifestCliCompatible(manifest: KitReleaseManifestView, cl
 /**
  * The ordered signed edges from one release to another.
  *
- * A direct edge is not required — unit 06 table C allows a multi-edge chain —
- * but an *inferred* one is never allowed. Without a chain the answer is
+ * Two different things can authorise an update, and conflating them is what
+ * made every first update impossible.
+ *
+ * `compatibility.fromReleases` is the target manifest's own signed statement
+ * of which installed releases may update to it directly (unit 05 §2.1: "이
+ * release로 직접 update할 수 있는 installed release를 제한한다"). A direct hop
+ * needs no edge record to be complete: the managed target set comes from the
+ * manifest and each input digest from the installed lock, which is exactly
+ * what `buildPlan` already reads. Requiring an edge on top of that would mean
+ * no release could ever be the first one published — nothing can carry an
+ * edge from a release that did not exist when it was built.
+ *
+ * `updateEdges` carries what a manifest cannot state alone: a chain through
+ * releases the target never named, and an `expectedFromDigest` that differs
+ * from what the installed lock records. So a published edge is preferred over
+ * the direct authorisation wherever one exists.
+ *
+ * What is never allowed is an *inferred* hop. An installed release neither
+ * named in `fromReleases` nor reachable by a chain gets
  * `KIT_UPDATE_EDGE_MISSING`, because "no published path" and "probably fine"
  * are not the same claim.
  */
@@ -309,6 +326,7 @@ export function resolveUpdateEdges(
     edges: readonly KitUpdateEdge[],
     fromRelease: string,
     toRelease: string,
+    directFromReleases: readonly string[] = [],
 ): KitUpdateEdge[]
 {
     if (fromRelease === toRelease)
@@ -339,7 +357,20 @@ export function resolveUpdateEdges(
         }
     }
 
+    // Checked after the chain search, not before it: where both exist the edge
+    // is the better answer, because only the edge pins the input digest the
+    // transform was authored against.
+    if (directFromReleases.includes(fromRelease))
+    {
+        return [];
+    }
+
     throw new KitError('KIT_UPDATE_EDGE_MISSING', 'No signed update path leads from the installed release to that target.', {
-        evidence: { fromRelease, toRelease, publishedEdges: edges.length },
+        evidence: {
+            fromRelease,
+            toRelease,
+            publishedEdges: edges.length,
+            declaredDirectFrom: directFromReleases.length,
+        },
     });
 }

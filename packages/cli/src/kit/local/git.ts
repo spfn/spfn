@@ -77,6 +77,16 @@ export class SystemGitPort implements GitPort
         return result.stdout.trim().length === 0;
     }
 
+    /**
+     * Commit whatever the operation produced, or report the commit already
+     * there when it produced nothing to record.
+     *
+     * "Nothing to commit" is not a failure. A resume reaches this after the
+     * previous run committed, and an operation whose whole effect was ignored
+     * by `.gitignore` reaches it too — in neither case is refusing with a raw
+     * error the right answer, and the second case is caught where it belongs,
+     * by the check that the committed state is actually tracked.
+     */
     async commit(request: { cwd: string; message: string }): Promise<{ commit: string }>
     {
         const staged = await this.git(request.cwd, ['add', '-A']);
@@ -84,6 +94,16 @@ export class SystemGitPort implements GitPort
         if (staged.exitCode !== 0)
         {
             throw new Error(`git add failed: ${summarize(staged)}`);
+        }
+
+        if (await this.isClean(request))
+        {
+            const existing = await this.head(request);
+
+            if (existing !== null)
+            {
+                return { commit: existing };
+            }
         }
 
         const result = await this.git(request.cwd, [
@@ -107,6 +127,20 @@ export class SystemGitPort implements GitPort
         }
 
         return { commit: head };
+    }
+
+    async trackedAmong(request: { cwd: string; paths: readonly string[] }): Promise<string[]>
+    {
+        if (request.paths.length === 0)
+        {
+            return [];
+        }
+
+        const result = await this.git(request.cwd, ['ls-files', '--', ...request.paths]);
+
+        return result.exitCode === 0
+            ? result.stdout.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+            : [];
     }
 
     /** The current commit, or null in a repository that has none yet. */

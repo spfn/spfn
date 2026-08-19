@@ -34,6 +34,31 @@ export const PASSTHROUGH_ENV = [
 /** The env name the registry session is handed to the child under. */
 export const REGISTRY_TOKEN_ENV = 'SPFN_REGISTRY_TOKEN';
 
+/**
+ * The CLI's own configuration, for a child that *is* this CLI.
+ *
+ * A `kit-check` gate runs `spfn kit check` in the project, and that child has
+ * to reach the same control plane, trust the same keys and open the same
+ * keychain namespace as the command that started it. With the package-manager
+ * environment it does not: it falls back to the built-in defaults, finds no
+ * credential in the default keychain namespace, and reports the project
+ * unhealthy — so every gate run in a configured environment fails for a reason
+ * that has nothing to do with the project.
+ *
+ * Every name here is configuration and none is a secret: two public origins, a
+ * public allowlist, a set of public keys, a keychain namespace *name* and a
+ * path to a certificate. The registry session is still the only secret that
+ * crosses this boundary, and it still has its own parameter.
+ */
+export const KIT_CONFIG_ENV = [
+    'SPFN_KIT_CONTROL_PLANE_URL',
+    'SPFN_KIT_REGISTRY_URL',
+    'SPFN_KIT_SETUP_ALLOWLIST',
+    'SPFN_KIT_TRUSTED_KEYS',
+    'SPFN_KIT_KEYCHAIN_NAMESPACE',
+    'NODE_EXTRA_CA_CERTS',
+] as const;
+
 export interface ChildEnvOptions
 {
     /** The parent environment to select from. */

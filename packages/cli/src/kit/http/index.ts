@@ -147,7 +147,9 @@ export function createKitRemotePorts(options: KitRemotePortsOptions): KitRemoteP
 
         return credential === null
             ? null
-            : { packageName: kitPackageName(request.kitId), credential };
+            /* The caller's name when it has one — it read the manifest. The
+               convention below is the fallback for a caller that did not. */
+            : { packageName: request.packageName ?? kitPackageName(request.kitId), credential };
     });
 
     return {
@@ -174,12 +176,14 @@ export function createKitRemotePorts(options: KitRemotePortsOptions): KitRemoteP
 }
 
 /**
- * The published package a Kit ships as.
+ * A last-resort guess at the package a Kit ships as.
  *
- * The convention — one scoped package per Kit, named after it — is the only
- * product-shaped thing in this file, and it lives here rather than in the
- * licence client so there is exactly one line to change if a Kit ever ships
- * under a different name than its id.
+ * Only for a caller with no manifest in hand. The convention it encodes —
+ * one scoped package named after the Kit — is not true of every Kit:
+ * `campaign-landing` ships as `@superfunction/landing-kit`, and asking the
+ * registry about `@superfunction/campaign-landing` gets a 404 that reads as
+ * "your licence does not cover this release". Anything that holds a manifest
+ * passes `packageName` instead of relying on this.
  */
 export function kitPackageName(kitId: string): string
 {

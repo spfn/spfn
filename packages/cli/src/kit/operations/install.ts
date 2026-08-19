@@ -40,6 +40,7 @@ import { fileDigest } from './../drift.js';
 import type { KitAdapters } from './../ports.js';
 import {
     assertEmptyTarget,
+    assertCommittedStateTracked,
     installFrozenGraph,
     materializeTargets,
     newOperationId,
@@ -408,10 +409,15 @@ function installSteps(options: StepFactoryOptions): OperationStep[]
                     cwd: projectDir,
                     message: `chore: install ${manifest.kitId} ${manifest.version}`,
                 });
+                /* An install that cannot be restored from its own repository
+                   is not finished, however green its gates were. Checked on
+                   the machine that made it, because the alternative is finding
+                   out on a different machine that has no way back. */
+                const tracked = await assertCommittedStateTracked(adapters, projectDir);
 
                 return {
                     kind: 'done',
-                    evidence: { gates, commit: committed.commit },
+                    evidence: { gates, commit: committed.commit, committedState: tracked.length },
                     externalRefs: { sourceCommit: committed.commit },
                 };
             },

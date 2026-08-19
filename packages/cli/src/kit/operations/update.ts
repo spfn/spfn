@@ -22,11 +22,20 @@ import { acquireOperationLock } from './../lock.js';
 import { kitPaths } from './../paths.js';
 import { writeOperationContext } from './../operation-context.js';
 import { buildPlan, checkApproval, planDigest, type KitPlanV1 } from './../plan.js';
-import { resolveUpdateEdges, type KitUpdateEdge } from './../manifest.js';
+import { resolveUpdateEdges, type KitReleaseManifestView, type KitUpdateEdge } from './../manifest.js';
+import { applyManifestVersions, installedGraphMismatches } from './../package-graph.js';
+import {
+    compareCustomerSource,
+    customerSourceDigests,
+    readCustomerBaseline,
+    writeCustomerBaseline,
+    type CustomerSourceChange,
+} from './../customer-source.js';
 import { lockFromManifest, readLicenseFile, requireInstalledLock, writeInstalledLock } from './../installed-state.js';
 import { executeOperation, type OperationStep, type StepOutcome } from './../runner.js';
 import type { KitAdapters } from './../ports.js';
 import {
+    assertCommittedStateTracked,
     installFrozenGraph,
     materializeTargets,
     newOperationId,
@@ -130,6 +139,7 @@ export async function runUpdate(request: UpdateRequest, adapters: KitAdapters): 
         activationId: activationIdOf(paths.licenseFile),
         kitId: installed.kitId,
         release: manifest.version,
+        packageName: releasePackageName(manifest),
     });
 
     if (!entitlement.entitled)
@@ -139,7 +149,12 @@ export async function runUpdate(request: UpdateRequest, adapters: KitAdapters): 
         });
     }
 
-    const edges = resolveUpdateEdges(manifest.updateEdges, installed.release, manifest.version);
+    const edges = resolveUpdateEdges(
+        manifest.updateEdges,
+        installed.release,
+        manifest.version,
+        manifest.compatibility.fromReleases,
+    );
     const plan = buildPlan({
         operation: 'update',
         manifest,
@@ -249,14 +264,29 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
         {
             checkpoint: 'plan-approved',
             phase: 'plan-approval',
-            summary: 'Checking the approval this plan needs',
-            async run(): Promise<StepOutcome>
+            summary: 'Recording the customer-source baseline and checking the approval this plan needs',
+            async run(context): Promise<StepOutcome>
             {
+                /* Taken here because this is the last moment before the first
+                   write, and taken every time this step runs because every one
+                   of those runs is still before it: the step only completes
+                   once the approval is satisfied, and nothing after it has run
+                   yet. Unit 09's checkpoint vocabulary is a frozen contract, so
+                   the baseline shares this checkpoint rather than adding one. */
+                const files = customerSourceDigests(projectDir, [installed, manifest]);
+
+                writeCustomerBaseline(projectDir, {
+                    schemaVersion: 1,
+                    operationId: context.journal.operationId,
+                    release: installed.release,
+                    files,
+                });
+
                 const approval = checkApproval(options.plan, request.approvedPlanDigest);
 
                 if (approval.satisfied)
                 {
-                    return { kind: 'done', evidence: { planDigest: approval.digest } };
+                    return { kind: 'done', evidence: { planDigest: approval.digest, customerFiles: Object.keys(files).length } };
                 }
 
                 return {
@@ -383,15 +413,37 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
 
                 options.secrets.push(credential.record.credential);
 
-                const evidence = await installFrozenGraph(adapters, {
+                /* The declaration first, because nothing downstream reads the
+                   manifest: pnpm reads `package.json` and the lockfile, and
+                   left alone they still describe the release being replaced. */
+                const declared = applyManifestVersions(projectDir, manifest);
+
+                await installFrozenGraph(adapters, {
                     projectDir,
                     kitId: manifest.kitId,
                     activationId: credential.license.activationId,
                     localClientId: credential.license.localClientId,
                     credential: credential.record.credential,
+                    // The lockfile pins the previous release, so holding it
+                    // frozen would install the previous release and succeed.
+                    resolve: declared.length > 0,
+                    expect: manifest,
                 });
 
-                return { kind: 'done', evidence: { attempts: evidence.attempts } };
+                /* Evidence a resume can re-derive, which is what the step
+                   engine compares. How many attempts it took and whether the
+                   declaration needed repinning are facts about *this run*, and
+                   a checkpoint recorded with them could never be verified
+                   again — the digest would differ every time. */
+                return { kind: 'done', evidence: { packages: manifest.packages.length, graph: 'exact' } };
+            },
+            async verify()
+            {
+                const mismatches = installedGraphMismatches(projectDir, manifest);
+
+                return mismatches.length === 0
+                    ? { ok: true, evidence: { packages: manifest.packages.length, graph: 'exact' } }
+                    : { ok: false, reason: 'installed-graph-is-not-the-target-release' };
             },
         },
         {
@@ -452,9 +504,27 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
         {
             checkpoint: 'local-gates-passed',
             phase: 'gates',
-            summary: 'Running the release gates and committing the update',
-            async run(): Promise<StepOutcome>
+            summary: 'Checking customer source is untouched, running the release gates and committing',
+            async run(context): Promise<StepOutcome>
             {
+                /* Before the gates, not after: a gate can write — a build
+                   emits, a test fixture rewrites — and the invariant being
+                   proved is that *the update* left customer source alone. */
+                const changed = verifyCustomerSource(projectDir, context.journal.operationId, [installed, manifest]);
+
+                if (changed.length > 0)
+                {
+                    throw new KitError('CLI_CUSTOMER_SOURCE_CHANGED', 'This update changed customer-owned files.', {
+                        evidence: {
+                            files: changed.length,
+                            firstPath: changed[0].path,
+                            kind: changed[0].before === null
+                                ? 'added'
+                                : (changed[0].after === null ? 'removed' : 'rewritten'),
+                        },
+                    });
+                }
+
                 const gates = await runLocalGates(adapters, projectDir, manifest.gates);
 
                 writeInstalledLock(paths.lockFile, lockFromManifest(manifest, {
@@ -469,14 +539,54 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
                     message: `chore: update ${manifest.kitId} to ${manifest.version}`,
                 });
 
+                await assertCommittedStateTracked(adapters, projectDir);
+
                 return {
                     kind: 'done',
-                    evidence: { gates, commit: committed.commit },
+                    evidence: { gates, commit: committed.commit, customerSource: 'unchanged' },
                     externalRefs: { sourceCommit: committed.commit },
                 };
             },
         },
     ];
+}
+
+/**
+ * Compare the checkout against the baseline taken before the first write.
+ *
+ * A missing baseline is a failure, not a pass. The one way this guard could be
+ * wrong in the direction that matters is by having nothing to compare against
+ * and reporting "no change" — so it says so instead.
+ */
+function verifyCustomerSource(
+    projectDir: string,
+    operationId: string,
+    declarations: readonly (ReturnType<typeof requireInstalledLock> | KitReleaseManifestView)[],
+): CustomerSourceChange[]
+{
+    const baseline = readCustomerBaseline(projectDir, operationId);
+
+    if (baseline === null)
+    {
+        throw new KitError('CLI_CUSTOMER_SOURCE_CHANGED', 'The customer-source baseline for this update is missing.', {
+            evidence: { operationId, reason: 'baseline-missing' },
+        });
+    }
+
+    return compareCustomerSource(baseline.files, customerSourceDigests(projectDir, declarations));
+}
+
+/**
+ * The package whose version is the release's own version.
+ *
+ * That is what makes it the release's package rather than a dependency: every
+ * other entry in the graph is pinned to a version of its own that has nothing
+ * to do with this release's number. Undefined when no package matches, which
+ * leaves the answer to whatever convention the transport falls back on.
+ */
+function releasePackageName(manifest: KitReleaseManifestView): string | undefined
+{
+    return manifest.packages.find(entry => entry.version === manifest.version)?.name;
 }
 
 /**

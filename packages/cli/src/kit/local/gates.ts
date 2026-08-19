@@ -23,6 +23,7 @@ import type { DatabasePort, GatePort, GateResult } from '../ports.js';
 import type { KitGate } from '../manifest.js';
 import { runCommand, summarize, type CommandRunner } from './process.js';
 import { spfnCommand } from './database.js';
+import { KIT_CONFIG_ENV } from '../child-env.js';
 
 /** A gate should not hang a whole install; a slow build still finishes. */
 export const DEFAULT_GATE_TIMEOUT_MS = 900_000;
@@ -33,7 +34,7 @@ interface GatePlan
     /** `package.json` script names, in order of preference. */
     scripts: string[];
     /** Run when the project declares none of those scripts. */
-    fallback?: { file: string; args: string[] };
+    fallback?: { file: string; args: string[]; isSelf?: true };
 }
 
 const GATE_PLANS: Record<Exclude<KitGate, 'db-status' | 'health'>, GatePlan> = {
@@ -89,6 +90,10 @@ export class CommandGatePort implements GatePort
             file: command.file,
             args: command.args,
             cwd: request.cwd,
+            /* Only for the gate that re-runs this CLI. A project script gets
+               the package-manager environment, because a project script is not
+               this CLI and has no business reading how it is configured. */
+            passthrough: command.isSelf ? KIT_CONFIG_ENV : undefined,
             timeoutMs: this.options.timeoutMs ?? DEFAULT_GATE_TIMEOUT_MS,
         });
 
@@ -100,7 +105,10 @@ export class CommandGatePort implements GatePort
         return { ok: false, summary: result.missing ? `${command.file} is not installed` : summarize(result) };
     }
 
-    private commandFor(gate: Exclude<KitGate, 'db-status' | 'health'>, cwd: string): { file: string; args: string[] } | null
+    private commandFor(
+        gate: Exclude<KitGate, 'db-status' | 'health'>,
+        cwd: string,
+    ): { file: string; args: string[]; isSelf?: boolean } | null
     {
         const plan = GATE_PLANS[gate];
         const scripts = projectScripts(cwd);
@@ -137,9 +145,9 @@ export function projectScripts(cwd: string): Record<string, unknown>
     }
 }
 
-function spfnFallback(args: string[]): { file: string; args: string[] }
+function spfnFallback(args: string[]): { file: string; args: string[]; isSelf: true }
 {
     const command = spfnCommand();
 
-    return { file: command.file, args: [...command.args, ...args] };
+    return { file: command.file, args: [...command.args, ...args], isSelf: true };
 }

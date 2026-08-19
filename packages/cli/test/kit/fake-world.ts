@@ -13,7 +13,7 @@
 
 import { generateKeyPairSync, sign as signBytes, createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { canonicalJson, sha256Digest } from '../../src/kit/digest.js';
 import { MemoryKitCredentialStore } from '../../src/kit/credentials.js';
@@ -42,6 +42,15 @@ export interface FakeReleaseSpec
     gates?: KitGate[];
     /** Releases this one can be reached from, as signed update edges. */
     edgesFrom?: string[];
+    /**
+     * Releases this one names in `compatibility.fromReleases` and gives no
+     * edge record for.
+     *
+     * The shape a real first update has: a release cannot carry an edge from a
+     * predecessor whose managed bytes it was not built beside, so the direct
+     * hop is authorised by the manifest field alone (unit 05 §2.1).
+     */
+    directFrom?: string[];
     /** Packages that carry migrations. */
     withMigrations?: boolean;
     status?: 'active' | 'superseded' | 'revoked';
@@ -99,6 +108,10 @@ export interface FakeFaults
     toolingWritesOutsideAllowlist: boolean;
     /** Tooling returns a plan that writes customer source. */
     toolingPlansCustomerWrite: boolean;
+    /** The control plane cannot take a recovery request right now. */
+    recoveryRequestUnavailable: boolean;
+    /** Committed-state paths this repository ignores, e.g. a bad .gitignore. */
+    untrackedCommittedState: string[];
 }
 
 interface BuiltRelease
@@ -138,7 +151,36 @@ export class FakeKitWorld
         gitDirty: false,
         toolingWritesOutsideAllowlist: false,
         toolingPlansCustomerWrite: false,
+        recoveryRequestUnavailable: false,
+        untrackedCommittedState: [],
     };
+
+    /**
+     * The open and spent recovery challenges this control plane has issued.
+     *
+     * Keyed by the public recovery id, which is also the id embedded in the
+     * challenge — so a CLI that holds the challenge can address the completion
+     * without being told the id twice.
+     */
+    readonly recoveries = new Map<string, { activationId: string; challenge: string; state: 'open' | 'used' | 'superseded' }>();
+
+    /** What went to the address of record. This world's stand-in for an inbox. */
+    readonly mailbox: { activationId: string; recoveryId: string; challenge: string }[] = [];
+
+    /**
+     * The one credential each activation currently accepts.
+     *
+     * Unit 04 gives an activation a single current local client, so this is
+     * how a second machine's recovery makes the first machine's credential
+     * stale: the value moves, and the registry stops honouring the old one.
+     * Empty means no recovery has happened and any credential is the first.
+     */
+    readonly currentCredentials = new Map<string, string>();
+
+    readonly credentialGenerations = new Map<string, number>();
+
+    /** Runs inside a successful package install, in the project directory. */
+    onPackageInstall?: (projectDir: string) => void;
 
     /** Every license key the control plane has seen. Proves none leaked. */
     readonly seenLicenseKeys: string[] = [];
@@ -195,6 +237,23 @@ export class FakeKitWorld
     get latest(): BuiltRelease
     {
         return [...this.releases].sort((left, right) => right.spec.sequence - left.spec.sequence)[0];
+    }
+
+    /**
+     * The exact package graph the release owning that scaffold artifact pins.
+     *
+     * Matched on the artifact because that is what `createBase` is handed: the
+     * scaffold belongs to one release, and the base it writes has to declare
+     * that release's versions rather than the newest one's.
+     */
+    packagesOfScaffold(artifact: string | undefined): { name: string; version: string }[]
+    {
+        const found = this.releases.find(entry =>
+            (entry.manifest.scaffold as { artifact?: string } | undefined)?.artifact === artifact)
+            ?? this.releases[0];
+
+        return ((found?.manifest.packages ?? []) as { name: string; version: string }[])
+            .map(entry => ({ name: entry.name, version: entry.version }));
     }
 
     release(version: string): BuiltRelease
@@ -320,7 +379,7 @@ export class FakeKitWorld
                 next: '16.3.1',
                 react: '19.2.8',
                 spfnCli: '>=0.3.0-beta.5 <0.4.0',
-                fromReleases: spec.edgesFrom ?? [],
+                fromReleases: [...(spec.edgesFrom ?? []), ...(spec.directFrom ?? [])],
             },
             scaffold: {
                 recipeVersion: '1.0.0',
@@ -538,6 +597,78 @@ export class FakeKitWorld
                         ? { entitled: true }
                         : { entitled: false, reason: 'expired' as const };
                 },
+
+                /* Unit 04 §6.1: the same answer whether or not the activation
+                   exists, so nothing a caller sees says which it was. What
+                   goes to the address of record lands in `world.mailbox`,
+                   which is this world's stand-in for an inbox. */
+                async requestRecovery(request)
+                {
+                    if (world.faults.recoveryRequestUnavailable)
+                    {
+                        return { status: 'unavailable' as const };
+                    }
+
+                    const recoveryId = createHash('sha256')
+                        .update(`recovery:${request.activationId}:${world.mailbox.length}`)
+                        .digest('hex')
+                        .slice(0, 16);
+                    const challenge = `spfnr_${recoveryId}.${createHash('sha256')
+                        .update(`challenge:${recoveryId}`)
+                        .digest('base64url')
+                        .slice(0, 43)}`;
+
+                    /* One open challenge per activation. A newer request
+                       supersedes the older one, which is what stops a stolen
+                       old mail from being spent after a new one is asked for. */
+                    for (const open of world.recoveries.values())
+                    {
+                        if (open.activationId === request.activationId && open.state === 'open')
+                        {
+                            open.state = 'superseded';
+                        }
+                    }
+
+                    world.recoveries.set(recoveryId, {
+                        activationId: request.activationId,
+                        challenge,
+                        state: 'open',
+                    });
+                    world.mailbox.push({ activationId: request.activationId, recoveryId, challenge });
+
+                    return { status: 'sent' as const };
+                },
+
+                async completeRecovery(request)
+                {
+                    const recovery = world.recoveries.get(request.recoveryId);
+
+                    if (recovery === undefined
+                        || recovery.state !== 'open'
+                        || recovery.challenge !== request.challenge)
+                    {
+                        return { status: 'recovery-invalid' as const };
+                    }
+
+                    /* Single use, and the previous local client is revoked in
+                       the same move — unit 04 gives an activation one current
+                       client, so the machine that held the old one is stale
+                       from this instant. */
+                    recovery.state = 'used';
+                    world.currentCredentials.set(recovery.activationId, request.replacementCredential);
+                    world.credentialGenerations.set(
+                        recovery.activationId,
+                        (world.credentialGenerations.get(recovery.activationId) ?? 1) + 1,
+                    );
+
+                    return {
+                        status: 'recovered' as const,
+                        activationId: recovery.activationId,
+                        localClientId: `lc-${request.recoveryId}`,
+                        accessExpiresAt: '2026-08-17T02:00:00Z',
+                        generation: world.credentialGenerations.get(recovery.activationId) ?? 2,
+                    };
+                },
             },
 
             registry: {
@@ -550,6 +681,17 @@ export class FakeKitWorld
                     if (world.faults.registryInvalid)
                     {
                         return { status: 'credential-invalid' };
+                    }
+
+                    /* Unit 06 table B, "clean clone·stale token": once a
+                       recovery has moved the current credential, the machine
+                       still holding the previous one is refused — which is the
+                       whole reason the previous machine has to recover too. */
+                    const current = world.currentCredentials.get(request.activationId);
+
+                    if (current !== undefined && current !== request.credential)
+                    {
+                        return { status: 'credential-stale' };
                     }
                     if (world.faults.registryUnauthorizedOnce && world.registryRefusals === 0)
                     {
@@ -586,6 +728,20 @@ export class FakeKitWorld
 
                     mkdirSync(dirname(marker), { recursive: true });
                     writeFileSync(marker, 'ok\n', 'utf8');
+
+                    /* What a package manager actually does: put on disk what
+                       the project declares. Modelled because the CLI now reads
+                       the installed tree back — an update that forgets to
+                       repin `package.json` installs the previous release here,
+                       exactly as it did against the real registry. */
+                    materializeDeclaredGraph(request.cwd);
+
+                    /* A seam for what a real graph can do on the way past: a
+                       postinstall script, a patch step, a formatter. Nothing
+                       in the CLI writes here, which is exactly why the
+                       customer-source guard cannot be satisfied by reading
+                       the CLI's own intentions. */
+                    world.onPackageInstall?.(request.cwd);
 
                     return { ok: true, exitCode: 0 };
                 },
@@ -635,6 +791,16 @@ export class FakeKitWorld
             },
 
             git: {
+                /* The fake repository tracks everything it holds except the
+                   two directories no repository would. Enough to answer "is
+                   the committed state committed", which is what the caller
+                   asks — a fake that answered "yes" unconditionally would make
+                   that check untestable. */
+                async trackedAmong(request)
+                {
+                    return request.paths.filter(path => existsSync(join(request.cwd, path))
+                        && !world.faults.untrackedCommittedState.includes(path));
+                },
                 async init(request)
                 {
                     mkdirSync(join(request.cwd, '.git'), { recursive: true });
@@ -661,9 +827,23 @@ export class FakeKitWorld
                 async createBase(request)
                 {
                     mkdirSync(join(request.targetDir, 'src', 'app'), { recursive: true });
+
+                    /* The scaffold declares the release's own graph, because a
+                       real one does: what a package manager installs comes
+                       from `package.json` and the lockfile, never from the
+                       manifest, and a fake whose scaffold declared nothing
+                       would make that dependency invisible. */
+                    const declared = Object.fromEntries(
+                        world.packagesOfScaffold(request.scaffold?.artifact).map(entry => [entry.name, entry.version]),
+                    );
+
                     writeFileSync(
                         join(request.targetDir, 'package.json'),
-                        `${JSON.stringify({ name: request.name, private: true, dependencies: { spfn: FAKE_CLI_VERSION } }, null, 4)}\n`,
+                        `${JSON.stringify({
+                            name: request.name,
+                            private: true,
+                            dependencies: { spfn: FAKE_CLI_VERSION, ...declared },
+                        }, null, 4)}\n`,
                         'utf8',
                     );
                     writeFileSync(join(request.targetDir, 'src', 'app', 'page.tsx'), 'export default function Page() { return null; }\n', 'utf8');
@@ -811,6 +991,31 @@ export function npmTarball(name: string, version: string): Uint8Array
 }
 
 /** The base a release scaffolds when the spec does not name its own. */
+/** Write `node_modules/<name>/package.json` for everything the project declares. */
+function materializeDeclaredGraph(projectDir: string): void
+{
+    const manifestPath = join(projectDir, 'package.json');
+
+    if (!existsSync(manifestPath))
+    {
+        return;
+    }
+
+    const document = JSON.parse(readFileSync(manifestPath, 'utf8')) as
+        { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+
+    for (const block of [document.dependencies, document.devDependencies])
+    {
+        for (const [name, version] of Object.entries(block ?? {}))
+        {
+            const directory = join(projectDir, 'node_modules', ...name.split('/'));
+
+            mkdirSync(directory, { recursive: true });
+            writeFileSync(join(directory, 'package.json'), `${JSON.stringify({ name, version }, null, 4)}\n`, 'utf8');
+        }
+    }
+}
+
 export function defaultScaffoldFiles(version: string): Record<string, string>
 {
     return {

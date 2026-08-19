@@ -18,7 +18,7 @@
 
 import { createHash } from 'node:crypto';
 import { KitError } from '../errors.js';
-import type { ArtifactPort, EntitlementResult } from '../ports.js';
+import type { ArtifactPort, EntitlementRequest, EntitlementResult } from '../ports.js';
 import { requestBytes, requestJson, unavailable, type KitHttpOptions } from './transport.js';
 import type { EntitlementProbe } from './control-plane.js';
 
@@ -204,7 +204,7 @@ export class KitRegistryProxyClient
  */
 export function registryEntitlementProbe(
     client: KitRegistryProxyClient,
-    resolve: (request: { activationId: string; kitId: string; release: string }) => Promise<{
+    resolve: (request: EntitlementRequest) => Promise<{
         packageName: string;
         credential: string;
     } | null>,

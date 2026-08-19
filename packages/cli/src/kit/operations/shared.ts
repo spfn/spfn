@@ -17,9 +17,11 @@ import { sha256Digest } from './../digest.js';
 import { expandArchive } from './../expand.js';
 import { createChildEnv } from './../child-env.js';
 import { readManifest, assertManifestCliCompatible, type KitReleaseManifestView } from './../manifest.js';
+import { installedGraphMismatches } from './../package-graph.js';
 import { readCatalog, type KitAdapters, type KitCatalogView } from './../ports.js';
 import { verifySignedDocument } from './../signature.js';
 import { readLicenseFile, type KitLicenseFileV1 } from './../installed-state.js';
+import { AGENT_PACK_RECORD_PATH, readAgentPackRecord } from './../agent-pack.js';
 import type { KitCredentialRecord } from './../credentials.js';
 import type { KitGate } from './../manifest.js';
 
@@ -296,6 +298,18 @@ export interface FrozenInstallOptions
     credential: string;
     /** Whether one retry after an unauthorized fetch is allowed. */
     allowSessionRetry?: boolean;
+    /**
+     * Let the package manager re-resolve instead of holding the lockfile.
+     *
+     * An update is the one operation where the committed lockfile is *meant*
+     * to change: it pins the previous release's versions, and installing
+     * against it frozen succeeds by installing the previous release. The
+     * result is checked against the manifest afterwards, so re-resolving is
+     * not the same as accepting whatever the registry happens to offer.
+     */
+    resolve?: boolean;
+    /** Refuse unless the installed tree ends up holding exactly this graph. */
+    expect?: KitReleaseManifestView;
 }
 
 export interface FrozenInstallEvidence
@@ -356,12 +370,14 @@ export async function installFrozenGraph(
 
         const result = await adapters.packageManager.install({
             cwd: options.projectDir,
-            frozen: true,
+            frozen: options.resolve !== true,
             env: createChildEnv({ registryToken: session.token }),
         });
 
         if (result.ok)
         {
+            assertGraphInstalled(options);
+
             return { attempts: attempt, sessionExpiresInSeconds: expiresInSeconds };
         }
 
@@ -385,6 +401,38 @@ export async function installFrozenGraph(
     throw new KitError('KIT_GATE_FAILED', 'The exact dependency install did not succeed.', {
         evidence: { reason: lastFailure ?? 'other', attempts: maxAttempts },
         next: { command: 'spfn kit resume --json', requiresHumanApproval: false },
+    });
+}
+
+/**
+ * Refuse an install that left the project holding something else.
+ *
+ * The registry verification proves the registry would serve the manifest's
+ * bytes. This proves the project received them — the two are different claims,
+ * and only the second one is what the customer ends up running.
+ */
+function assertGraphInstalled(options: FrozenInstallOptions): void
+{
+    if (options.expect === undefined)
+    {
+        return;
+    }
+
+    const mismatches = installedGraphMismatches(options.projectDir, options.expect);
+
+    if (mismatches.length === 0)
+    {
+        return;
+    }
+
+    throw new KitError('KIT_UNSUPPORTED_RESOLUTION', 'The installed graph is not the one this release pins.', {
+        evidence: {
+            release: options.expect.version,
+            packages: mismatches.length,
+            firstPackage: mismatches[0].name,
+            expected: mismatches[0].expected,
+            actual: mismatches[0].actual ?? 'absent',
+        },
     });
 }
 
@@ -433,6 +481,46 @@ export async function requireCredential(
     }
 
     return { license, record };
+}
+
+/**
+ * The files a clean clone has nothing without.
+ *
+ * Unit 06 §4.2 makes `spfn kit restore` run from the committed lock and the
+ * committed licence file and nothing else, and §5.1 says both are committed.
+ * §4.4 adds the third: the guide falls back to the *committed* installed Agent
+ * Pack cache, so a pack that only exists on the machine that installed it is a
+ * pack no clone and no CI job can read.
+ *
+ * A checkout missing any of them passes every gate and is unrestorable, and
+ * that failure surfaces on a different machine days later — so it is checked
+ * here, once, on the machine that made it.
+ */
+export const COMMITTED_STATE_PATHS = ['.spfn/kit-lock.json', '.spfn/license.json'] as const;
+
+export async function assertCommittedStateTracked(adapters: KitAdapters, projectDir: string): Promise<string[]>
+{
+    const record = readAgentPackRecord(projectDir);
+    /* The record and one file from the tree it describes. One file rather than
+       all of them: a `.gitignore` covers a directory, not a scattering of
+       files inside it, so the failure this catches is all-or-nothing and
+       naming every file would only make the refusal harder to read. */
+    const packPaths = record === null
+        ? []
+        : [AGENT_PACK_RECORD_PATH, ...Object.keys(record.files).sort().slice(0, 1)];
+    const required = [...COMMITTED_STATE_PATHS, ...packPaths];
+    const tracked = await adapters.git.trackedAmong({ cwd: projectDir, paths: required });
+    const missing = required.filter(path => !tracked.includes(path));
+
+    if (missing.length > 0)
+    {
+        throw new KitError('KIT_LOCK_INVALID', 'The files a clean clone restores from are not in the repository.', {
+            evidence: { untracked: missing.join(', '), tracked: tracked.length },
+            next: { command: 'spfn kit status --json', requiresHumanApproval: false },
+        });
+    }
+
+    return [...tracked];
 }
 
 /** Run the release's local gates. `health` belongs to deployment, not here. */

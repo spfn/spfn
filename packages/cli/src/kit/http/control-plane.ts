@@ -19,8 +19,11 @@ import type {
     ActivationRequest,
     ActivationResult,
     CatalogPort,
+    EntitlementRequest,
     EntitlementResult,
     LicensePort,
+    RecoveryCompletionResult,
+    RecoveryRequestResult,
     RegistryPort,
     RegistrySession,
 } from '../ports.js';
@@ -108,11 +111,7 @@ export class HttpCatalogPort implements CatalogPort
  * built in, because the licence client has no business knowing which package a
  * Kit ships as.
  */
-export type EntitlementProbe = (request: {
-    activationId: string;
-    kitId: string;
-    release: string;
-}) => Promise<EntitlementResult>;
+export type EntitlementProbe = (request: EntitlementRequest) => Promise<EntitlementResult>;
 
 export class HttpLicensePort implements LicensePort
 {
@@ -153,7 +152,7 @@ export class HttpLicensePort implements LicensePort
         };
     }
 
-    async entitlement(request: { activationId: string; kitId: string; release: string }): Promise<EntitlementResult>
+    async entitlement(request: EntitlementRequest): Promise<EntitlementResult>
     {
         if (this.probe === null)
         {
@@ -161,6 +160,62 @@ export class HttpLicensePort implements LicensePort
         }
 
         return this.probe(request);
+    }
+
+    async requestRecovery(request: { activationId: string }): Promise<RecoveryRequestResult>
+    {
+        const call = {
+            method: 'POST' as const,
+            url: `${this.baseUrl}/licenses/activations/${encodeURIComponent(request.activationId)}/local-recovery`,
+            json: {},
+        };
+        const response = await requestJson(call, this.http);
+
+        /* 202 is the only success, and it is returned whether or not the
+           activation is real. Anything else is the service failing, not an
+           answer about the activation — so nothing here turns a status code
+           into "no such activation". */
+        return response.status === 202
+            ? { status: 'sent' }
+            : { status: 'unavailable', detail: { serverCode: serverCode(response.body), status: response.status } };
+    }
+
+    async completeRecovery(request: {
+        recoveryId: string;
+        challenge: string;
+        replacementCredential: string;
+    }): Promise<RecoveryCompletionResult>
+    {
+        const call = {
+            method: 'POST' as const,
+            url: `${this.baseUrl}/licenses/local-recoveries/${encodeURIComponent(request.recoveryId)}/complete`,
+            json: { challenge: request.challenge, replacementCredential: request.replacementCredential },
+        };
+        const response = await requestJson(call, this.http);
+
+        if (response.status === 200 && response.body !== null)
+        {
+            return {
+                status: 'recovered',
+                activationId: String(response.body.activationId ?? ''),
+                localClientId: String(response.body.localClientId ?? ''),
+                accessExpiresAt: String(response.body.accessExpiresAt ?? ''),
+                generation: readGeneration(response.body, 0),
+            };
+        }
+
+        const code = serverCode(response.body);
+
+        if (code === 'RECOVERY_INVALID' || code === 'CLIENT_INVALID')
+        {
+            return { status: 'recovery-invalid', detail: { serverCode: code } };
+        }
+        if (code === 'LICENSE_REVOKED' || code === 'ACTIVATION_DEACTIVATED' || code === 'KIT_NOT_ENTITLED')
+        {
+            return { status: 'license-revoked', detail: { serverCode: code } };
+        }
+
+        return { status: 'unavailable', detail: { serverCode: code, status: response.status } };
     }
 }
 
