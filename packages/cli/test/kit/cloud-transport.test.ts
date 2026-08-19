@@ -380,7 +380,23 @@ describe('the Vercel transport', () =>
 
     it('reads a deployment\'s readiness into the three states a gate branches on', async () =>
     {
-        for (const [readyState, expected] of [['READY', 'ready'], ['ERROR', 'error'], ['CANCELED', 'error'], ['QUEUED', 'building']])
+        const cases = [
+            ['READY', 'ready'],
+            ['ERROR', 'error'],
+            ['CANCELED', 'error'],
+            ['QUEUED', 'building'],
+            ['INITIALIZING', 'building'],
+            ['BUILDING', 'building'],
+            /* A deployment the project refused to build. Read as `building` it
+               would be polled until the build timeout and then reported as a
+               timeout, which names neither the state nor the reason. */
+            ['BLOCKED', 'error'],
+            ['DELETED', 'error'],
+            /* Whatever the provider adds next. Unknown is not progress. */
+            ['SOME_FUTURE_STATE', 'error'],
+        ];
+
+        for (const [readyState, expected] of cases)
         {
             answers.clear();
             answer('GET', '/v13/deployments/dpl_1', { id: 'dpl_1', readyState, url: 'x.vercel.app', projectId: 'prj_1' });

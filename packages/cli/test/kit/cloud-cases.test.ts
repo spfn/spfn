@@ -578,6 +578,34 @@ describe('table E — deploy, traffic and health', () =>
         expect(cloud.vercel.deployCalls).toBe(1);
     });
 
+    it('E2 — a build for this commit the provider refused is not adopted as the staged build', async () =>
+    {
+        const cloud = createFakeCloud();
+        const plan = buildCloudPlan(planRequest());
+
+        /* What a git push leaves behind on a project configured so that only
+           the CLI deploys: a deployment for exactly this commit that the
+           provider will never build. Adopting it makes staged-build report
+           success on something that can never be promoted, and the failure
+           surfaces a step later as a verify that never resolves. */
+        cloud.vercel.stagedState = 'error';
+
+        await runCloudOperation(runRequest(cloud, plan));
+
+        expect(cloud.vercel.deployCalls).toBe(1);
+
+        cloud.vercel.stagedState = 'ready';
+
+        const resumed = await runCloudOperation(runRequest(cloud, plan));
+        const project = [...cloud.vercel.projects.values()][0];
+        const current = await cloud.vercel.currentProduction({ projectId: project.id });
+
+        expect(resumed.status).toBe('completed');
+        // A second build, because the refused one is not a candidate.
+        expect(cloud.vercel.deployCalls).toBe(2);
+        expect(current?.commit).toBe(COMMIT);
+    });
+
     it('E3 — refuses to promote when the remote is on another commit', async () =>
     {
         const outcome = await verifyStagedGates(

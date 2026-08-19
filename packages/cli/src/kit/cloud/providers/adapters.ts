@@ -489,6 +489,14 @@ export class VercelProviderAdapter implements ProviderPort
      * Keyed by commit: a resume that already produced a build for this exact
      * source finds it and adopts it, so a dropped connection costs a lookup
      * rather than a second deployment.
+     *
+     * Adopted only when it is still a candidate. A deployment for this commit
+     * that ended in `error` — the provider refused it, cancelled it, or it
+     * failed to compile — is a fact about a previous attempt and not a build
+     * this operation could promote. Adopting one makes the step "succeed" on a
+     * deployment that will never be ready, and the failure surfaces a step
+     * later as a verify timeout. Deployments a git push created and the project
+     * blocked land here, which is the case that found this.
      */
     private async deployStaged(envelope: ProviderOperationEnvelopeV1): Promise<ProviderOperationEnvelopeV1>
     {
@@ -501,7 +509,8 @@ export class VercelProviderAdapter implements ProviderPort
         }
 
         const existing = await this.api.findDeploymentForCommit({ projectId, commit });
-        const deployment = existing ?? await this.api.createStagedDeployment({ projectId, commit });
+        const reusable = existing !== null && existing.state !== 'error' ? existing : null;
+        const deployment = reusable ?? await this.api.createStagedDeployment({ projectId, commit });
 
         return applied(envelope, this.context, {
             ...baseEvidence(envelope),

@@ -641,11 +641,24 @@ interface VercelDeploymentBody
     meta?: { githubCommitSha?: string };
 }
 
+/**
+ * The readiness values that mean the build has not finished yet.
+ *
+ * An allowlist, deliberately. Which states a deployment can be in is the
+ * provider's to extend, and the ones it adds are not new ways of making
+ * progress: `BLOCKED` is a deployment the provider refused to build, `DELETED`
+ * is one that is gone. Reading anything unrecognised as "still building" makes
+ * every one of them wait out the whole build timeout and then report a timeout,
+ * which says nothing about what happened. Unknown therefore lands on `error`,
+ * where the gate refuses at once.
+ */
+const VERCEL_IN_PROGRESS = new Set(['QUEUED', 'INITIALIZING', 'BUILDING']);
+
 function readDeployment(body: VercelDeploymentBody, projectId: string, commit: string): VercelDeployment
 {
     const state = body.readyState === 'READY'
         ? 'ready'
-        : body.readyState === 'ERROR' || body.readyState === 'CANCELED' ? 'error' : 'building';
+        : VERCEL_IN_PROGRESS.has(body.readyState ?? '') ? 'building' : 'error';
 
     return {
         id: body.id ?? body.uid ?? '',
