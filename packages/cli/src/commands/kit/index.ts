@@ -26,6 +26,7 @@ import { KitError, KIT_EXIT, isKitError } from '../../kit/errors.js';
 import { resolveKitAdapters } from '../../kit/adapters.js';
 import { runInstall } from '../../kit/operations/install.js';
 import { runRestore } from '../../kit/operations/restore.js';
+import { runRecover } from '../../kit/operations/recover.js';
 import { runUpdate } from '../../kit/operations/update.js';
 import { runCheck, runStatus } from '../../kit/operations/inspect.js';
 import { runAbandon, runResume } from '../../kit/operations/resume.js';
@@ -41,6 +42,13 @@ interface CommonOptions
 interface SecretInputOptions extends CommonOptions
 {
     licenseKeyStdin?: boolean;
+}
+
+interface RecoveryInputOptions extends CommonOptions
+{
+    recoveryChallengeStdin?: boolean;
+    /** Set once the challenge has arrived, to ask for it interactively. */
+    challenge?: boolean;
 }
 
 function projectDir(options: CommonOptions): string
@@ -88,7 +96,58 @@ function licenseKeyReader(options: SecretInputOptions): () => Promise<string>
     };
 }
 
-async function readSecretFromStdin(): Promise<string>
+/**
+ * Read the one-time recovery challenge, or report that none was offered.
+ *
+ * `undefined` rather than a prompt when nothing was offered, because that is
+ * the first half of `recover`: no challenge in hand means "ask for one to be
+ * sent", which is a different run of the command and not a failure. There is
+ * no `--recovery-challenge <value>` option, for the same reason there is no
+ * `--license-key <value>`.
+ */
+function recoveryChallengeReader(options: RecoveryInputOptions): (() => Promise<string>) | undefined
+{
+    if (options.recoveryChallengeStdin === true)
+    {
+        return async () => readSecretFromStdin('KIT_CREDENTIAL_MISSING');
+    }
+    if (options.challenge !== true)
+    {
+        return undefined;
+    }
+    if (options.json === true || !process.stdin.isTTY)
+    {
+        return async () =>
+        {
+            throw new KitError('KIT_CREDENTIAL_MISSING', 'This command needs the recovery challenge on stdin.', {
+                evidence: { input: 'masked-stdin' },
+                next: { command: 'spfn kit recover --recovery-challenge-stdin --json', requiresHumanApproval: false },
+            });
+        };
+    }
+
+    return async () =>
+    {
+        const answer = await prompts({
+            type: 'password',
+            name: 'challenge',
+            message: 'Recovery challenge from the e-mail',
+        });
+
+        if (typeof answer.challenge !== 'string' || answer.challenge.length === 0)
+        {
+            throw new KitError('KIT_CREDENTIAL_MISSING', 'No recovery challenge was entered.', {
+                evidence: { input: 'masked-stdin' },
+            });
+        }
+
+        return answer.challenge;
+    };
+}
+
+async function readSecretFromStdin(
+    code: 'KIT_LICENSE_REQUIRED' | 'KIT_CREDENTIAL_MISSING' = 'KIT_LICENSE_REQUIRED',
+): Promise<string>
 {
     const chunks: Buffer[] = [];
 
@@ -101,7 +160,7 @@ async function readSecretFromStdin(): Promise<string>
 
     if (value.length === 0)
     {
-        throw new KitError('KIT_LICENSE_REQUIRED', 'Nothing was written to stdin.', {
+        throw new KitError(code, 'Nothing was written to stdin.', {
             evidence: { input: 'masked-stdin' },
         });
     }
@@ -229,6 +288,23 @@ kitCommand.command('restore')
 
         await withResult(options.json === true, async () => runRestore({
             projectDir: dir,
+            json: options.json === true,
+        }, await resolveKitAdapters({ projectDir: dir })));
+    });
+
+kitCommand.command('recover')
+    .description('Replace this machine\'s Kit credential through an e-mailed challenge')
+    .option('--json', 'newline-delimited JSON events and a machine-readable result')
+    .option('--dir <path>', 'the project directory (default: current directory)')
+    .option('--recovery-challenge-stdin', 'read the one-time challenge from stdin instead of prompting')
+    .option('--challenge', 'prompt for the challenge that has already arrived')
+    .action(async (options: RecoveryInputOptions) =>
+    {
+        const dir = projectDir(options);
+
+        await withResult(options.json === true, async () => runRecover({
+            projectDir: dir,
+            readChallenge: recoveryChallengeReader(options),
             json: options.json === true,
         }, await resolveKitAdapters({ projectDir: dir })));
     });

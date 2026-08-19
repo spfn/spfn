@@ -85,6 +85,7 @@ describe('the command surface', () =>
             'check',
             'install',
             'plan',
+            'recover',
             'restore',
             'resume',
             'status',
@@ -98,7 +99,7 @@ describe('the command surface', () =>
             .toEqual(['setup-url', 'directory']);
         expect(optionsOf('install')).toEqual(['--json', '--license-key-stdin']);
 
-        for (const name of ['install', 'restore', 'status', 'check', 'plan', 'update', 'resume', 'abandon'])
+        for (const name of ['install', 'restore', 'recover', 'status', 'check', 'plan', 'update', 'resume', 'abandon'])
         {
             const options = optionsOf(name);
 
@@ -111,6 +112,15 @@ describe('the command surface', () =>
     {
         expect(optionsOf('update')).toEqual(['--approve-plan', '--dir', '--json', '--plan-only', '--to']);
         expect(optionsOf('plan')).toEqual(['--dir', '--json', '--to']);
+    });
+
+    it('takes the recovery challenge only through stdin or a masked prompt', () =>
+    {
+        /* Unit 06 §4.10: the challenge is a one-time secret, so it gets the
+           same treatment as the licence key — no `--recovery-challenge <value>`
+           to land in a shell history or a process listing. */
+        expect(optionsOf('recover')).toEqual(['--challenge', '--dir', '--json', '--recovery-challenge-stdin']);
+        expect(optionsOf('recover')).not.toContain('--recovery-challenge');
     });
 
     it('offers --json everywhere, because every command has an agent reader', () =>

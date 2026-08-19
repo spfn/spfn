@@ -23,6 +23,45 @@ import { detectStore, type SecretStore } from '../utils/secret-store/index.js';
 /** The keychain service Kit credentials live under. Never the env-secret one. */
 export const KIT_KEYCHAIN_SERVICE = 'superfunction.spfn.kit';
 
+/** Names an isolated namespace *under* the Kit service. Never replaces it. */
+export const KIT_KEYCHAIN_NAMESPACE_ENV = 'SPFN_KIT_KEYCHAIN_NAMESPACE';
+
+const NAMESPACE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+
+/**
+ * Which keychain service this process reads Kit credentials from.
+ *
+ * Unit 10 §1.3 makes "an isolated Keychain namespace" a supported input: the
+ * recovered-machine restore path has to start from a keychain that genuinely
+ * holds nothing, and deleting the developer's real items to arrange that would
+ * be destroying state to test a read.
+ *
+ * A namespace is appended, never substituted. The prefix stays
+ * `superfunction.spfn.kit`, so the value cannot be pointed at the env-secret
+ * service — which would put a Kit credential in the store `spfn secret` reads
+ * — and the pattern keeps it inside the identifier syntax a keychain accepts.
+ * An unusable value is refused rather than silently ignored, because silently
+ * falling back to the real namespace is how a "new machine" test would end up
+ * reading the old machine's credential and passing.
+ */
+export function kitKeychainService(env: NodeJS.ProcessEnv = process.env): string
+{
+    const namespace = env[KIT_KEYCHAIN_NAMESPACE_ENV];
+
+    if (namespace === undefined || namespace === '')
+    {
+        return KIT_KEYCHAIN_SERVICE;
+    }
+    if (!NAMESPACE_PATTERN.test(namespace))
+    {
+        throw new Error(
+            `${KIT_KEYCHAIN_NAMESPACE_ENV} must match ${String(NAMESPACE_PATTERN)}; refusing to guess a keychain service.`,
+        );
+    }
+
+    return `${KIT_KEYCHAIN_SERVICE}.${namespace}`;
+}
+
 export interface KitCredentialRecord
 {
     /** The opaque local credential the control plane issued or accepted. */
@@ -115,7 +154,7 @@ export class KeychainKitCredentialStore implements KitCredentialStore
 
     private readonly store: SecretStore;
 
-    constructor(store: SecretStore = detectStore(KIT_KEYCHAIN_SERVICE))
+    constructor(store: SecretStore = detectStore(kitKeychainService()))
     {
         this.store = store;
         this.id = store.id;
