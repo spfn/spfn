@@ -99,9 +99,38 @@ export interface VercelApi
     createStagedDeployment(request: { projectId: string; commit: string }): Promise<VercelDeployment>;
     findDeploymentForCommit(request: { projectId: string; commit: string }): Promise<VercelDeployment | null>;
     readDeployment(request: { deploymentId: string }): Promise<VercelDeployment | null>;
-    /** What visitors get right now, or null before the first promotion. */
-    currentProduction(request: { projectId: string }): Promise<VercelDeployment | null>;
+    /**
+     * What visitors get right now, or null before the first promotion.
+     *
+     * `productionDomain` is the host the descriptor calls the public base URL,
+     * and passing it is what makes the answer authoritative. Unit 09 section
+     * 1.4 puts the authority in the deployment the production domain points
+     * at, and that is not the same thing as the newest production build: a
+     * build that was made and never given the domain is production-*target*
+     * and serves nobody. Without the domain this falls back to the newest
+     * production-target build, which is a guess and is documented as one.
+     */
+    currentProduction(request: { projectId: string; productionDomain?: string }): Promise<VercelDeployment | null>;
     promote(request: { projectId: string; deploymentId: string }): Promise<VercelDeployment>;
+    /**
+     * Production deployments newest first.
+     *
+     * A rollback needs somewhere to go back to, and the only honest source of
+     * "the one that was live before" is the provider's own history. Unit 09
+     * section 9.4 stops at an incident when there is none, which is a claim
+     * that can only be made after looking.
+     */
+    productionHistory(request: { projectId: string; limit?: number }): Promise<VercelDeployment[]>;
+    /** Put an older deployment back in front of visitors. */
+    rollback(request: { projectId: string; deploymentId: string }): Promise<VercelDeployment>;
+    /**
+     * Production builds are staged, not live.
+     *
+     * Unit 09 section 9.1 turns production domain auto-assignment off, so a
+     * push to the production branch builds without taking traffic and an
+     * explicit promote is the only thing that moves visitors.
+     */
+    ensureStagedProduction(request: { projectId: string }): Promise<void>;
 }
 
 /** A health probe of a deployed URL. Injected so no test reaches a network. */

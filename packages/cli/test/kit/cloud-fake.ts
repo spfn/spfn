@@ -174,6 +174,11 @@ export class FakeVercel implements VercelApi
     createCalls = 0;
     deployCalls = 0;
     promoteCalls = 0;
+    rollbackCalls = 0;
+    /** Every deployment that has been production, oldest first, per project. */
+    readonly productionOrder = new Map<string, string[]>();
+    /** Whether a build still takes the domain by itself. Off is the contract. */
+    autoAssignCustomDomains = true;
     /** Set to make a staged build come back broken, for the rollback cases. */
     stagedState: VercelDeployment['state'] = 'ready';
 
@@ -266,13 +271,69 @@ export class FakeVercel implements VercelApi
 
         this.deployments.set(promoted.id, promoted);
         this.production.set(request.projectId, promoted.id);
+        this.recordProduction(request.projectId, promoted.id);
 
         return promoted;
+    }
+
+    async productionHistory(request: { projectId: string; limit?: number }): Promise<VercelDeployment[]>
+    {
+        const order = this.productionOrder.get(request.projectId) ?? [];
+        const newestFirst = [...order].reverse().slice(0, request.limit ?? 20);
+
+        return newestFirst
+            .map(id => this.deployments.get(id))
+            .filter((deployment): deployment is VercelDeployment => deployment !== undefined);
+    }
+
+    async rollback(request: { projectId: string; deploymentId: string }): Promise<VercelDeployment>
+    {
+        this.rollbackCalls += 1;
+
+        const deployment = this.deployments.get(request.deploymentId);
+
+        if (deployment === undefined)
+        {
+            throw new Error(`no deployment ${request.deploymentId}`);
+        }
+
+        // The alias moves; the history does not gain an entry, because this
+        // deployment was already production once and being live again is not a
+        // new release.
+        this.production.set(request.projectId, deployment.id);
+
+        return { ...deployment, target: 'production' };
+    }
+
+    async ensureStagedProduction(request: { projectId: string }): Promise<void>
+    {
+        void request;
+        this.autoAssignCustomDomains = false;
     }
 
     seedProject(project: VercelProject): void
     {
         this.projects.set(project.id, project);
+    }
+
+    /** Seed a deployment that was production before this run. */
+    seedProduction(deployment: VercelDeployment): void
+    {
+        this.deployments.set(deployment.id, deployment);
+        this.production.set(deployment.projectId, deployment.id);
+        this.recordProduction(deployment.projectId, deployment.id);
+    }
+
+    private recordProduction(projectId: string, deploymentId: string): void
+    {
+        const order = this.productionOrder.get(projectId) ?? [];
+
+        if (!order.includes(deploymentId))
+        {
+            order.push(deploymentId);
+        }
+
+        this.productionOrder.set(projectId, order);
     }
 }
 
@@ -283,12 +344,20 @@ export class FakeHealth implements HealthProbe
     status = 200;
     body = '{"status":"ok"}';
     calls = 0;
+    /** URLs that answer differently from the default. The rollback cases need
+     * one deployment to be broken while another is fine, and a probe that
+     * answers the same for every URL could not tell those apart. */
+    readonly perUrl = new Map<string, boolean>();
+    readonly probed: string[] = [];
 
-    async check(): Promise<{ ok: boolean; status: number; body: string }>
+    async check(request: { url: string }): Promise<{ ok: boolean; status: number; body: string }>
     {
         this.calls += 1;
+        this.probed.push(request.url);
 
-        return { ok: this.ok, status: this.status, body: this.body };
+        const ok = this.perUrl.get(request.url) ?? this.ok;
+
+        return { ok, status: ok ? this.status : 503, body: this.body };
     }
 }
 

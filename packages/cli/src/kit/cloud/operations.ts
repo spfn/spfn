@@ -132,6 +132,41 @@ export const CLOUD_STEPS: readonly CloudStep[] = [
     },
 ] as const;
 
+/**
+ * Traffic back to the last healthy runtime.
+ *
+ * Not one of `CLOUD_STEPS`: a rollback is not a stage of a deployment, it is
+ * what happens instead of one. Unit 09 section 4.2 lets it run under the
+ * approval that authorised the deployment rather than asking for a new one —
+ * waiting for a person while visitors are getting a broken page is the failure
+ * this exists to end — and requires it to be reported immediately after.
+ */
+export const ROLLBACK_STEP: CloudStep = {
+    id: 'traffic-rollback',
+    provider: 'vercel',
+    action: 'rollback',
+    effect: 'external-write',
+    checkpoint: 'promoted',
+    summary: 'Putting traffic back on the last deployment that was healthy',
+};
+
+/**
+ * What a reconcile does not have to do again.
+ *
+ * After a rollback the repository, the database and the hosting project are
+ * all still there and the migration is still applied — an expand migration is
+ * compatible with the runtime traffic went back to. What is left is the new
+ * commit: push it, build it, verify it and promote it, so Git and production
+ * agree again. Unit 09 section 9.4.
+ */
+export const RECONCILE_COMPLETED_STEPS: readonly string[] = [
+    'repository-create',
+    'database-create',
+    'hosting-create',
+    'environment-configure',
+    'migration-apply',
+];
+
 export interface CloudTargetIdentity
 {
     accountId: string;
@@ -341,6 +376,70 @@ export async function runCloudOperation(request: CloudRunRequest): Promise<Cloud
         resumed,
         evidence: readableEvidence(evidence),
     };
+}
+
+/**
+ * Put traffic back on the last healthy runtime, and touch nothing else.
+ *
+ * One envelope, to one provider. The database is not addressed, the repository
+ * is not addressed, and no history is rewritten: unit 05 section 9 makes a
+ * rollback a recovery of traffic and source, not a rewind of every external
+ * state, and the expanded schema stays because the runtime being restored can
+ * read it.
+ *
+ * A refusal here is an incident rather than a retry. `CLOUD_ROLLBACK_NO_PREVIOUS`
+ * means the provider had nothing healthy to go back to, and the honest answer
+ * to that is to stop and say so rather than to claim a recovery.
+ */
+export async function runTrafficRollback(request: CloudRunRequest): Promise<CloudRunResult>
+{
+    const approval = checkCloudApproval(request.plan, request.approvedDigest, request.now());
+    const envelope = buildEnvelope(
+        ROLLBACK_STEP,
+        request,
+        approval.digest,
+        {
+            planDigest: request.plan.sourceTreeDigest,
+            approvalDigest: approval.digest,
+            sourceCommit: request.sourceCommit,
+        },
+    );
+    const answered = await executeProviderOperation(request.adapters.vercel, envelope);
+
+    if (answered.status !== 'applied')
+    {
+        return {
+            status: 'failed',
+            code: answered.failureCode ?? answered.status,
+            envelopes: [answered],
+            resumed: [],
+            evidence: { step: ROLLBACK_STEP.id, provider: 'vercel', status: answered.status },
+        };
+    }
+
+    return {
+        status: 'completed',
+        code: 'CLOUD_ROLLBACK_COMPLETE',
+        envelopes: [answered],
+        resumed: [],
+        evidence: readableEvidence(answered.evidence ?? {}),
+    };
+}
+
+/**
+ * Git and production, made to agree again after a rollback.
+ *
+ * The same deployment run as any other, starting at the push, because a
+ * rollback commit earns production the way every other commit does — it is
+ * built, verified against the same gates and promoted. Nothing here is a
+ * shortcut for "we already know this one is good".
+ */
+export async function runRollbackReconcile(request: CloudRunRequest): Promise<CloudRunResult>
+{
+    return runCloudOperation({
+        ...request,
+        completed: [...RECONCILE_COMPLETED_STEPS, ...(request.completed ?? [])],
+    });
 }
 
 /**

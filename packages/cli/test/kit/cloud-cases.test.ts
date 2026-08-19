@@ -25,6 +25,8 @@ import {
     CLOUD_STEPS,
     GATE_FAILURE_CODES,
     runCloudOperation,
+    runRollbackReconcile,
+    runTrafficRollback,
     verifyStagedGates,
     type StagedGates,
 } from '../../src/kit/cloud/operations.js';
@@ -42,6 +44,10 @@ import { createFakeCloud, type FakeCloud } from './cloud-fake.js';
 const NOW = '2026-08-18T09:00:00Z';
 const LATER = '2026-08-20T09:00:00Z';
 const COMMIT = 'a'.repeat(40);
+/** The release that is promoted and then turns out to be broken. */
+const SECOND_COMMIT = 'c'.repeat(40);
+/** The commit that carries the previous graph back, after a rollback. */
+const ROLLBACK_COMMIT = 'd'.repeat(40);
 const OPERATION_ID = 'op-20260818090000-install-aa11';
 const ACTIVATION_ID = 'act-01hzlandingkite2e';
 const TREE_DIGEST = `sha256:${'b'.repeat(64)}`;
@@ -98,7 +104,13 @@ function adaptersFor(cloud: FakeCloud): Record<KitProviderId, ProviderPort>
     return {
         github: new GithubProviderAdapter(cloud.github, context),
         supabase: new SupabaseProviderAdapter(cloud.supabase, context),
-        vercel: new VercelProviderAdapter(cloud.vercel, cloud.health, context),
+        // The sleep is replaced so a build wait costs a tick rather than five
+        // seconds; the polling itself is the real code.
+        vercel: new VercelProviderAdapter(cloud.vercel, cloud.health, context, {
+            buildPollMs: 1,
+            buildTimeoutMs: 50,
+            sleep: async () => undefined,
+        }),
     };
 }
 
@@ -163,6 +175,41 @@ function runRequest(cloud: FakeCloud, plan: CloudPlanV1, overrides: Record<strin
         adapters: adaptersFor(cloud),
         gates: passingGates(),
         ...overrides,
+    };
+}
+
+/**
+ * The same targets a first run ends holding: stable provider IDs, not names.
+ *
+ * A run that skips the create steps never learns them, and addressing a project
+ * by its name after it exists is exactly the mistake unit 09 section 1.4
+ * forbids. Every case that resumes, rolls back or reconciles starts from here.
+ */
+function vercelById(cloud: FakeCloud, plan: CloudPlanV1, projectId: string)
+{
+    const repository = [...cloud.github.repositories.values()][0];
+    const database = [...cloud.supabase.projects.values()][0];
+
+    return {
+        github: {
+            accountId: plan.github.ownerLogin,
+            accountLabel: plan.github.ownerLogin,
+            resourceId: repository?.id ?? plan.github.repositoryName,
+            resourceLabel: plan.github.repositoryName,
+        },
+        supabase: {
+            accountId: plan.supabase.organizationId,
+            resourceId: database?.ref ?? plan.supabase.projectName,
+            resourceLabel: plan.supabase.projectName,
+            region: plan.supabase.region,
+        },
+        vercel: {
+            accountId: plan.vercel.teamId,
+            accountLabel: plan.vercel.teamName,
+            resourceId: projectId,
+            resourceLabel: plan.vercel.projectName,
+            region: plan.vercel.region,
+        },
     };
 }
 
@@ -626,6 +673,244 @@ describe('table E — deploy, traffic and health', () =>
         expect(resumed.status).toBe('completed');
         expect(cloud.vercel.promoteCalls).toBe(1);
         expect(cloud.vercel.deployCalls).toBe(1);
+    });
+
+    it('E9 — a promoted deployment that goes bad puts traffic back on the last healthy one', async () =>
+    {
+        const cloud = createFakeCloud();
+        const plan = buildCloudPlan(planRequest());
+        const first = await runCloudOperation(runRequest(cloud, plan));
+        const project = [...cloud.vercel.projects.values()][0];
+        const healthy = await cloud.vercel.currentProduction({ projectId: project.id });
+
+        // A second release goes out and is promoted, and only then does it
+        // start failing — which is the point of this case: every gate before
+        // the promotion passed.
+        const second = await runCloudOperation(runRequest(cloud, plan, {
+            sourceCommit: SECOND_COMMIT,
+            completed: CLOUD_STEPS.slice(0, 5).map(step => step.id),
+            targets: vercelById(cloud, plan, project.id),
+            gates: passingGates({ async remoteCommit()
+            {
+                return SECOND_COMMIT;
+            } }),
+        }));
+        const bad = await cloud.vercel.currentProduction({ projectId: project.id });
+
+        expect(first.status).toBe('completed');
+        expect(second.status).toBe('completed');
+        expect(bad?.id).not.toBe(healthy?.id);
+
+        cloud.health.perUrl.set(bad?.url as string, false);
+
+        const buildsBefore = cloud.vercel.deployCalls;
+        const migrationsBefore = cloud.supabase.applyCalls;
+        const backupsBefore = cloud.supabase.backups.length;
+        const rolled = await runTrafficRollback(runRequest(cloud, plan, {
+            sourceCommit: SECOND_COMMIT,
+            targets: vercelById(cloud, plan, project.id),
+        }));
+        const restored = await cloud.vercel.currentProduction({ projectId: project.id });
+
+        expect(rolled.status).toBe('completed');
+        expect(rolled.code).toBe('CLOUD_ROLLBACK_COMPLETE');
+        expect(restored?.id).toBe(healthy?.id);
+        expect(rolled.evidence.currentDeploymentId).toBe(healthy?.id);
+        // The candidate traffic came off is named too, so a report can say what
+        // was rolled back rather than only what it went back to.
+        expect(rolled.evidence.stagedDeploymentId).toBe(bad?.id);
+        // Recovering traffic built nothing and touched no database.
+        expect(cloud.vercel.deployCalls).toBe(buildsBefore);
+        expect(cloud.supabase.applyCalls).toBe(migrationsBefore);
+        expect(cloud.supabase.backups.length).toBe(backupsBefore);
+        expect(cloud.vercel.rollbackCalls).toBe(1);
+    });
+
+    it('E10 — after a rollback a new commit earns production through the same gates', async () =>
+    {
+        const cloud = createFakeCloud();
+        const plan = buildCloudPlan(planRequest());
+
+        await runCloudOperation(runRequest(cloud, plan));
+
+        const project = [...cloud.vercel.projects.values()][0];
+        const reconciled = await runRollbackReconcile(runRequest(cloud, plan, {
+            sourceCommit: ROLLBACK_COMMIT,
+            targets: vercelById(cloud, plan, project.id),
+            gates: passingGates({ async remoteCommit()
+            {
+                return ROLLBACK_COMMIT;
+            } }),
+        }));
+        const current = await cloud.vercel.currentProduction({ projectId: project.id });
+
+        expect(reconciled.status).toBe('completed');
+        // Pushed, built, verified and promoted: the reconcile skipped the
+        // resources that already exist and nothing else.
+        expect(current?.commit).toBe(ROLLBACK_COMMIT);
+        expect(cloud.github.pushCalls).toBe(2);
+        expect(cloud.vercel.deployCalls).toBe(2);
+        // No second database and no second migration: the expanded schema stays.
+        expect(cloud.supabase.createCalls).toBe(1);
+        expect(cloud.supabase.applyCalls).toBe(0);
+    });
+
+    it('E10 — a reconcile whose staged build fails its gates leaves traffic where it is', async () =>
+    {
+        const cloud = createFakeCloud();
+        const plan = buildCloudPlan(planRequest());
+
+        await runCloudOperation(runRequest(cloud, plan));
+
+        const project = [...cloud.vercel.projects.values()][0];
+        const healthy = await cloud.vercel.currentProduction({ projectId: project.id });
+        const reconciled = await runRollbackReconcile(runRequest(cloud, plan, {
+            sourceCommit: ROLLBACK_COMMIT,
+            targets: vercelById(cloud, plan, project.id),
+            gates: passingGates({
+                async remoteCommit()
+                {
+                    return ROLLBACK_COMMIT;
+                },
+                async detailedHealth()
+                {
+                    return { ok: false, reason: 'still-broken' };
+                },
+            }),
+        }));
+
+        expect(reconciled.status).toBe('refused');
+        expect(reconciled.code).toBe(GATE_FAILURE_CODES.detailedHealth);
+        expect((await cloud.vercel.currentProduction({ projectId: project.id }))?.id).toBe(healthy?.id);
+        expect(cloud.vercel.promoteCalls).toBe(1);
+    });
+
+    it('E11 — with nothing healthy behind it a rollback is an incident, not a traffic move', async () =>
+    {
+        const cloud = createFakeCloud();
+        const plan = buildCloudPlan(planRequest());
+
+        await runCloudOperation(runRequest(cloud, plan));
+
+        const project = [...cloud.vercel.projects.values()][0];
+        const only = await cloud.vercel.currentProduction({ projectId: project.id });
+
+        cloud.health.perUrl.set(only?.url as string, false);
+
+        const rolled = await runTrafficRollback(runRequest(cloud, plan, {
+            targets: vercelById(cloud, plan, project.id),
+        }));
+
+        expect(rolled.status).toBe('failed');
+        expect(rolled.code).toBe('CLOUD_ROLLBACK_NO_PREVIOUS');
+        expect(cloud.vercel.rollbackCalls).toBe(0);
+        // The broken deployment is still the one serving, and the report says
+        // so. An incident that quietly moved traffic somewhere unverified
+        // would be worse than one that stops.
+        expect((await cloud.vercel.currentProduction({ projectId: project.id }))?.id).toBe(only?.id);
+    });
+
+    it('E11 — a previous deployment that no longer answers is not a rollback target', async () =>
+    {
+        const cloud = createFakeCloud();
+        const plan = buildCloudPlan(planRequest());
+
+        await runCloudOperation(runRequest(cloud, plan));
+
+        const project = [...cloud.vercel.projects.values()][0];
+        const first = await cloud.vercel.currentProduction({ projectId: project.id });
+
+        await runCloudOperation(runRequest(cloud, plan, {
+            sourceCommit: SECOND_COMMIT,
+            completed: CLOUD_STEPS.slice(0, 5).map(step => step.id),
+            targets: vercelById(cloud, plan, project.id),
+            gates: passingGates({ async remoteCommit()
+            {
+                return SECOND_COMMIT;
+            } }),
+        }));
+
+        const bad = await cloud.vercel.currentProduction({ projectId: project.id });
+
+        // The live one and the one behind it are both broken.
+        cloud.health.perUrl.set(bad?.url as string, false);
+        cloud.health.perUrl.set(first?.url as string, false);
+
+        const rolled = await runTrafficRollback(runRequest(cloud, plan, {
+            targets: vercelById(cloud, plan, project.id),
+        }));
+
+        expect(rolled.status).toBe('failed');
+        expect(rolled.code).toBe('CLOUD_ROLLBACK_NO_PREVIOUS');
+        expect((await cloud.vercel.currentProduction({ projectId: project.id }))?.id).toBe(bad?.id);
+    });
+
+    it('E7 — the evidence names the deployment the domain serves, not the one asked for', async () =>
+    {
+        const cloud = createFakeCloud();
+        const plan = buildCloudPlan(planRequest());
+        const promote = cloud.vercel.promote.bind(cloud.vercel);
+
+        // A provider that answers a promotion by making a production
+        // deployment of its own and pointing the domain at that instead.
+        cloud.vercel.promote = async request =>
+        {
+            const asked = await promote(request);
+            const copy = { ...asked, id: `${asked.id}-served` };
+
+            cloud.vercel.deployments.set(copy.id, copy);
+            cloud.vercel.production.set(request.projectId, copy.id);
+
+            return asked;
+        };
+
+        const result = await runCloudOperation(runRequest(cloud, plan));
+        const project = [...cloud.vercel.projects.values()][0];
+        const serving = await cloud.vercel.currentProduction({ projectId: project.id });
+
+        expect(result.status).toBe('completed');
+        expect(result.evidence.currentDeploymentId).toBe(serving?.id);
+        expect(result.evidence.currentDeploymentId).not.toBe(result.evidence.stagedDeploymentId);
+    });
+
+    it('E2 — a build still building is waited for rather than called unavailable', async () =>
+    {
+        const cloud = createFakeCloud();
+        const plan = buildCloudPlan(planRequest());
+
+        // Ready only on the third read, which is what a provider that takes a
+        // minute to compile looks like from here.
+        cloud.vercel.stagedState = 'building';
+
+        let reads = 0;
+        const readDeployment = cloud.vercel.readDeployment.bind(cloud.vercel);
+
+        cloud.vercel.readDeployment = async request =>
+        {
+            reads += 1;
+
+            const deployment = await readDeployment(request);
+
+            return deployment === null || reads < 3 ? deployment : { ...deployment, state: 'ready' };
+        };
+
+        const result = await runCloudOperation(runRequest(cloud, plan));
+
+        expect(reads).toBeGreaterThanOrEqual(3);
+        expect(result.status).toBe('completed');
+        expect(cloud.vercel.promoteCalls).toBe(1);
+    });
+
+    it('a hosting project is left staged, so a push cannot take the domain by itself', async () =>
+    {
+        const cloud = createFakeCloud();
+        const plan = buildCloudPlan(planRequest());
+
+        expect(cloud.vercel.autoAssignCustomDomains).toBe(true);
+
+        await runCloudOperation(runRequest(cloud, plan));
+
+        expect(cloud.vercel.autoAssignCustomDomains).toBe(false);
     });
 });
 
