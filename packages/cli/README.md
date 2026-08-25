@@ -538,8 +538,11 @@ that records an argv. A key arrives either through a masked prompt or through
 credential the server issued remains, in the OS keychain under its own service
 (`superfunction.spfn.kit`), separate from the env secrets `spfn secret` manages. The
 short-lived registry session is handed to the package-manager child process in its
-environment and nowhere else — the committed `.npmrc` references the variable, never a
-value.
+environment and nowhere else, as npm configuration addressed to the registry it opens
+(`npm_config_//host/npm/:_authToken`). The committed `.npmrc` maps the release's scopes to
+that registry and carries no credential at all — not a value, and not a variable naming
+one: pnpm 11 ignores a credential that reaches it from a project `.npmrc`, because that
+file is committed and a hostile edit could send the secret to another registry.
 
 **`--json` is the agent surface.** Every subcommand takes it, prints newline-delimited
 events with a stable `code`, `phase` and safe next command, and never opens a prompt. A

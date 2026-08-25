@@ -38,7 +38,7 @@ import {
 } from '../../src/kit/tooling.js';
 import { readManifest, resolveUpdateEdges } from '../../src/kit/manifest.js';
 import { executeProviderOperation, type ProviderOperationEnvelopeV1 } from '../../src/kit/provider.js';
-import { createChildEnv, registryNpmrc, REGISTRY_TOKEN_ENV } from '../../src/kit/child-env.js';
+import { createChildEnv, registryAuthKeys, registryNpmrc, REGISTRY_TOKEN_ENV } from '../../src/kit/child-env.js';
 import { registryMetadataPath } from '../../src/kit/http/registry.js';
 import { scanTextForSecrets, scanValueForSecrets, redactSecrets } from '../../src/kit/secret-scan.js';
 import { atLeast, compareVersions, satisfiesRange } from '../../src/kit/version.js';
@@ -797,13 +797,21 @@ describe('the child environment and secret hygiene', () =>
         expect(registryMetadataPath('lodash')).toBe('lodash');
     });
 
-    it('writes an .npmrc that references the token variable and never its value', () =>
+    it('hands the session to the package manager as configuration for that registry', () =>
     {
-        const npmrc = registryNpmrc('@superfunction', 'https://packages.superfunction.xyz/npm/');
+        const env = createChildEnv({
+            parent: { PATH: '/usr/bin' },
+            registryToken: 'spfnr_session_1',
+            registryUrl: 'https://packages.superfunction.xyz/npm/',
+        });
 
-        expect(npmrc).toContain('@superfunction:registry=https://packages.superfunction.xyz/npm/');
-        expect(npmrc).toContain('${SPFN_REGISTRY_TOKEN}');
-        expect(npmrc).not.toMatch(/_authToken\s*=\s*spfn/);
+        // The name pnpm and npm both read a per-registry credential from. The
+        // suffix is matched case-sensitively by pnpm 11, so `_authtoken` would
+        // be silently not a credential at all.
+        expect(env['npm_config_//packages.superfunction.xyz/npm/:_authToken']).toBe('spfnr_session_1');
+        // Still under its own name too: the proxy verification this CLI runs
+        // before the install reads the session from there.
+        expect(env[REGISTRY_TOKEN_ENV]).toBe('spfnr_session_1');
     });
 
     it('spells the auth key exactly as the registry is addressed, trailing slash and all', () =>
@@ -811,11 +819,49 @@ describe('the child environment and secret hygiene', () =>
         // npm and pnpm match a stored credential against the registry URI as
         // written: `//host/npm` does not open `//host/npm/`, and the token is
         // simply never sent — an unauthorized install with the credential
-        // sitting right there in the file.
-        expect(registryNpmrc('@spfn', 'https://packages.superfunction.xyz/npm/'))
-            .toContain('//packages.superfunction.xyz/npm/:_authToken=');
-        expect(registryNpmrc('@spfn', 'https://packages.superfunction.xyz/npm'))
-            .toContain('//packages.superfunction.xyz/npm/:_authToken=');
+        // sitting right there in the environment.
+        expect(registryAuthKeys('https://packages.superfunction.xyz/npm/'))
+            .toEqual(['//packages.superfunction.xyz/npm/:_authToken']);
+        expect(registryAuthKeys('https://packages.superfunction.xyz/npm'))
+            .toEqual(['//packages.superfunction.xyz/npm/:_authToken']);
+    });
+
+    it('adds a port-less key for a registry addressed with a port, because pnpm 9 needs one', () =>
+    {
+        // pnpm 9 turns an environment variable into a setting by splitting its
+        // name at the *first* colon, so `//host:4873/npm/:_authToken` arrives
+        // as `//host:4873/npm/:-authtoken` and opens nothing. A port-less key
+        // has one colon, survives the split, and pnpm retries a ported request
+        // against the port-less URI. pnpm 11 reads the exact key and prefers it.
+        expect(registryAuthKeys('http://127.0.0.1:4873/npm/')).toEqual([
+            '//127.0.0.1:4873/npm/:_authToken',
+            '//127.0.0.1/npm/:_authToken',
+        ]);
+        // An IPv6 literal loses its port and keeps its address.
+        expect(registryAuthKeys('http://[::1]:4873/npm/')).toEqual([
+            '//[::1]:4873/npm/:_authToken',
+            '//[::1]/npm/:_authToken',
+        ]);
+        // A registry addressed with its scheme's own default port. A package
+        // manager parses that address and files the credential under `//host/`,
+        // so a key spelled `//host:80/` is one nothing ever looks up.
+        expect(registryAuthKeys('http://packages.example.com:80/npm/')).toEqual([
+            '//packages.example.com:80/npm/:_authToken',
+            '//packages.example.com/npm/:_authToken',
+        ]);
+    });
+
+    it('writes an .npmrc with no credential in it, in any spelling', () =>
+    {
+        const npmrc = registryNpmrc('@superfunction', 'https://packages.superfunction.xyz/npm/');
+
+        expect(npmrc).toContain('@superfunction:registry=https://packages.superfunction.xyz/npm/');
+        // The regression this file exists to catch. pnpm 11 ignores a
+        // credential that reaches it from a project `.npmrc` — a value, and a
+        // `${VAR}` naming one, are both dead there — so putting either back
+        // breaks every install on pnpm 11 while looking perfectly reasonable.
+        expect(npmrc).not.toMatch(/_auth/i);
+        expect(npmrc).not.toContain('${');
     });
 
     it('names every scope the release publishes under, not only the first', () =>

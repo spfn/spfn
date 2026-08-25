@@ -108,10 +108,20 @@ describe('table A — allowlisted link, empty target, valid entitled license', (
 
         expect(childEnv.SPFN_REGISTRY_TOKEN).toMatch(/^spfnr_session_/);
 
-        // The .npmrc references the variable; it never holds the value.
+        // And as the registry's own npm configuration key, which is what the
+        // package manager actually reads.
+        expect(childEnv['npm_config_//packages.superfunction.xyz/npm/:_authToken'])
+            .toBe(childEnv.SPFN_REGISTRY_TOKEN);
+
+        // The .npmrc maps scopes to the registry and holds no credential — not
+        // the value, and not a variable naming it. pnpm 11 ignores a credential
+        // that comes from a project `.npmrc`, so putting one back there breaks
+        // every install on it.
         const npmrc = readFileSync(join(target, '.npmrc'), 'utf8');
 
-        expect(npmrc).toContain('${SPFN_REGISTRY_TOKEN}');
+        expect(npmrc).toContain('@superfunction:registry=');
+        expect(npmrc).not.toMatch(/_auth/i);
+        expect(npmrc).not.toContain('${');
         expect(npmrc).not.toContain(childEnv.SPFN_REGISTRY_TOKEN);
 
         // Table F: the journal, the license file and the lock carry no secret.

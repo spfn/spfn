@@ -7,10 +7,11 @@
  * passed through to pnpm as `--frozen-lockfile`, and a lockfile that no longer
  * matches `package.json` fails the install rather than being rewritten.
  *
- * The registry session never becomes an argument. It goes into the child's
- * environment under one name, and the project's committed `.npmrc` references
- * that name — so the token is in the process's own memory and in no argument
- * list, no file and no log.
+ * The registry session never becomes an argument and never becomes a file. It
+ * reaches the child as npm configuration in that child's own environment,
+ * addressed to the registry it is good for — so the token is in the process's
+ * own memory and in no argument list, no `.npmrc` and no log. The committed
+ * `.npmrc` only maps the release's scopes to the registry, which is public.
  *
  * Why a failure is classified at all: unit 06 lets exactly one failure be
  * retried with a fresh session, and only one. Everything else would fail

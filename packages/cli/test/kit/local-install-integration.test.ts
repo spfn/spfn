@@ -30,7 +30,7 @@ import { createKitLocalPorts } from '../../src/kit/local/index.js';
 import { SpfnDatabasePort } from '../../src/kit/local/database.js';
 import { HttpLicensePort } from '../../src/kit/http/control-plane.js';
 import { newCandidateCredential } from '../../src/kit/credentials.js';
-import { registryNpmrc, REGISTRY_TOKEN_ENV } from '../../src/kit/child-env.js';
+import { createChildEnv, registryNpmrc } from '../../src/kit/child-env.js';
 import type { DatabasePort, KitAdapters } from '../../src/kit/ports.js';
 import { FAKE_KIT_PACKAGE, FakeKitWorld, npmTarball } from './fake-world.js';
 import { KitHttpFixture, fixtureLicenseKey } from './http-fixture.js';
@@ -183,7 +183,15 @@ async function seedLockfile(): Promise<string>
         '--ignore-workspace',
     ], {
         cwd: seed,
-        env: { ...isolatedNpmEnv(), [REGISTRY_TOKEN_ENV]: credential },
+        // The product's own environment, not a hand-rolled one. The seed is
+        // the first thing to talk to the fixture registry, so if the credential
+        // does not reach a package-manager child this way, it fails here.
+        env: createChildEnv({
+            parent: {},
+            extra: isolatedNpmEnv(),
+            registryToken: credential,
+            registryUrl: fixture.registryUrl,
+        }),
         extendEnv: false,
         reject: false,
         timeout: 180_000,
@@ -309,6 +317,17 @@ describe.runIf(pnpmAvailable)('an install with the local ports actually running'
 
         expect(asked).toContain(`/npm/${KIT.name}`);
         expect(asked).toContain(`/npm/${CORE.name}`);
+
+        // The project it left behind names the scopes and holds no credential.
+        // pnpm 11 ignores a credential that reaches it from a project `.npmrc`,
+        // so a line put back here is an unauthorized install for every adopter
+        // on it — and this install would still pass, because the session also
+        // arrives in the environment.
+        const npmrc = readFileSync(join(target, '.npmrc'), 'utf8');
+
+        expect(npmrc).toContain('@spfn:registry=');
+        expect(npmrc).not.toMatch(/_auth/i);
+        expect(npmrc).not.toContain('${');
     }, 300_000);
 
     it('refuses rather than resolving when the release ships a lockfile for another graph', async () =>
@@ -324,6 +343,129 @@ describe.runIf(pnpmAvailable)('an install with the local ports actually running'
         expect(existsSync(join(target, 'node_modules'))).toBe(false);
     }, 300_000);
 });
+
+/**
+ * The pnpm versions the credential path is proven against.
+ *
+ * Not the machine's own pnpm: this is the one part of the install whose
+ * correctness depends on a *release* of the package manager rather than on
+ * anything in this repository. pnpm 11.23.0 stopped expanding environment
+ * variables in credentials that come from a project `.npmrc`, and the install
+ * broke for every adopter on it without a line of this code changing. So both
+ * ends of the supported range run for real, and a future release that moves the
+ * rule again fails here rather than in somebody's terminal.
+ *
+ * A version corepack cannot produce is skipped rather than failed — an offline
+ * machine is not a regression.
+ */
+const PNPM_VERSIONS = ['9.1.2', '11.23.0'];
+
+function corepackCanRun(version: string): boolean
+{
+    try
+    {
+        const shown = execFileSync('corepack', [`pnpm@${version}`, '--version'], {
+            // Outside this repository on purpose. pnpm refuses to run under
+            // corepack as a version other than the one the nearest
+            // `packageManager` field names, and this repo pins 9.1.2 — asked
+            // from in here, every other version would report itself
+            // unavailable and quietly skip the case it exists to cover.
+            cwd: tmpdir(),
+            env: { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' },
+            stdio: ['ignore', 'pipe', 'ignore'],
+            timeout: 180_000,
+        }).toString().trim();
+
+        return shown === version;
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+const runnablePnpm = pnpmAvailable ? PNPM_VERSIONS.filter(corepackCanRun) : [];
+
+describe.runIf(runnablePnpm.length > 0)('the registry credential, on each supported pnpm', () =>
+{
+    for (const version of PNPM_VERSIONS)
+    {
+        it.runIf(runnablePnpm.includes(version))(`authenticates against the private registry on pnpm ${version}`, async () =>
+        {
+            const project = join(root, `pm-${version}`);
+            const credential = newCandidateCredential();
+            const activation = await new HttpLicensePort({ baseUrl: CONTROL_PLANE_URL, fetchImpl: mappedFetch }).activate({
+                kitId: KIT_ID,
+                installationId: `op-pnpm-${version}`,
+                localClientId: `lc-${version}`,
+                licenseKey,
+                candidateCredential: credential,
+            });
+
+            expect(activation.status).toBe('activated');
+
+            mkdirSync(project, { recursive: true });
+            writeFileSync(join(project, 'package.json'), scaffoldPackageJson(), 'utf8');
+            // Exactly the two artifacts the product produces: the `.npmrc` it
+            // writes into the project, and the environment it builds for the
+            // child. Nothing here spells a credential out by hand.
+            writeFileSync(join(project, '.npmrc'), registryNpmrc(['@spfn', '@superfunction'], fixture.registryUrl), 'utf8');
+
+            const installed = await execa('corepack', [
+                `pnpm@${version}`,
+                'install',
+                '--no-frozen-lockfile',
+                '--registry', fixture.registryUrl,
+                // A store and a metadata cache of this test's own. A shared one
+                // would serve the packages from disk, and the case would pass
+                // without the credential ever being presented.
+                '--store-dir', join(project, 'store'),
+                '--cache-dir', join(project, 'cache'),
+                '--ignore-scripts',
+                '--ignore-workspace',
+            ], {
+                cwd: project,
+                env: createChildEnv({
+                    parent: {},
+                    extra: {
+                        ...isolatedNpmEnv(),
+                        COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+                        // The project is under the OS temp directory and names
+                        // no package manager of its own, but a machine whose
+                        // temp directory sits below one would otherwise have
+                        // pnpm refuse to run as anything else.
+                        pnpm_config_pm_on_fail: 'ignore',
+                    },
+                    registryToken: credential,
+                    registryUrl: fixture.registryUrl,
+                }),
+                extendEnv: false,
+                reject: false,
+                timeout: 300_000,
+            });
+
+            // The tail only, never the child's whole output: a package
+            // manager's error text is not written with this CLI's rules in mind.
+            expect({ exitCode: installed.exitCode, tail: lastLine(String(installed.stderr ?? '')) })
+                .toMatchObject({ exitCode: 0 });
+            expect(existsSync(join(project, 'node_modules', CORE.name, 'package.json'))).toBe(true);
+
+            // The packages really came over the wire. The fixture answers 401
+            // without a bearer it accepts, so a request that reached it at all
+            // is a request the credential opened — and a run served from a warm
+            // store would have made none.
+            expect(fixture.requests.some(request => request.path.startsWith('/npm/'))).toBe(true);
+        }, 420_000);
+    }
+});
+
+/** The last non-empty line of a child's output, for a readable failure. */
+function lastLine(text: string): string
+{
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+
+    return lines.length === 0 ? '' : lines[lines.length - 1];
+}
 
 describe('the database port against its real child process', () =>
 {

@@ -19,11 +19,10 @@
 
 import { createHash } from 'node:crypto';
 import { hostname, tmpdir } from 'node:os';
-import { mkdtempSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { KitError } from './../errors.js';
 import { createEventSink, type KitOperationResult } from './../events.js';
-import { registryNpmrc } from './../child-env.js';
 import { JournalStore, type KitOperationJournalV1 } from './../journal.js';
 import { acquireOperationLock } from './../lock.js';
 import { ensureOperationsDir, kitPaths } from './../paths.js';
@@ -47,6 +46,7 @@ import {
     requireCredential,
     resolveRelease,
     runLocalGates,
+    writeRegistryNpmrc,
     type MaterializeTarget,
 } from './shared.js';
 
@@ -273,8 +273,11 @@ function installSteps(options: StepFactoryOptions): OperationStep[]
 
                 recordAgentPack(projectDir, manifest, written);
 
-                // The registry reference, never the session itself.
-                writeFileSync(join(projectDir, '.npmrc'), registryNpmrc(scopesOf(manifest), adapters.registryUrl), 'utf8');
+                // Which registry the release's scopes resolve to, and nothing
+                // else. The session reaches the package manager through the
+                // child's environment; a credential in a committed file is
+                // both a leak risk and, on pnpm 11, simply ignored.
+                writeRegistryNpmrc(projectDir, manifest, adapters.registryUrl);
 
                 return { kind: 'done', evidence: written };
             },
@@ -585,23 +588,6 @@ function shortHash(value: string): string
 function projectNameFor(targetDir: string): string
 {
     return targetDir.split(/[\\/]/).filter(Boolean).pop() ?? 'kit-project';
-}
-
-/**
- * Every npm scope the release publishes under.
- *
- * All of them, not the first one: a release whose packages span `@spfn` and
- * `@superfunction` and whose `.npmrc` names only one leaves the other to be
- * resolved by whatever the machine's own configuration says — which is a
- * broken install at best and a request to somebody else's registry at worst.
- */
-function scopesOf(manifest: KitReleaseManifestView): string[]
-{
-    const scopes = manifest.packages
-        .filter(entry => entry.name.startsWith('@'))
-        .map(entry => entry.name.split('/')[0]);
-
-    return scopes.length === 0 ? ['@superfunction'] : [...new Set(scopes)];
 }
 
 function assertSameTarget(journal: KitOperationJournalV1, manifest: KitReleaseManifestView, digest: string): void

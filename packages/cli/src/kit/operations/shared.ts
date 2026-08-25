@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path';
 import { KitError } from './../errors.js';
 import { sha256Digest } from './../digest.js';
 import { expandArchive } from './../expand.js';
-import { createChildEnv } from './../child-env.js';
+import { createChildEnv, registryNpmrc } from './../child-env.js';
 import { readManifest, assertManifestCliCompatible, type KitReleaseManifestView } from './../manifest.js';
 import { installedGraphMismatches } from './../package-graph.js';
 import { readCatalog, type KitAdapters, type KitCatalogView } from './../ports.js';
@@ -324,6 +324,11 @@ export interface FrozenInstallEvidence
  * The session only ever exists in two places: this function's local variable
  * and the child process's environment. It is not written to `.npmrc`, not
  * passed as an argument, and not put in the journal.
+ *
+ * The environment carries it twice over, under two names that answer to two
+ * readers: `SPFN_REGISTRY_TOKEN` for the proxy verification this CLI does
+ * itself, and the registry's own npm configuration key for the package manager.
+ * Both are the same session and both die with the child.
  */
 export async function installFrozenGraph(
     adapters: KitAdapters,
@@ -371,7 +376,7 @@ export async function installFrozenGraph(
         const result = await adapters.packageManager.install({
             cwd: options.projectDir,
             frozen: options.resolve !== true,
-            env: createChildEnv({ registryToken: session.token }),
+            env: createChildEnv({ registryToken: session.token, registryUrl: adapters.registryUrl }),
         });
 
         if (result.ok)
@@ -402,6 +407,49 @@ export async function installFrozenGraph(
         evidence: { reason: lastFailure ?? 'other', attempts: maxAttempts },
         next: { command: 'spfn kit resume --json', requiresHumanApproval: false },
     });
+}
+
+/**
+ * Every npm scope the release publishes under.
+ *
+ * All of them, not the first one: a release whose packages span `@spfn` and
+ * `@superfunction` and whose `.npmrc` names only one leaves the other to be
+ * resolved by whatever the machine's own configuration says — which is a
+ * broken install at best and a request to somebody else's registry at worst.
+ */
+function scopesOf(manifest: KitReleaseManifestView): string[]
+{
+    const scopes = manifest.packages
+        .filter(entry => entry.name.startsWith('@'))
+        .map(entry => entry.name.split('/')[0]);
+
+    return scopes.length === 0 ? ['@superfunction'] : [...new Set(scopes)];
+}
+
+/**
+ * Point the release's scopes at the private registry, and nothing else.
+ *
+ * Written by install *and* by update, from the manifest each of them is acting
+ * on. Two reasons it is not enough to write it once at install time:
+ *
+ *   - a release that starts publishing under a new scope leaves a project whose
+ *     `.npmrc` names only the old ones, and the new scope resolves wherever the
+ *     machine happens to point;
+ *   - a project installed before the registry session moved into the child's
+ *     environment carries a credential line pnpm 11 refuses to expand. It is
+ *     dead on both package managers now, and every install there warns about a
+ *     secret leaking to an attacker-controlled registry until it is gone.
+ *
+ * Both are the same repair — the file is derived from the manifest, so writing
+ * it again from the current manifest is the whole fix.
+ */
+export function writeRegistryNpmrc(
+    projectDir: string,
+    manifest: KitReleaseManifestView,
+    registryUrl: string,
+): void
+{
+    writeFileSync(join(projectDir, '.npmrc'), registryNpmrc(scopesOf(manifest), registryUrl), 'utf8');
 }
 
 /**
