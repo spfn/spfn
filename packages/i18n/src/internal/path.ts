@@ -4,19 +4,49 @@
  * arrives as `/pricing/`, and a proxy that matched on the raw pathname would
  * pass a trailing-slash request straight through the localized tree.
  *
- * Leading slashes collapse to one. A pathname of `//example.com/x` is a
- * protocol-relative URL to anything that resolves it against a base, and a
- * canonical tag built from one would name a host the application never chose.
+ * It also has to survive being resolved into an absolute URL afterwards, which
+ * is where a pathname stops being inert. A URL parser reads a backslash as a
+ * separator, drops tabs and newlines before parsing, resolves `..`, and decodes
+ * `%2e` on the way — so a pathname can name a host or a directory the
+ * application never chose. Reducing one to plain segments here means whatever
+ * the parser does with the result afterwards changes nothing.
  */
+
+/** A segment the URL parser will read as `.` or `..` once it decodes it. */
+function dotSegment(segment: string): '.' | '..' | null
+{
+    const decoded = segment.replace(/%2e/gi, '.');
+
+    return decoded === '.' || decoded === '..' ? decoded : null;
+}
+
 export function normalizePathname(pathname: string): string
 {
-    const withLeadingSlash = pathname.startsWith('/') ? pathname : `/${pathname}`;
-    const singleLeadingSlash = withLeadingSlash.replace(/^\/+/, '/');
+    const separatorsOnly = pathname.replace(/[\u0000-\u001F\u007F]/g, '').replace(/\\/g, '/');
+    const segments: string[] = [];
 
-    if (singleLeadingSlash === '/')
+    for (const segment of separatorsOnly.split('/'))
     {
-        return singleLeadingSlash;
+        if (segment === '')
+        {
+            continue;
+        }
+
+        const dots = dotSegment(segment);
+
+        if (dots === '.')
+        {
+            continue;
+        }
+
+        if (dots === '..')
+        {
+            segments.pop();
+            continue;
+        }
+
+        segments.push(segment);
     }
 
-    return singleLeadingSlash.replace(/\/+$/, '');
+    return segments.length === 0 ? '/' : `/${segments.join('/')}`;
 }

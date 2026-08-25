@@ -74,15 +74,16 @@ function metadataFor<Locale extends string>(
         xDefault = true,
     } = metadata;
 
-    if (!availableLocales.includes(locale))
-    {
-        throw new Error(
-            `Locale "${locale}" is missing from availableLocales. A page's alternates must name the page itself, `
-            + 'and a set of hreflang links without that reciprocal link is discarded whole by search engines.',
-        );
-    }
-
-    const languages = Object.fromEntries(availableLocales.map(availableLocale => [
+    // A page's alternates have to name the page itself: a set of hreflang links
+    // with no reciprocal link back is discarded whole by search engines. A
+    // caller describing a page in a locale it left out of `availableLocales` is
+    // an ordinary case — content that exists in a subset of locales, rendered
+    // with fallbacks — so the missing link is added rather than the page's
+    // metadata failing to render.
+    const reciprocal = availableLocales.includes(locale)
+        ? availableLocales
+        : [locale, ...availableLocales];
+    const languages = Object.fromEntries(reciprocal.map(availableLocale => [
         availableLocale,
         absolutePublicUrl(availableLocale, pathname),
     ]));

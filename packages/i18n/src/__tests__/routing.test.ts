@@ -63,13 +63,42 @@ describe('defineI18nRouting', () =>
         expect(routing.publicPath('en', '//evil.example/x')).toBe('/evil.example/x');
     });
 
-    it('refuses alternates that omit the page they describe', () =>
+    it('adds the page to its own alternates when the caller left it out', () =>
     {
-        expect(() => routing.localizedMetadata({
+        expect(routing.localizedMetadata({
             locale: 'ko',
             pathname: '/pricing',
             availableLocales: ['en'],
-        })).toThrow('is missing from availableLocales');
+        })).toEqual({
+            canonical: 'https://example.com/ko/pricing',
+            languages: {
+                ko: 'https://example.com/ko/pricing',
+                en: 'https://example.com/pricing',
+                'x-default': 'https://example.com/pricing',
+            },
+        });
+    });
+
+    it('keeps a pathname from naming another host or escaping the site path', () =>
+    {
+        const underDocs = defineI18nRouting({
+            locales: ['en', 'ko'],
+            defaultLocale: 'en',
+            localePrefix: 'as-needed',
+            siteUrl: 'https://example.com/docs/',
+        });
+
+        // A URL parser reads a backslash as a separator and strips control
+        // characters before parsing, so each of these named another host
+        // before the pathname was reduced to plain segments.
+        expect(routing.absolutePublicUrl('en', '/\\evil.example/x')).toBe('https://example.com/evil.example/x');
+        expect(routing.absolutePublicUrl('en', '\\evil.example/x')).toBe('https://example.com/evil.example/x');
+        expect(routing.absolutePublicUrl('en', '/\t/evil.example/x')).toBe('https://example.com/evil.example/x');
+        expect(routing.absolutePublicUrl('en', '/\n//evil.example/x')).toBe('https://example.com/evil.example/x');
+
+        // And `..` — encoded or not — resolved away the site's own base path.
+        expect(underDocs.absolutePublicUrl('ko', '/../../etc')).toBe('https://example.com/docs/ko/etc');
+        expect(underDocs.absolutePublicUrl('ko', '/%2e%2e/%2e%2e/etc')).toBe('https://example.com/docs/ko/etc');
     });
 
     it('matches a trailing-slash pathname to the same URLs', () =>

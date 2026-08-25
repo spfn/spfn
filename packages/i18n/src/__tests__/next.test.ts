@@ -76,6 +76,27 @@ describe('createLocaleProxy', () =>
             .toBe('https://example.com/en/pricing');
     });
 
+    // The contract the app writes against: `isLocalizedPath` is asked about a
+    // normalized pathname, so an app declares `/pricing`, never `/pricing/`.
+    it('asks the app about normalized pathnames only', () =>
+    {
+        const asked: string[] = [];
+        const recording = createLocaleProxy(routing, {
+            isLocalizedPath: (pathname) =>
+            {
+                asked.push(pathname);
+
+                return false;
+            },
+        });
+
+        recording(new NextRequest('https://example.com/pricing/'));
+        recording(new NextRequest('https://example.com/ko/pricing/'));
+        recording(new NextRequest('https://example.com//pricing'));
+
+        expect(asked).toEqual(['/pricing', '/pricing', '/ko/pricing', '/pricing']);
+    });
+
     it('redirects an unprefixed path when every locale must be prefixed', () =>
     {
         const alwaysPrefixed = defineI18nRouting({
