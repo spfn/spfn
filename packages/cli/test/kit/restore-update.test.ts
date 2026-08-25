@@ -295,6 +295,34 @@ describe('table D — update, approval and resume', () =>
         expect(readFileSync(join(target, 'src/app/api/landing/route.ts'), 'utf8')).toBe('// managed bridge 1.1.0\n');
     });
 
+    it('takes the dead credential line out of an .npmrc an older CLI wrote', async () =>
+    {
+        const world = new FakeKitWorld({ releases: [R0] });
+
+        await install(world);
+        world.publish(R1);
+
+        // Exactly what a project installed before the registry session moved
+        // into the child's environment carries. pnpm 11 refuses to expand a
+        // variable in a credential that came from a project `.npmrc`, so the
+        // line does nothing on it but warn about a leaking secret.
+        writeFileSync(join(target, '.npmrc'), [
+            '@superfunction:registry=https://packages.superfunction.xyz/npm/',
+            '//packages.superfunction.xyz/npm/:_authToken=${SPFN_REGISTRY_TOKEN}',
+            'always-auth=true',
+            '',
+        ].join('\n'), 'utf8');
+
+        expect((await runUpdate({ projectDir: target, json: true, write: silent }, world.adapters)).status)
+            .toBe('completed');
+
+        const npmrc = readFileSync(join(target, '.npmrc'), 'utf8');
+
+        expect(npmrc).toContain('@superfunction:registry=');
+        expect(npmrc).not.toMatch(/_auth/i);
+        expect(npmrc).not.toContain('${');
+    });
+
     it('is an idempotent no-op when the project is already on the target release', async () =>
     {
         const world = new FakeKitWorld({ releases: [R0] });

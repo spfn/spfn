@@ -65,6 +65,13 @@ export interface ChildEnvOptions
     parent?: NodeJS.ProcessEnv;
     /** The short-lived registry session, if this child needs one. */
     registryToken?: string;
+    /**
+     * Where that session is good for. Public address, never a secret.
+     *
+     * Given alongside a session, the child is also handed the session as npm
+     * configuration addressed to this registry — see `registryAuthEnv`.
+     */
+    registryUrl?: string;
     /** Extra secret-free variables, e.g. `npm_config_registry`. */
     extra?: Record<string, string>;
     /** Additional parent names to pass through. */
@@ -99,33 +106,136 @@ export function createChildEnv(options: ChildEnvOptions = {}): Record<string, st
     if (options.registryToken !== undefined)
     {
         env[REGISTRY_TOKEN_ENV] = options.registryToken;
+
+        if (options.registryUrl !== undefined)
+        {
+            Object.assign(env, registryAuthEnv(options.registryUrl, options.registryToken));
+        }
     }
 
     return env;
 }
 
 /**
- * An `.npmrc` that points at the private registry and reads the token from the
- * environment — the file references the secret, it never contains it.
+ * The registry URI a credential is filed under: the address with its scheme
+ * removed and a trailing slash guaranteed.
+ *
+ * The trailing slash is the whole point. npm and pnpm match a stored
+ * credential against the registry URI as written, and `//host/npm` does not
+ * open `//host/npm/` — the token is simply never sent, and the install fails as
+ * unauthorized with the credential sitting right there.
+ */
+function nerfDart(registryUrl: string): string
+{
+    return registryUrl.replace(/^https?:/, '').replace(/\/*$/, '/');
+}
+
+/**
+ * The other spellings of the same address a package manager might look under.
+ *
+ * Two of them, and each earns its place:
+ *
+ *   - the *normalised* URI, because a package manager files a credential under
+ *     the address it parsed rather than the address it was given. `//host:80/`
+ *     and `//host/` are one address to a URL parser and two different strings
+ *     to a lookup table, and the credential written the second way is never
+ *     found;
+ *   - the *port-less* URI, because pnpm 9 cannot receive a ported one. It turns
+ *     an environment variable into a setting by splitting its name at the
+ *     *first* colon, so `//host:4873/npm/:_authToken` arrives as the setting
+ *     `//host:4873/npm/:-authtoken` and opens nothing. A port-less key has one
+ *     colon, survives that split, and pnpm retries a ported request against the
+ *     port-less URI when nothing matched. pnpm 11 reads the exact key and
+ *     prefers it; the extra one costs it nothing.
+ *
+ * Parsed rather than pattern-matched, so an IPv6 literal (`//[::1]:4873/npm/`)
+ * loses its port and not its address.
+ */
+function alternateNerfDarts(registryUrl: string): string[]
+{
+    try
+    {
+        const url = new URL(registryUrl);
+        const normalized = nerfDart(url.toString());
+
+        url.port = '';
+
+        return [normalized, nerfDart(url.toString())];
+    }
+    catch
+    {
+        // Not an absolute URL. Inventing another key from a string nobody can
+        // parse would only be guessing.
+        return [];
+    }
+}
+
+/**
+ * The npm configuration keys a credential for this registry is filed under.
+ *
+ * The registry's own URI first, and the spellings a package manager might look
+ * under instead — see `alternateNerfDarts` for why each exists. One key for the
+ * ordinary case of a registry addressed by host and path alone.
+ */
+export function registryAuthKeys(registryUrl: string): string[]
+{
+    const exact = nerfDart(registryUrl);
+    const uris = [...new Set([exact, ...alternateNerfDarts(registryUrl)])];
+
+    return uris.map(uri => `${uri}:_authToken`);
+}
+
+/**
+ * The registry session, spelled as npm configuration in the environment.
+ *
+ * This is the only channel that works on both supported package managers. The
+ * `.npmrc` this CLI writes used to carry `_authToken=${SPFN_REGISTRY_TOKEN}`,
+ * and pnpm 11 refuses to expand a variable in a credential that came from a
+ * *project* `.npmrc` — the file is committed, so a hostile edit could point the
+ * secret at someone else's registry. It warns and drops the line, and every
+ * install on pnpm 11 fails as unauthorized.
+ *
+ * npm and pnpm both accept configuration from `npm_config_*` variables, and a
+ * per-registry credential can be spelled that way. The environment is not a
+ * committed file, so pnpm 11 honours it, and pnpm 9 has read configuration this
+ * way for its whole life.
+ *
+ * The spelling is exact on purpose: pnpm 11 matches the `_authToken` suffix
+ * case-sensitively, so an all-lowercase `_authtoken` is silently not a
+ * credential.
+ */
+export function registryAuthEnv(registryUrl: string, token: string): Record<string, string>
+{
+    const env: Record<string, string> = {};
+
+    for (const key of registryAuthKeys(registryUrl))
+    {
+        env[`npm_config_${key}`] = token;
+    }
+
+    return env;
+}
+
+/**
+ * An `.npmrc` that resolves the release's scopes to the private registry.
+ *
+ * There is no credential here, and there must never be one again: pnpm 11
+ * ignores a credential that comes from a project `.npmrc`, whether it names a
+ * variable or spells the secret out. The session travels in the child's
+ * environment instead (`registryAuthEnv`), which is also the only place this
+ * CLI has ever allowed a secret to be.
  *
  * Every scope the release publishes under gets a line. A release whose packages
  * span two scopes and whose `.npmrc` names one leaves the other resolving
  * wherever the machine's own configuration happens to point, which is both a
  * broken install and a request sent somewhere nobody chose.
- *
- * The auth key keeps its trailing slash. npm and pnpm match a stored
- * credential against the registry URI as written, and `//host/npm` does not
- * match a registry of `//host/npm/` — the token is simply never sent, and the
- * install fails as unauthorized with the credential sitting right there.
  */
 export function registryNpmrc(scopes: string | readonly string[], registryUrl: string): string
 {
-    const authKey = `${registryUrl.replace(/^https?:/, '').replace(/\/*$/, '/')}:_authToken`;
     const names = typeof scopes === 'string' ? [scopes] : [...new Set(scopes)];
 
     return [
         ...names.map(scope => `${scope}:registry=${registryUrl}`),
-        `${authKey}=\${${REGISTRY_TOKEN_ENV}}`,
         'always-auth=true',
         '',
     ].join('\n');

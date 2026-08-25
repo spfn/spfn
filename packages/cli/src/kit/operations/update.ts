@@ -42,6 +42,7 @@ import {
     requireCredential,
     resolveRelease,
     runLocalGates,
+    writeRegistryNpmrc,
     type MaterializeTarget,
 } from './shared.js';
 
@@ -357,6 +358,13 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
                 // managed file holds the previous release's bytes and replacing
                 // them applies the approved plan rather than losing an edit.
                 const written = await materializeTargets(adapters, projectDir, targets, { existing: 'replace' });
+
+                // Rewritten from the release being installed, not left as
+                // install found it: a release may publish under a scope the
+                // project's `.npmrc` has never named, and a project installed
+                // before the registry session moved into the child environment
+                // still carries a credential line pnpm 11 refuses to expand.
+                writeRegistryNpmrc(projectDir, manifest, adapters.registryUrl);
 
                 if (changed.has(manifest.agentPack.path))
                 {
