@@ -114,9 +114,9 @@ describe('table A — allowlisted link, empty target, valid entitled license', (
             .toBe(childEnv.SPFN_REGISTRY_TOKEN);
 
         // The .npmrc maps scopes to the registry and holds no credential — not
-        // the value, and not a variable naming it. pnpm 11 ignores a credential
-        // that comes from a project `.npmrc`, so putting one back there breaks
-        // every install on it.
+        // the value, and not a variable naming it. pnpm 10 and later ignore a
+        // credential that comes from a project `.npmrc`, so putting one back
+        // there breaks every install on them.
         const npmrc = readFileSync(join(target, '.npmrc'), 'utf8');
 
         expect(npmrc).toContain('@superfunction:registry=');

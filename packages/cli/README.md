@@ -541,7 +541,7 @@ short-lived registry session is handed to the package-manager child process in i
 environment and nowhere else, as npm configuration addressed to the registry it opens
 (`npm_config_//host/npm/:_authToken`). The committed `.npmrc` maps the release's scopes to
 that registry and carries no credential at all — not a value, and not a variable naming
-one: pnpm 11 ignores a credential that reaches it from a project `.npmrc`, because that
+one: pnpm 10 and later ignore a credential that reaches them from a project `.npmrc`, because that
 file is committed and a hostile edit could send the secret to another registry.
 
 **`--json` is the agent surface.** Every subcommand takes it, prints newline-delimited

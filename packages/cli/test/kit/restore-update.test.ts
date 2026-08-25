@@ -303,9 +303,9 @@ describe('table D — update, approval and resume', () =>
         world.publish(R1);
 
         // Exactly what a project installed before the registry session moved
-        // into the child's environment carries. pnpm 11 refuses to expand a
-        // variable in a credential that came from a project `.npmrc`, so the
-        // line does nothing on it but warn about a leaking secret.
+        // into the child's environment carries. pnpm 10 and later refuse to
+        // expand a variable in a credential that came from a project `.npmrc`,
+        // so the line does nothing there but warn about a leaking secret.
         writeFileSync(join(target, '.npmrc'), [
             '@superfunction:registry=https://packages.superfunction.xyz/npm/',
             '//packages.superfunction.xyz/npm/:_authToken=${SPFN_REGISTRY_TOKEN}',

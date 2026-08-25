@@ -140,12 +140,13 @@ function nerfDart(registryUrl: string): string
  *     and `//host/` are one address to a URL parser and two different strings
  *     to a lookup table, and the credential written the second way is never
  *     found;
- *   - the *port-less* URI, because pnpm 9 cannot receive a ported one. It turns
+ *   - the *port-less* URI, because pnpm 9 and 10 cannot receive a ported one.
+ *     Each turns
  *     an environment variable into a setting by splitting its name at the
  *     *first* colon, so `//host:4873/npm/:_authToken` arrives as the setting
  *     `//host:4873/npm/:-authtoken` and opens nothing. A port-less key has one
  *     colon, survives that split, and pnpm retries a ported request against the
- *     port-less URI when nothing matched. pnpm 11 reads the exact key and
+ *     port-less URI when nothing matched. Only pnpm 11 reads the exact key, and
  *     prefers it; the extra one costs it nothing.
  *
  * Parsed rather than pattern-matched, so an IPv6 literal (`//[::1]:4873/npm/`)
@@ -188,21 +189,22 @@ export function registryAuthKeys(registryUrl: string): string[]
 /**
  * The registry session, spelled as npm configuration in the environment.
  *
- * This is the only channel that works on both supported package managers. The
+ * This is the only channel that works across every pnpm a user may have. The
  * `.npmrc` this CLI writes used to carry `_authToken=${SPFN_REGISTRY_TOKEN}`,
- * and pnpm 11 refuses to expand a variable in a credential that came from a
- * *project* `.npmrc` — the file is committed, so a hostile edit could point the
- * secret at someone else's registry. It warns and drops the line, and every
- * install on pnpm 11 fails as unauthorized.
+ * and pnpm 10 and later refuse to expand a variable in a credential that came
+ * from a *project* `.npmrc` — the file is committed, so a hostile edit could
+ * point the secret at someone else's registry. pnpm warns and drops the line,
+ * and the install then fails as unauthorized. Measured on 10.34.5 and 11.23.0;
+ * 9.15.9 still expands it.
  *
  * npm and pnpm both accept configuration from `npm_config_*` variables, and a
  * per-registry credential can be spelled that way. The environment is not a
- * committed file, so pnpm 11 honours it, and pnpm 9 has read configuration this
- * way for its whole life.
+ * committed file, so the versions that refuse the `.npmrc` credential honour it,
+ * and pnpm has read configuration this way for its whole life.
  *
- * The spelling is exact on purpose: pnpm 11 matches the `_authToken` suffix
- * case-sensitively, so an all-lowercase `_authtoken` is silently not a
- * credential.
+ * The spelling is exact on purpose: the suffix is matched case-sensitively by
+ * every version, so an all-lowercase `_authtoken` is silently not a credential
+ * on any of them.
  */
 export function registryAuthEnv(registryUrl: string, token: string): Record<string, string>
 {
@@ -219,9 +221,9 @@ export function registryAuthEnv(registryUrl: string, token: string): Record<stri
 /**
  * An `.npmrc` that resolves the release's scopes to the private registry.
  *
- * There is no credential here, and there must never be one again: pnpm 11
- * ignores a credential that comes from a project `.npmrc`, whether it names a
- * variable or spells the secret out. The session travels in the child's
+ * There is no credential here, and there must never be one again: pnpm 10 and
+ * later ignore a credential that comes from a project `.npmrc`, whether it names
+ * a variable or spells the secret out. The session travels in the child's
  * environment instead (`registryAuthEnv`), which is also the only place this
  * CLI has ever allowed a secret to be.
  *

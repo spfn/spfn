@@ -276,7 +276,7 @@ function installSteps(options: StepFactoryOptions): OperationStep[]
                 // Which registry the release's scopes resolve to, and nothing
                 // else. The session reaches the package manager through the
                 // child's environment; a credential in a committed file is
-                // both a leak risk and, on pnpm 11, simply ignored.
+                // both a leak risk and, from pnpm 10 on, simply ignored.
                 writeRegistryNpmrc(projectDir, manifest, adapters.registryUrl);
 
                 return { kind: 'done', evidence: written };

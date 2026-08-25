@@ -319,7 +319,7 @@ describe.runIf(pnpmAvailable)('an install with the local ports actually running'
         expect(asked).toContain(`/npm/${CORE.name}`);
 
         // The project it left behind names the scopes and holds no credential.
-        // pnpm 11 ignores a credential that reaches it from a project `.npmrc`,
+        // pnpm 10 and later ignore a credential from a project `.npmrc`,
         // so a line put back here is an unauthorized install for every adopter
         // on it — and this install would still pass, because the session also
         // arrives in the environment.
@@ -349,16 +349,21 @@ describe.runIf(pnpmAvailable)('an install with the local ports actually running'
  *
  * Not the machine's own pnpm: this is the one part of the install whose
  * correctness depends on a *release* of the package manager rather than on
- * anything in this repository. pnpm 11.23.0 stopped expanding environment
- * variables in credentials that come from a project `.npmrc`, and the install
- * broke for every adopter on it without a line of this code changing. So both
- * ends of the supported range run for real, and a future release that moves the
- * rule again fails here rather than in somebody's terminal.
+ * anything in this repository. pnpm stopped expanding environment variables in
+ * credentials that come from a project `.npmrc`, and the install broke for every
+ * adopter on it without a line of this code changing.
+ *
+ * Three versions, because they behave three different ways and each one is
+ * somebody's: 9 expands a project credential and cannot read a ported
+ * environment key; 10 can read neither, which is the combination Vercel builds
+ * on; 11 reads the ported key and refuses the project credential. A future
+ * release that moves the rule again fails here rather than in somebody's
+ * terminal.
  *
  * A version corepack cannot produce is skipped rather than failed — an offline
  * machine is not a regression.
  */
-const PNPM_VERSIONS = ['9.1.2', '11.23.0'];
+const PNPM_VERSIONS = ['9.1.2', '10.34.5', '11.23.0'];
 
 function corepackCanRun(version: string): boolean
 {
