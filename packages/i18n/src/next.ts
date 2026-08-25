@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { normalizePathname } from './internal/path';
 import type { LocalePrefix } from './routing';
 
-interface LocaleRoutingAdapter<Locale extends string>
+export interface LocaleRoutingAdapter<Locale extends string>
 {
     defaultLocale: Locale;
     localePrefix: LocalePrefix;
@@ -16,17 +17,18 @@ export interface LocaleProxyOptions
     isLocalizedPath(pathname: string): boolean;
 }
 
-function pathWithoutLocale(pathname: string): { locale: string; pathname: string } | null
+/**
+ * Splits a request pathname into its first segment and the rest, both
+ * normalized. The proxy matches on the same shape the routing policy builds,
+ * so a request for `/pricing/` reaches the same declaration as `/pricing`.
+ */
+function pathWithoutLocale(pathname: string): { locale: string; pathname: string }
 {
-    const [, locale, ...rest] = pathname.split('/');
-    if (!locale)
-    {
-        return null;
-    }
+    const [, locale = '', ...rest] = normalizePathname(pathname).split('/');
 
     return {
         locale,
-        pathname: rest.length === 0 ? '/' : `/${rest.join('/')}`,
+        pathname: rest.length === 0 ? '/' : normalizePathname(`/${rest.join('/')}`),
     };
 }
 
@@ -43,9 +45,10 @@ export function createLocaleProxy<Locale extends string>(
     return function localeProxy(request: NextRequest): NextResponse
     {
         const url = request.nextUrl.clone();
+        const pathname = normalizePathname(url.pathname);
         const localized = pathWithoutLocale(url.pathname);
 
-        if (localized && routing.hasLocale(localized.locale) && options.isLocalizedPath(localized.pathname))
+        if (routing.hasLocale(localized.locale) && options.isLocalizedPath(localized.pathname))
         {
             if (routing.localePrefix === 'as-needed' && localized.locale === routing.defaultLocale)
             {
@@ -57,16 +60,16 @@ export function createLocaleProxy<Locale extends string>(
             return NextResponse.next();
         }
 
-        if (options.isLocalizedPath(url.pathname))
+        if (options.isLocalizedPath(pathname))
         {
             if (routing.localePrefix === 'always')
             {
-                url.pathname = routing.publicPath(routing.defaultLocale, url.pathname);
+                url.pathname = routing.publicPath(routing.defaultLocale, pathname);
 
                 return NextResponse.redirect(url, 308);
             }
 
-            url.pathname = routing.internalPath(routing.defaultLocale, url.pathname);
+            url.pathname = routing.internalPath(routing.defaultLocale, pathname);
 
             return NextResponse.rewrite(url);
         }

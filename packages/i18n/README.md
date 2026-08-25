@@ -154,6 +154,8 @@ const alternates = routing.localizedMetadata({ locale: 'ko' });
 // }
 ```
 
+A pathname is matched after normalization, so an app declaring `/pricing` also matches a request for `/pricing/`, and the response keeps whichever trailing-slash convention the request arrived with. A `siteUrl` may carry a path of its own — `https://example.com/docs/` puts every canonical and alternate under `/docs`. `localizedMetadata` throws when `availableLocales` omits the page's own locale, because search engines discard a set of hreflang links that does not name the page it describes.
+
 Your app still owns locale validation in `[locale]/layout.tsx`, `<html lang>`, catalogs, `generateStaticParams`, and the proxy matcher. The package only keeps their path and metadata decisions consistent.
 
 ## Can I use it without React or SPFN?

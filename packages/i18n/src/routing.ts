@@ -1,3 +1,5 @@
+import { normalizePathname } from './internal/path';
+
 export type LocalePrefix = 'always' | 'as-needed';
 
 export interface I18nRoutingOptions<Locales extends readonly [string, ...string[]]>
@@ -20,17 +22,6 @@ export interface LocalizedMetadata
 {
     canonical: string;
     languages: Record<string, string>;
-}
-
-function normalizePathname(pathname: string): string
-{
-    const withLeadingSlash = pathname.startsWith('/') ? pathname : `/${pathname}`;
-    if (withLeadingSlash === '/')
-    {
-        return withLeadingSlash;
-    }
-
-    return withLeadingSlash.replace(/\/+$/, '');
 }
 
 function joinPath(prefix: string, pathname: string): string
@@ -56,9 +47,17 @@ function publicPathFor<Locale extends string>(
     return joinPath(`/${locale}`, normalized);
 }
 
+/**
+ * A site URL may carry a path of its own — an app served under `/docs` names
+ * `https://example.com/docs/` as its site. Resolving a rooted pathname against
+ * that base would drop the `/docs` segment, so the base path is prepended
+ * rather than resolved away.
+ */
 function absoluteUrl(siteUrl: URL, pathname: string): string
 {
-    return new URL(pathname, siteUrl).toString();
+    const basePath = siteUrl.pathname.replace(/\/+$/, '');
+
+    return new URL(`${basePath}${normalizePathname(pathname)}`, siteUrl).toString();
 }
 
 function metadataFor<Locale extends string>(
@@ -74,6 +73,15 @@ function metadataFor<Locale extends string>(
         availableLocales = locales,
         xDefault = true,
     } = metadata;
+
+    if (!availableLocales.includes(locale))
+    {
+        throw new Error(
+            `Locale "${locale}" is missing from availableLocales. A page's alternates must name the page itself, `
+            + 'and a set of hreflang links without that reciprocal link is discarded whole by search engines.',
+        );
+    }
+
     const languages = Object.fromEntries(availableLocales.map(availableLocale => [
         availableLocale,
         absolutePublicUrl(availableLocale, pathname),

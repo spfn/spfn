@@ -43,6 +43,42 @@ describe('defineI18nRouting', () =>
         });
     });
 
+    it('keeps a site URL that carries a path of its own', () =>
+    {
+        const underDocs = defineI18nRouting({
+            locales: ['en', 'ko'],
+            defaultLocale: 'en',
+            localePrefix: 'as-needed',
+            siteUrl: 'https://example.com/docs/',
+        });
+
+        expect(underDocs.absolutePublicUrl('en', '/pricing')).toBe('https://example.com/docs/pricing');
+        expect(underDocs.absolutePublicUrl('ko', '/pricing')).toBe('https://example.com/docs/ko/pricing');
+        expect(underDocs.absolutePublicUrl('en')).toBe('https://example.com/docs/');
+    });
+
+    it('keeps a protocol-relative pathname on the site host', () =>
+    {
+        expect(routing.absolutePublicUrl('en', '//evil.example/x')).toBe('https://example.com/evil.example/x');
+        expect(routing.publicPath('en', '//evil.example/x')).toBe('/evil.example/x');
+    });
+
+    it('refuses alternates that omit the page they describe', () =>
+    {
+        expect(() => routing.localizedMetadata({
+            locale: 'ko',
+            pathname: '/pricing',
+            availableLocales: ['en'],
+        })).toThrow('is missing from availableLocales');
+    });
+
+    it('matches a trailing-slash pathname to the same URLs', () =>
+    {
+        expect(routing.publicPath('ko', '/pricing/')).toBe('/ko/pricing');
+        expect(routing.localizedMetadata({ locale: 'ko', pathname: '/pricing/' }))
+            .toEqual(routing.localizedMetadata({ locale: 'ko', pathname: '/pricing' }));
+    });
+
     it('rejects a default locale that is not supported', () =>
     {
         expect(() => defineI18nRouting({

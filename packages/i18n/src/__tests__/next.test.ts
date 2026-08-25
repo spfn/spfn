@@ -49,6 +49,33 @@ describe('createLocaleProxy', () =>
         expect(response.headers.get('x-middleware-rewrite')).toBeNull();
     });
 
+    // Next keeps whatever trailing-slash convention the request arrived with,
+    // so the assertion is that the path was recognized and rewritten at all —
+    // before, an app declaring `/pricing` let `/pricing/` past untouched.
+    it('rewrites a trailing-slash request the app declared without one', () =>
+    {
+        const response = localeProxy(new NextRequest('https://example.com/pricing/?plan=team'));
+
+        expect(response.headers.get('x-middleware-rewrite'))
+            .toBe('https://example.com/en/pricing/?plan=team');
+    });
+
+    it('normalizes a trailing-slash default-locale prefix instead of passing it through', () =>
+    {
+        const response = localeProxy(new NextRequest('https://example.com/en/pricing/'));
+
+        expect(response.status).toBe(308);
+        expect(response.headers.get('location')).toBe('https://example.com/pricing/');
+    });
+
+    it('does not treat a doubled leading slash as an undeclared path', () =>
+    {
+        const response = localeProxy(new NextRequest('https://example.com//pricing'));
+
+        expect(response.headers.get('x-middleware-rewrite'))
+            .toBe('https://example.com/en/pricing');
+    });
+
     it('redirects an unprefixed path when every locale must be prefixed', () =>
     {
         const alwaysPrefixed = defineI18nRouting({
