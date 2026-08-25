@@ -118,7 +118,14 @@ its backend as Vercel Functions:
 |------|------------|
 | `src/app/api/backend/[[...route]]/route.ts` | `hono/vercel` adapter, mounts the SPFN app under `/api/backend` |
 | `vercel.json` | build config (`pnpm spfn:build`) |
-| `.npmrc` | `@spfn` registry auth, reading `GITEA_NPM_TOKEN` from the environment — never committed |
+| `.npmrc` | which registry the `@spfn` scope resolves to — a mapping, not a credential |
+
+The registry token does **not** go in that `.npmrc`. pnpm 10 and later refuse to expand an
+environment variable in a registry credential that came from a project `.npmrc` — the file is
+committed, and a hostile edit could redirect the secret to a registry nobody chose. pnpm drops
+the line with a warning and the install fails as unauthorized. So the credential goes in Vercel's
+`NPM_RC` environment variable, which Vercel writes to the build container's user-level `~/.npmrc`,
+where pnpm still expands it. `spfn add vercel` prints the exact block to paste.
 
 Existing files are never overwritten; they are reported and skipped. The runtime behind
 the adapter is `createServerlessApp()` from `@spfn/core/server`. Afterwards, point

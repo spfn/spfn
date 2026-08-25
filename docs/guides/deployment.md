@@ -29,9 +29,15 @@ spfn add vercel
 ```
 
 That scaffolds `src/app/api/backend/[[...route]]/route.ts` (a `hono/vercel` adapter),
-`vercel.json`, and an `.npmrc` for the `@spfn` registry. The SPFN app mounts under
-`/api/backend`, so frontend and backend share one origin — set `SPFN_API_URL` to
+`vercel.json`, and an `.npmrc` naming the registry the `@spfn` scope resolves to. The SPFN app
+mounts under `/api/backend`, so frontend and backend share one origin — set `SPFN_API_URL` to
 `https://<your-domain>/api/backend`.
+
+Set two environment variables on the Vercel project: `GITEA_NPM_TOKEN` with the registry token,
+and `NPM_RC` with the block `spfn add vercel` prints. The token cannot live in the project
+`.npmrc`: pnpm 10 and later refuse to expand an environment variable in a credential that came
+from a committed file, drop the line with a warning, and the install then fails as unauthorized.
+`NPM_RC` becomes the build container's user-level `~/.npmrc`, which pnpm does still expand.
 
 Three things to know:
 
