@@ -805,9 +805,9 @@ describe('the child environment and secret hygiene', () =>
             registryUrl: 'https://packages.superfunction.xyz/npm/',
         });
 
-        // The name pnpm and npm both read a per-registry credential from. The
-        // suffix is matched case-sensitively by pnpm 11, so `_authtoken` would
-        // be silently not a credential at all.
+        // The name pnpm and npm both read a per-registry credential from. Every
+        // version matches the suffix case-sensitively, so `_authtoken` would be
+        // silently not a credential at all on any of them.
         expect(env['npm_config_//packages.superfunction.xyz/npm/:_authToken']).toBe('spfnr_session_1');
         // Still under its own name too: the proxy verification this CLI runs
         // before the install reads the session from there.
@@ -826,13 +826,13 @@ describe('the child environment and secret hygiene', () =>
             .toEqual(['//packages.superfunction.xyz/npm/:_authToken']);
     });
 
-    it('adds a port-less key for a registry addressed with a port, because pnpm 9 needs one', () =>
+    it('adds a port-less key for a ported registry, because pnpm 9 and 10 need one', () =>
     {
-        // pnpm 9 turns an environment variable into a setting by splitting its
-        // name at the *first* colon, so `//host:4873/npm/:_authToken` arrives
+        // pnpm 9 and 10 turn an environment variable into a setting by splitting
+        // its name at the *first* colon, so `//host:4873/npm/:_authToken` arrives
         // as `//host:4873/npm/:-authtoken` and opens nothing. A port-less key
         // has one colon, survives the split, and pnpm retries a ported request
-        // against the port-less URI. pnpm 11 reads the exact key and prefers it.
+        // against the port-less URI. Only pnpm 11 reads the exact key.
         expect(registryAuthKeys('http://127.0.0.1:4873/npm/')).toEqual([
             '//127.0.0.1:4873/npm/:_authToken',
             '//127.0.0.1/npm/:_authToken',
@@ -856,10 +856,10 @@ describe('the child environment and secret hygiene', () =>
         const npmrc = registryNpmrc('@superfunction', 'https://packages.superfunction.xyz/npm/');
 
         expect(npmrc).toContain('@superfunction:registry=https://packages.superfunction.xyz/npm/');
-        // The regression this file exists to catch. pnpm 11 ignores a
-        // credential that reaches it from a project `.npmrc` — a value, and a
+        // The regression this file exists to catch. pnpm 10 and later ignore a
+        // credential that reaches them from a project `.npmrc` — a value, and a
         // `${VAR}` naming one, are both dead there — so putting either back
-        // breaks every install on pnpm 11 while looking perfectly reasonable.
+        // breaks every install on them while looking perfectly reasonable.
         expect(npmrc).not.toMatch(/_auth/i);
         expect(npmrc).not.toContain('${');
     });

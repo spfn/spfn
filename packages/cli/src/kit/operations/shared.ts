@@ -436,9 +436,9 @@ function scopesOf(manifest: KitReleaseManifestView): string[]
  *     `.npmrc` names only the old ones, and the new scope resolves wherever the
  *     machine happens to point;
  *   - a project installed before the registry session moved into the child's
- *     environment carries a credential line pnpm 11 refuses to expand. It is
- *     dead on both package managers now, and every install there warns about a
- *     secret leaking to an attacker-controlled registry until it is gone.
+ *     environment carries a credential line pnpm 10 and later refuse to expand.
+ *     It is dead there now, and every install warns about a secret leaking to
+ *     an attacker-controlled registry until it is gone.
  *
  * Both are the same repair — the file is derived from the manifest, so writing
  * it again from the current manifest is the whole fix.

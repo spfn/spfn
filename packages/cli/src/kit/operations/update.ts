@@ -363,7 +363,7 @@ function updateSteps(options: UpdateStepOptions): OperationStep[]
                 // install found it: a release may publish under a scope the
                 // project's `.npmrc` has never named, and a project installed
                 // before the registry session moved into the child environment
-                // still carries a credential line pnpm 11 refuses to expand.
+                // still carries a line pnpm 10 and later refuse to expand.
                 writeRegistryNpmrc(projectDir, manifest, adapters.registryUrl);
 
                 if (changed.has(manifest.agentPack.path))
