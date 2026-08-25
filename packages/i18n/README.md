@@ -20,6 +20,12 @@ Install React only when using the client entry point:
 pnpm add react
 ```
 
+Install Next.js 16.2.11 or later in the 16.x line when using the Next.js entry point:
+
+```bash
+pnpm add next@^16.2.11
+```
+
 ## Catalogs
 
 Catalogs are plain objects organized as `locale -> namespace -> key -> message`:
@@ -104,6 +110,51 @@ export function Greeting({ name }: { name: string })
 ```
 
 `getClientMessages` merges fallback messages first and locale-specific messages second, so the client receives a complete, serializable dictionary without a loading flash.
+
+## How do I route localized Next.js pages?
+
+Define the URL policy separately from your catalogs. This example keeps English at `/` and puts Korean at `/ko` while both render from `app/[locale]`:
+
+```ts
+// src/i18n/routing.ts
+import { defineI18nRouting } from '@spfn/i18n/routing';
+
+export const routing = defineI18nRouting({
+    locales: ['en', 'ko'],
+    defaultLocale: 'en',
+    localePrefix: 'as-needed',
+    siteUrl: 'https://example.com',
+});
+```
+
+The application declares which paths are localized. `createLocaleProxy` does not guess, so API, auth and machine routes pass through unless you include them:
+
+```ts
+// src/proxy.ts
+import { createLocaleProxy } from '@spfn/i18n/next';
+import { routing } from './i18n/routing';
+
+export default createLocaleProxy(routing, {
+    isLocalizedPath: pathname => pathname === '/',
+});
+
+// Next.js requires a statically analyzable matcher.
+export const config = { matcher: ['/', '/en', '/ko'] };
+```
+
+With `localePrefix: 'as-needed'`, `/` is internally rewritten to `/en`, a direct `/en` request permanently redirects to `/`, and `/ko` remains public. Query parameters are preserved.
+
+Use the same policy when creating Next.js metadata:
+
+```ts
+const alternates = routing.localizedMetadata({ locale: 'ko' });
+// {
+//   canonical: 'https://example.com/ko',
+//   languages: { en: 'https://example.com/', ko: 'https://example.com/ko', 'x-default': 'https://example.com/' }
+// }
+```
+
+Your app still owns locale validation in `[locale]/layout.tsx`, `<html lang>`, catalogs, `generateStaticParams`, and the proxy matcher. The package only keeps their path and metadata decisions consistent.
 
 ## Can I use it without React or SPFN?
 
