@@ -115,9 +115,9 @@ jobs:
             exit 1
           fi
 
-      - name: Build spfn
+      - name: Build spfn (with dependencies)
         if: ${{ steps.check-npm.outputs.skip == 'false' }}
-        run: pnpm --filter spfn build
+        run: pnpm --filter @spfn/core --filter spfn build
 
       - name: Create git tag
         if: ${{ inputs.create_tag && steps.check-npm.outputs.skip == 'false' }}
