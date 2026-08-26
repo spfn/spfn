@@ -1,7 +1,9 @@
 import {
     createTranslator,
     type LocaleCatalogs,
+    type MessageKey,
     type Messages,
+    type Namespace,
     type NamespacedMessages,
     type Translator,
 } from './index';
@@ -10,10 +12,14 @@ export interface I18nConfiguration
 {
     catalogs: LocaleCatalogs;
     fallbackLocale?: string;
+
+    /** Reports a key that neither the locale nor the fallback locale answers. */
+    onMissingKey?: (key: string) => void;
 }
 
 let catalogs: LocaleCatalogs = {};
 let fallbackLocale = 'en';
+let onMissingKey: ((key: string) => void) | undefined;
 
 /**
  * Configures the process-wide catalog registry used by the server helpers.
@@ -23,6 +29,7 @@ export function configureI18n(configuration: I18nConfiguration): void
 {
     catalogs = configuration.catalogs;
     fallbackLocale = configuration.fallbackLocale ?? 'en';
+    onMissingKey = configuration.onMissingKey;
 }
 
 function resolveNamespace(locale: string, namespace: string): {
@@ -39,11 +46,11 @@ function resolveNamespace(locale: string, namespace: string): {
 }
 
 /** Creates a namespace-scoped translator for server components and handlers. */
-export function getT(namespace: string, locale: string): Translator
+export function getT<N extends Namespace>(namespace: N, locale: string): Translator<MessageKey<N>>
 {
     const { primary, fallback } = resolveNamespace(locale, namespace);
 
-    return createTranslator(primary, fallback);
+    return createTranslator<MessageKey<N>>(primary, fallback, { onMissingKey });
 }
 
 /**

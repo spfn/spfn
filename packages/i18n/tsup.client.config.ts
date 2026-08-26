@@ -12,5 +12,10 @@ export default defineConfig({
     external: [
         'react',
         'react/jsx-runtime',
+
+        // Built after the main entry, and kept external so dist/client.d.ts
+        // references the root module instead of inlining copies of its types.
+        // Type augmentation only reaches useT through a real import.
+        './index.js',
     ],
 });

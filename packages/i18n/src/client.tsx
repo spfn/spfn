@@ -4,23 +4,33 @@ import {
     useMemo,
     type ReactNode,
 } from 'react';
+// The client entry is bundled separately, so this import must survive into
+// dist/client.d.ts as an import from the package root. Inlined copies of
+// I18nTypeRegistry would be a different declaration, and an application's
+// `declare module '@spfn/i18n'` would then never reach useT.
 import {
     createTranslator,
+    type MessageKey,
+    type Namespace,
     type NamespacedMessages,
     type Translator,
-} from './index';
+} from './index.js';
 
 export interface I18nProviderProps
 {
     locale: string;
     messages: NamespacedMessages;
     children: ReactNode;
+
+    /** Reports a key the provided messages do not answer. */
+    onMissingKey?: (key: string) => void;
 }
 
 interface I18nContextValue
 {
     locale: string;
     messages: NamespacedMessages;
+    onMissingKey?: (key: string) => void;
 }
 
 const defaultContext: I18nContextValue = {
@@ -31,9 +41,12 @@ const defaultContext: I18nContextValue = {
 const I18nContext = createContext<I18nContextValue>(defaultContext);
 
 /** Makes a resolved locale and its namespaced messages available to hooks. */
-export function I18nProvider({ locale, messages, children }: I18nProviderProps)
+export function I18nProvider({ locale, messages, children, onMissingKey }: I18nProviderProps)
 {
-    const value = useMemo(() => ({ locale, messages }), [locale, messages]);
+    const value = useMemo(
+        () => ({ locale, messages, onMissingKey }),
+        [locale, messages, onMissingKey],
+    );
 
     return (
         <I18nContext.Provider value={value}>
@@ -43,13 +56,13 @@ export function I18nProvider({ locale, messages, children }: I18nProviderProps)
 }
 
 /** Returns a memoized translator for one namespace. */
-export function useT(namespace: string): Translator
+export function useT<N extends Namespace>(namespace: N): Translator<MessageKey<N>>
 {
-    const { messages } = useContext(I18nContext);
+    const { messages, onMissingKey } = useContext(I18nContext);
 
     return useMemo(
-        () => createTranslator(messages[namespace] ?? {}),
-        [messages, namespace],
+        () => createTranslator<MessageKey<N>>(messages[namespace] ?? {}, undefined, { onMissingKey }),
+        [messages, namespace, onMissingKey],
     );
 }
 

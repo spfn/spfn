@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, useLocale, useT } from '../client';
 
 function TranslationConsumer()
@@ -30,5 +30,24 @@ describe('I18nProvider', () =>
     {
         expect(renderToStaticMarkup(<TranslationConsumer />))
             .toBe('<span>en:greeting:missing</span>');
+    });
+
+    it('reports only the keys its messages do not answer', () =>
+    {
+        const onMissingKey = vi.fn();
+
+        const markup = renderToStaticMarkup(
+            <I18nProvider
+                locale="ko"
+                messages={{ common: { greeting: '안녕하세요, {name}' } }}
+                onMissingKey={onMissingKey}
+            >
+                <TranslationConsumer />
+            </I18nProvider>,
+        );
+
+        expect(markup).toBe('<span>ko:안녕하세요, Ada:missing</span>');
+        expect(onMissingKey).toHaveBeenCalledTimes(1);
+        expect(onMissingKey).toHaveBeenCalledWith('missing');
     });
 });

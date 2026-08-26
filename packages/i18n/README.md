@@ -111,6 +111,68 @@ export function Greeting({ name }: { name: string })
 
 `getClientMessages` merges fallback messages first and locale-specific messages second, so the client receives a complete, serializable dictionary without a loading flash.
 
+## How do I make a mistyped key a compile error?
+
+By default a wrong key is not caught anywhere: `t('checkout.readTems')` type-checks, runs, and renders the key string on the page. Register your catalog shape once and the compiler starts answering, everywhere `getT` and `useT` are used:
+
+```ts
+// src/i18n/keys.d.ts
+import type { en } from './catalogs';
+
+declare module '@spfn/i18n'
+{
+    interface I18nTypeRegistry { messages: typeof en }
+}
+```
+
+Register one locale — the complete one, usually the fallback. `en` is the namespaced half of the catalog, `namespace -> key -> message`:
+
+```ts
+export const en = {
+    checkout: {
+        'checkout.readTerms': 'Read the terms',
+        'checkout.submit': 'Pay',
+    },
+} as const;
+```
+
+The namespace argument and the key are then both checked against it:
+
+```ts
+const t = useT('checkout');       // 'checkout' | … — an unknown namespace fails
+t('checkout.readTerms');          // ok
+t('checkout.readTems');           // compile error
+t('common.save');                 // compile error — another namespace's key
+```
+
+Registering is optional and additive. With no augmentation the registry stays empty, every namespace and key is plain `string`, and existing code compiles exactly as it did.
+
+A key assembled at runtime cannot be checked, so name the key it stands for:
+
+```ts
+t(`pricing.skus.${sku}.name` as 'pricing.skus.pro.name');
+```
+
+## How do I find the keys I missed?
+
+Types cover the keys you wrote; `onMissingKey` covers the ones nobody wrote. It fires when neither the requested locale nor the fallback locale has an entry — a key the fallback answers is not missing — and the lookup still returns the key itself:
+
+```ts
+configureI18n({
+    catalogs,
+    fallbackLocale: 'en',
+    onMissingKey: key => logger.warn({ key }, 'missing translation'),
+});
+```
+
+`I18nProvider` takes the same prop for the client side. Give it a handler with a stable identity — a module-level function, or one wrapped in `useCallback` — because a new function on every render is a new context value on every render:
+
+```tsx
+<I18nProvider locale={locale} messages={messages} onMissingKey={report}>
+```
+
+The handler runs inside the lookup and its exceptions are not caught, so throwing from it is a way to make a test run or a CI build fail on a key nobody translated. `createTranslator` accepts the same handler as a third argument.
+
 ## How do I route localized Next.js pages?
 
 Define the URL policy separately from your catalogs. This example keeps English at `/` and puts Korean at `/ko` while both render from `app/[locale]`:
@@ -184,7 +246,7 @@ From your application, always. This package never guesses. Common sources are th
 No, and that is what `getClientMessages(locale, ['common'])` is for: it resolves the one locale and only the namespaces that subtree needs, merges the fallback underneath, and hands the result to `I18nProvider` as a complete dictionary. Nothing loads after paint, so there is no flash of untranslated text.
 
 **What happens to a key I forgot to translate?**
-The fallback locale answers first. If it has no entry either, the key itself is returned unchanged, so a missed string shows up as `checkout.submit` rather than as an empty page. A missing interpolation variable stays visible as `{name}` for the same reason.
+The fallback locale answers first. If it has no entry either, the key itself is returned unchanged, so a missed string shows up as `checkout.submit` rather than as an empty page, and `onMissingKey` reports the lookup. A missing interpolation variable stays visible as `{name}` for the same reason.
 
 **Can it format dates, currency or plurals?**
 No — use the platform's `Intl` APIs. See Scope below for what else the package deliberately leaves to you.
