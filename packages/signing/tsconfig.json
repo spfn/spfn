@@ -2,11 +2,10 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
         "outDir": "./dist",
-        "rootDir": "./src",
         "composite": false,
         "lib": ["ES2022"],
         "noEmit": false
     },
-    "include": ["src/**/*"],
+    "include": ["src/**/*", "../../contracts/signing/*.ts"],
     "exclude": ["node_modules", "dist"]
 }
