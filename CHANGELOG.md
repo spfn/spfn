@@ -11,6 +11,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### @spfn/signing
+
+- New package: one `Signer` interface with three key providers behind it — `local` (key
+  material from an environment variable, a file or a `KeyObject`), `gcp-kms` and `aws-kms`.
+  `sign()` returns a promise on every provider, including `local`, so moving a key into a
+  KMS is a configuration change rather than a rewrite.
+- EdDSA (Ed25519) is the default and ES256 (ECDSA P-256) is the alternative. Every provider
+  signs both: `local` through `node:crypto`, `gcp-kms` through `EC_SIGN_ED25519` and
+  `EC_SIGN_P256_SHA256`, `aws-kms` through `ECC_NIST_EDWARDS25519` and `ECC_NIST_P256`. On
+  both KMS providers the key's spec decides the algorithm and a passed `alg` that disagrees
+  is an error at construction. ES256 signatures are JOSE `r || s` on every provider, never
+  DER; an Ed25519 signature is already those 64 bytes.
+- AWS KMS is called with `MessageType: RAW` for both algorithms, which caps a signing input
+  at 4 KiB. `ED25519_SHA_512` is PureEdDSA and signs the message itself; the pre-hashed
+  `ED25519_PH_SHA_512` is a different algorithm and is not used.
+- `@spfn/signing/verify` is a verify-only entry point that depends on `node:crypto` and
+  nothing else, for token checks that run somewhere the issuer's dependencies cannot. It
+  never throws on token input: `verifyJws()` answers `{ ok: false, reason }` with
+  `malformed`, `invalid-claims`, `unknown-kid`, `alg-mismatch`, `bad-signature`, `expired`,
+  `not-yet-valid`, `too-old` or `no-expiry`. `maxAgeSec` bounds how long a token is
+  *accepted*, not only the life it granted itself: it needs both `exp` and `iat` (a token
+  that omits either is `no-expiry` rather than exempt), it refuses an `iat` in the future as
+  `not-yet-valid`, and it caps `exp - iat`. A time claim that is present but is not a finite
+  number, and an `iat` after its own `exp`, are `invalid-claims` rather than `malformed` —
+  a signature-valid token with a broken claim is the issuer's bug, and telling that apart
+  from three bytes of garbage is the point of the reason code.
+- The `kid` in the protected header selects the key, and that key's algorithm is the
+  algorithm; the header's `alg` is only ever checked for equality against it. `alg: "none"`
+  is an `alg-mismatch`, not a decision.
+- `KeyRing` holds up to N keys (default 2) with one current, and `rotate()` walks
+  add → switch → wait → remove in that order. It refuses to remove the current key, which
+  is the step that would strand tokens still in flight, and both `keys` and `publicKeys()`
+  hand out a copy so that no caller can delete its way past that refusal.
+- Public keys travel as `kid:base64url(key)`, comma-separated — raw Ed25519, a SEC1
+  uncompressed P-256 point, or SPKI DER. base64url is validated strictly *and* canonically:
+  every segment is decoded, re-encoded and compared, so the sixteen strings that share one
+  signature's bytes are not sixteen tokens.
+- `contracts/signing/vectors.json` records six tokens with their expected verdicts, and a
+  test regenerates them on every run.
+
 #### spfn (CLI)
 
 - `spfn kit` — the generic installer for licensed Superfunction Kits: `install`, `restore`,

@@ -1,0 +1,86 @@
+{
+    "name": "@spfn/signing",
+    "version": "0.1.0-alpha.1",
+    "description": "Asymmetric token signing for SPFN with pluggable key providers (local, GCP KMS, AWS KMS) and a zero-dependency verifier.",
+    "type": "module",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.js"
+        },
+        "./verify": {
+            "types": "./dist/verify.d.ts",
+            "import": "./dist/verify.js",
+            "require": "./dist/verify.js"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "pnpm check:circular && tsup",
+        "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\"",
+        "prepublishOnly": "pnpm type-check && pnpm build && pnpm test",
+        "dev": "tsup --watch",
+        "clean": "rm -rf dist",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "type-check": "tsc --noEmit",
+        "check:circular": "madge --circular --extensions ts src/",
+        "publish:alpha": "node ../../scripts/publish-package.mjs alpha",
+        "publish:beta": "node ../../scripts/publish-package.mjs beta",
+        "publish:latest": "node ../../scripts/publish-package.mjs latest"
+    },
+    "keywords": [
+        "spfn",
+        "jws",
+        "jwt",
+        "signing",
+        "ecdsa",
+        "ed25519",
+        "kms",
+        "key-rotation",
+        "typescript"
+    ],
+    "author": "Ray Im <rayim@fxy.global>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/fxylabs/spfn.git",
+        "directory": "packages/signing"
+    },
+    "bugs": {
+        "url": "https://github.com/fxylabs/spfn/issues"
+    },
+    "homepage": "https://github.com/fxylabs/spfn/tree/main/packages/signing#readme",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "peerDependencies": {
+        "@aws-sdk/client-kms": "^3.0.0",
+        "@google-cloud/kms": "^5.0.0"
+    },
+    "peerDependenciesMeta": {
+        "@aws-sdk/client-kms": {
+            "optional": true
+        },
+        "@google-cloud/kms": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.0",
+        "madge": "^8.0.0",
+        "tsup": "^8.5.0",
+        "typescript": "^5.9.3",
+        "vitest": "^4.0.6"
+    },
+    "publishConfig": {
+        "access": "public",
+        "tag": "alpha"
+    }
+}

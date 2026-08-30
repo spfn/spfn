@@ -353,6 +353,7 @@ Install when you need them:
 | [@spfn/migrate](./packages/migrate) | Beta | Code-based data migrations with a run-once ledger |
 | [@spfn/pages](./packages/pages) | Beta | Serve a markdown site from a GitHub repo |
 | [@spfn/pages-next](./packages/pages-next) | Beta | Next.js integration for @spfn/pages |
+| [@spfn/signing](./packages/signing) | Alpha | Token signing with local, GCP KMS and AWS KMS key providers |
 | [@spfn/workflow](./packages/workflow) | Alpha | Pipeline orchestration |
 
 Every package has a deep-dive README in [`packages/`](./packages). Exact versions live on
