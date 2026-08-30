@@ -87,6 +87,12 @@ steps:
             - pnpm check:versions
             - pnpm check:exports
 
+            # The publish order, checked without a registry. `publish-changed.mjs`
+            # decides what goes out and in what order, and a registry version is
+            # immutable — so the one place that logic can be wrong for free is
+            # here, on a pull request, rather than on a main push that publishes.
+            - pnpm test:scripts
+
             # Boot examples/01-minimal-api and check it answers what its README
             # promises. It needs no database, no cache and no secrets, which is
             # what lets it run before the services are up.
