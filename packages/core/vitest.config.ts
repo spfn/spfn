@@ -6,10 +6,13 @@ import { resolve } from 'path';
  *
  * Runs all tests (unit + integration) sequentially to avoid memory issues.
  *
- * For faster feedback during development:
- * - Use: pnpm test:unit (fast, no infrastructure needed)
- * - Use: pnpm test:integration (requires Docker)
- * - Use: pnpm test:logger (individual module)
+ * This is the only config the package has: the separate unit and integration
+ * ones were folded into it, and the settings integration tests need — a single
+ * fork, no file parallelism, 30s timeouts — apply to every run because of it.
+ *
+ * For faster feedback during development, the per-module scripts narrow the
+ * run to one directory under this same config: pnpm test:logger, test:db, and
+ * the rest. The db, cache, and server ones need their infrastructure up.
  */
 export default defineConfig({
     test: {

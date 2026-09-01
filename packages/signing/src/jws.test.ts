@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeBase64Url, derSignatureToJose, encodeBase64Url, signCompact, timeClaims } from './jws';
 import { generateLocalKeyPair } from './providers/local';
 import { equivalentFinalCharacters, testKey } from './test-support';
+import type { PublicKeyEntry } from './types';
 import { verifyJws } from './verify';
 
 /** Build a token with a header we choose, signed for real by `signer`. */
@@ -59,6 +60,48 @@ function flipSignatureByte(token: string): string
     bytes[0] ^= 0x01;
 
     return `${head}.${body}.${encodeBase64Url(bytes)}`;
+}
+
+/**
+ * The two payload sizes J12 compares, and the ceiling on the ratio between the
+ * times they verify in.
+ *
+ * The duplicate-member scan walks the payload text, so verification is linear
+ * in the payload's size: a careless scan — one that decoded every string it
+ * passed rather than only the member names, or that restarted at every member —
+ * is superlinear, and shows that shape as the payload grows. That shape is the
+ * claim; the milliseconds it takes to walk a megabyte are a property of the
+ * machine, which is why the assertion is on the ratio and not on a budget.
+ *
+ * A 16x payload costs a linear scan ~16x the time, and less than that here
+ * because the fixed cost of a verification is charged to both sides. The
+ * ceiling is four times the 16x a linear scan would spend, which a quadratic
+ * scan — ~256x for the same step — cannot fit under. Measured locally the
+ * ratio is ~11, under an eight-way CPU load ~12.
+ */
+const SMALL_PAYLOAD_BYTES = 64 * 1024;
+const LARGE_PAYLOAD_BYTES = 1024 * 1024;
+const LINEAR_SCAN_RATIO_CEILING = 64;
+
+/**
+ * The cheapest of several verifications of `token`, in milliseconds.
+ *
+ * Scheduling and garbage collection can only add time to a run, never remove
+ * it, so the cheapest run is the one least contaminated by a busy machine.
+ */
+function fastestVerifyMs(token: string, entry: PublicKeyEntry): number
+{
+    let fastest = Infinity;
+
+    for (let run = 0; run < 5; run += 1)
+    {
+        const started = performance.now();
+
+        verifyJws(token, [entry]);
+        fastest = Math.min(fastest, performance.now() - started);
+    }
+
+    return fastest;
 }
 
 describe('jws', () =>
@@ -448,21 +491,17 @@ describe('jws', () =>
         }
     });
 
-    it('J12: signs and verifies a 1 MiB payload, without scanning it twice over', async () =>
+    it('J12: verifies a 1 MiB payload with a scan that stays linear in its size', async () =>
     {
         const { signer, entry } = await testKey('es256-1', 'ES256');
-        const payload = { blob: 'x'.repeat(1024 * 1024) };
-        const token = await signer.sign(payload);
+        const small = await signer.sign({ blob: 'x'.repeat(SMALL_PAYLOAD_BYTES) });
+        const large = await signer.sign({ blob: 'x'.repeat(LARGE_PAYLOAD_BYTES) });
 
-        // The duplicate-member scan walks the payload text, so a megabyte of it
-        // is the case where a careless scan — one that decoded every string it
-        // passed, rather than only the member names — would show up.
-        const started = performance.now();
-        const result = verifyJws(token, [entry]);
-        const elapsed = performance.now() - started;
+        const result = verifyJws(large, [entry]);
 
-        expect(result.ok && (result.payload.blob as string).length).toBe(1024 * 1024);
-        expect(elapsed).toBeLessThan(50);
+        expect(result.ok && (result.payload.blob as string).length).toBe(LARGE_PAYLOAD_BYTES);
+        expect(fastestVerifyMs(large, entry) / fastestVerifyMs(small, entry))
+            .toBeLessThan(LINEAR_SCAN_RATIO_CEILING);
     });
 
     it('signCompact refuses to let a caller choose alg or kid', async () =>
