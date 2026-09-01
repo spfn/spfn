@@ -35,7 +35,7 @@ import { readContextClientIdentity } from '../client-proof/version-middleware';
 import { resolveAuthenticatedUser, runAuthProfile, type AuthContext } from './auth-profiles';
 
 // Auth context type — one principal shape for every scheme (see auth-profiles).
-export type { AuthContext } from './auth-profiles';
+export type { AuthContext, AuthScheme } from './auth-profiles';
 
 // Extend Hono context with auth
 declare module 'hono'

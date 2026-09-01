@@ -51,6 +51,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `contracts/signing/vectors.json` records six tokens with their expected verdicts, and a
   test regenerates them on every run.
 
+#### @spfn/auth
+
+- `registerAuthProfile(profileId, verifier)` — the auth-profile registry `authenticate` and
+  `optionalAuth` dispatch on is now registrable from an application. A profile's verifier
+  returns the same `AuthContext` every other scheme returns, so permission and tenant code
+  stays scheme-agnostic, and adding a scheme no longer means forking the middleware or putting
+  a route-local check in front of it. `clientProofV1` still ships registered.
+- `AuthContext.scheme` widens to `'bearer' | 'clientProofV1' | 'oneTimeToken' | (string & {})`
+  so a registered profile can name its own scheme. The field is informational — nothing
+  downstream branches on it — and the literals still complete in an editor.
+- `AuthContext.profileClaims` is a slot of its own for what a verifier already parsed out of
+  the credential, read back with `getProfileClaims(c)` instead of parsing it a second time in a
+  route guard. Namespaced away from the principal fields, so a profile cannot collide with
+  `user`, `role` or `keyId`. The built-in schemes leave it undefined.
+- Registration is boot-time and the package enforces it rather than asking: registering an id
+  that is already registered throws (last-wins would let any import replace the verifier
+  admitting requests under that id, `clientProofV1` included), and registering after the first
+  request throws. The map is therefore mutable only while nothing reads it.
+- Unchanged: an unregistered profile id is still `PROFILE_REJECTED`
+  (`unknownProfilePolicy: reject`), a profile header presented with an `Authorization` header
+  is still refused as a credential mixture, and `optionalAuth` still refuses a presented-but-
+  invalid profile rather than downgrading it to anonymous passage.
+
 #### spfn (CLI)
 
 - `spfn kit` — the generic installer for licensed Superfunction Kits: `install`, `restore`,

@@ -138,6 +138,37 @@ export function getLocale(c: Context | { raw: Context }): string
 }
 
 /**
+ * Get the claims the request's auth profile left on the context
+ *
+ * A profile verifier that already parsed the credential can hand its claims
+ * on through `profileClaims`; this reads them back without a second parse.
+ * `undefined` for the built-in schemes, which set no claims, and for any
+ * profile that sets none.
+ *
+ * The type parameter is an assertion, not a check — a guard that cannot trust
+ * the shape should validate what it gets back.
+ *
+ * @example
+ * ```typescript
+ * export const runTask = route.post('/tasks/run')
+ *     .handler(async (c) => {
+ *         const claims = getProfileClaims<{ audience: string }>(c);
+ *         if (claims?.audience !== 'tasks')
+ *         {
+ *             throw new ForbiddenError({ message: 'wrong audience' });
+ *         }
+ *         // ...
+ *     });
+ * ```
+ */
+export function getProfileClaims<T = Record<string, unknown>>(
+    c: Context | { raw: Context },
+): T | undefined
+{
+    return getAuth(c).profileClaims as T | undefined;
+}
+
+/**
  * Get current key ID from route context
  *
  * @example

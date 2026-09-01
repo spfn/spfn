@@ -395,7 +395,7 @@ export const getProducts = route.get('/products')
 ```
 
 Context helpers from `@spfn/auth/server`: `getAuth`, `getOptionalAuth`, `getUser`, `getUserId`,
-`getRole`, `getLocale`, `getKeyId`. Middleware: `authenticate`, `optionalAuth`,
+`getRole`, `getLocale`, `getKeyId`, `getProfileClaims`. Middleware: `authenticate`, `optionalAuth`,
 `requirePermissions`, `requireAnyPermission`, `requireRole`, `roleGuard`, `oneTimeTokenAuth`.
 
 ## OAuth
@@ -987,6 +987,68 @@ Verification refuses uniformly: an expired, revoked, or never-issued token all a
 same 401, so whether a presented secret ever existed is not inferable. A valid token
 missing a route's scope answers 403 naming only the missing scope. `'*'` grants every
 scope.
+
+## Custom auth profiles (`registerAuthProfile`)
+
+`authenticate` and `optionalAuth` dispatch on the `x-spfn-auth-profile` header through an
+auth-profile registry — an O(1) map lookup, never a per-profile `if` chain. `clientProofV1`
+ships registered; `registerAuthProfile` is how an application adds its own without forking the
+middleware or bolting a route-local check in front of it.
+
+```typescript
+// server.config.ts — at boot, before the server starts serving
+import { registerAuthProfile, resolveAuthenticatedUser } from '@spfn/auth/server';
+
+registerAuthProfile('runtimeJws', {
+    async verify(c)
+    {
+        // Whatever this profile's credential is — this verifier owns reading it.
+        const claims = await verifyRuntimeToken(c.req.header('x-runtime-token'));
+        const { user, role, locale } = await resolveAuthenticatedUser(claims.userId);
+
+        return {
+            user,
+            userId: String(user.id),
+            keyId: claims.keyId,
+            role,
+            locale,
+            scheme: 'runtimeJws',
+            profileClaims: { audience: claims.aud },
+        };
+    },
+});
+```
+
+A route then reads the principal exactly as it does for any other scheme, and the claims the
+verifier already parsed through `getProfileClaims(c)`:
+
+```typescript
+export const runTask = route.post('/tasks/run')
+    .handler(async (c) =>
+    {
+        const { userId } = getAuth(c);                 // same shape for every scheme
+        const claims = getProfileClaims<{ audience: string }>(c);
+        // ...
+    });
+```
+
+What the registry guarantees:
+
+- **One principal shape.** A verifier returns the same `AuthContext` the Bearer path sets, so
+  permission and tenant code stays scheme-agnostic. `AuthContext.scheme` is
+  `'bearer' | 'clientProofV1' | 'oneTimeToken' | (string & {})` — informational, widened so a
+  profile can name its own scheme, and still completing the built-in literals in an editor.
+- **A throw is the refusal**, answered exactly as the built-in profile's throw is. Neither
+  middleware downgrades a refused profile to anonymous passage — `optionalAuth` included.
+  "Presented but invalid" refuses; only "presented nothing" continues anonymously.
+- **Unregistered ids are still rejected** (`unknownProfilePolicy: reject`, `PROFILE_REJECTED`),
+  and a profile header presented together with an `Authorization` header is still rejected as a
+  credential mixture — both before any verifier runs.
+- **Registration is boot-time, and the package enforces it.** Registering an id that is already
+  registered throws (last-wins would let any import replace the verifier admitting requests
+  under that id, `clientProofV1` included), and registering after the first request throws. The
+  map is therefore mutable only while nothing reads it, so no registration can land while
+  requests are in flight.
 
 ## Mobile clientProofV1 (`@spfn/auth/client-proof`)
 

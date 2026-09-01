@@ -10,6 +10,11 @@
  * downstream permission/tenant code consumes one principal shape and never
  * branches on how it was authenticated.
  *
+ * `clientProofV1` ships registered. An application adds its own profiles with
+ * `registerAuthProfile` at boot — the registry is the supported way to add a
+ * scheme, so nobody has to fork the middleware or bolt a route-local check in
+ * front of it.
+ *
  * The clientProofV1 verifier reuses the phase-1 admission pieces (header
  * shape, canonical body, proof-input assembly, ECDSA verification) with two
  * production substitutions: the key directory is `user_public_keys` via
@@ -63,6 +68,16 @@ import { clientProofRefusalResponse } from '../client-proof/refusal-response';
 import { getClientProofReplayStore } from '../client-proof/replay-store';
 import { readContextClientIdentity } from '../client-proof/version-middleware';
 
+/**
+ * How the principal was authenticated.
+ *
+ * The three built-in schemes stay literals so an editor still completes them,
+ * and `(string & {})` admits whatever a registered profile names without
+ * patching this package. Widening breaks nothing downstream: the field is
+ * informational and permission/tenant code never branches on it.
+ */
+export type AuthScheme = 'bearer' | 'clientProofV1' | 'oneTimeToken' | (string & {});
+
 /** What a verified request leaves in the context — one shape for every scheme. */
 export interface AuthContext
 {
@@ -73,10 +88,29 @@ export interface AuthContext
     locale: string;
 
     /** How the principal was authenticated. Informational — downstream code never branches on it. */
-    scheme: 'bearer' | 'clientProofV1' | 'oneTimeToken';
+    scheme: AuthScheme;
+
+    /**
+     * What the profile's verifier already parsed out of the credential, in a
+     * slot of its own — read with `getProfileClaims(c)` rather than parsing
+     * the credential a second time in a route guard.
+     *
+     * Namespaced away from the principal fields deliberately: a profile may
+     * put anything here and still cannot collide with `user`, `role` or
+     * `keyId`, so the one principal shape stays one shape. The built-in
+     * schemes leave it undefined.
+     */
+    profileClaims?: Readonly<Record<string, unknown>>;
 }
 
-/** A profile's verifier: admits the request and returns the principal, or throws. */
+/**
+ * A profile's verifier: admits the request and returns the principal, or
+ * throws.
+ *
+ * A throw is the refusal, and it is answered exactly as the built-in
+ * profile's throw is — see `runAuthProfile`. Neither middleware downgrades a
+ * refused profile to anonymous passage, `optionalAuth` included.
+ */
 export interface AuthProfileVerifier
 {
     verify(c: Context): Promise<AuthContext>;
@@ -94,6 +128,8 @@ export interface AuthProfileVerifier
  */
 export function selectAuthProfile(c: Context): AuthProfileVerifier | null
 {
+    closeAuthProfileRegistry();
+
     const profile = c.req.header(CLIENT_PROOF_HEADERS.profile);
     if (profile === undefined)
     {
@@ -433,7 +469,103 @@ function verifyProofOrThrow(
     }
 }
 
+// ---- the registry ----------------------------------------------------------
+
 /** profile name → verifier. Registration is the only way to add a scheme. */
-const AUTH_PROFILE_VERIFIERS: ReadonlyMap<string, AuthProfileVerifier> = new Map([
+const AUTH_PROFILE_VERIFIERS = new Map<string, AuthProfileVerifier>([
     [CLIENT_PROOF_PROFILE, { verify: verifyClientProofProfile }],
 ]);
+
+/** Whether the registry has already answered a request. */
+let registryIsClosed = false;
+
+/**
+ * Ends boot for the registry.
+ *
+ * Called on entry to every dispatch, so "before the first request" is a fact
+ * the package observes rather than a rule an application has to remember.
+ */
+function closeAuthProfileRegistry(): void
+{
+    registryIsClosed = true;
+}
+
+/**
+ * Adds a profile to the registry, at boot.
+ *
+ * ```typescript
+ * import { registerAuthProfile, resolveAuthenticatedUser } from '@spfn/auth/server';
+ *
+ * registerAuthProfile('runtimeJws', {
+ *     async verify(c)
+ *     {
+ *         const claims = await verifyRuntimeToken(c.req.header('x-runtime-token'));
+ *         const { user, role, locale } = await resolveAuthenticatedUser(claims.userId);
+ *
+ *         return {
+ *             user,
+ *             userId: String(user.id),
+ *             keyId: claims.keyId,
+ *             role,
+ *             locale,
+ *             scheme: 'runtimeJws',
+ *             profileClaims: { audience: claims.aud },
+ *         };
+ *     },
+ * });
+ * ```
+ *
+ * Three rules, each a refusal rather than a silent outcome:
+ *
+ * - **A profile id registers once.** A second registration of the same id
+ *   throws instead of winning: last-wins would let a call anywhere in an
+ *   application's import graph replace the verifier that admits requests
+ *   under an id — `clientProofV1` included — and the request that was
+ *   admitted by the wrong verifier is the first sign of it. An id is
+ *   registered by exactly the code that owns it.
+ * - **Registration closes at the first request.** Once `selectAuthProfile`
+ *   has run, registering throws. The registry is process-wide state that
+ *   decides who is admitted; a profile appearing mid-flight widens the auth
+ *   surface of a running server, and a boot-time throw is where that belongs.
+ * - **An empty id is not an id.** It would match no header the middleware can
+ *   read, so it can only be a bug at the call site.
+ *
+ * That closing rule is also the whole of the concurrency story. The map is
+ * mutable only while nothing reads it, so no registration can land while
+ * requests are in flight. Even without it there would be no torn read —
+ * `selectAuthProfile` does one synchronous `Map.get` and hands the verifier
+ * straight to the caller, with no await between the read and its use — but
+ * "cannot change once serving" is the property worth having, and it is
+ * enforced rather than documented.
+ *
+ * An unregistered profile id is untouched by any of this: it is still refused
+ * with PROFILE_REJECTED (`unknownProfilePolicy: reject`).
+ *
+ * @throws Error when the id is empty, already registered, or offered after the
+ * first request — all three are boot bugs, so they fail the boot loudly
+ * rather than travelling to a client as a request error.
+ */
+export function registerAuthProfile(profileId: string, verifier: AuthProfileVerifier): void
+{
+    if (profileId.trim().length === 0)
+    {
+        throw new Error('registerAuthProfile: a profile id must be a non-empty string');
+    }
+    if (registryIsClosed)
+    {
+        throw new Error(
+            `registerAuthProfile: '${profileId}' arrived after the first request. Auth profiles are `
+            + 'registered at boot, before the server starts serving — the registry stops accepting them '
+            + 'once it has handled a request.',
+        );
+    }
+    if (AUTH_PROFILE_VERIFIERS.has(profileId))
+    {
+        throw new Error(
+            `registerAuthProfile: '${profileId}' is already registered. Registering it again would `
+            + 'replace the verifier that admits requests under that id — use an id of your own.',
+        );
+    }
+
+    AUTH_PROFILE_VERIFIERS.set(profileId, verifier);
+}
