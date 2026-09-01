@@ -150,10 +150,35 @@ rolls back when it throws **or** when Hono stored an error on the context (`c.er
 
 On rollback the middleware re-throws, but normalizes the error first:
 
-1. Reports the error to the DB reconnect-trigger (no-op for non-connection errors).
-2. `DatabaseError` and `TransactionError` instances are re-thrown unchanged.
-3. An object with a string `code` (a raw PostgreSQL error) is converted via `fromPostgresError(...)` → `DuplicateEntryError`, `ConstraintViolationError`, `DeadlockError`, `ConnectionError`, `TransactionError`, or `QueryError`.
+1. Reports the error to the DB reconnect-trigger (no-op for non-connection errors). This sees
+   every error, whatever the steps below decide.
+2. Any `SerializableError` is re-thrown unchanged — the whole framework family, `DatabaseError`
+   and `TransactionError` included, plus every application error class that extends it. These
+   already carry a `statusCode` and a `toJSON()` envelope, so converting them could only take
+   those away. An application error is re-thrown here **even if it carries a `code` field**,
+   which a coded refusal (`403` + `code: 'TENANT_SUSPENDED'`) typically does.
+3. A genuine driver error is converted via `fromPostgresError(...)` → `DuplicateEntryError`,
+   `ConstraintViolationError`, `DeadlockError`, `ConnectionError`, `TransactionError`, or
+   `QueryError`. "Genuine" means one of two shapes. Either `code` is one of the names postgres.js
+   invents for the errors it raises itself (`CONNECTION_CLOSED`, `CONNECTION_ENDED`,
+   `CONNECTION_DESTROYED`, `CONNECT_TIMEOUT`, `CONNECTION_CONNECT_TIMEOUT` — the same list the
+   reconnect-trigger uses), which carry no severity; or `code` is SQLSTATE-shaped
+   (`/^[0-9A-Z]{5}$/`) **and** the error carries a `severity` or `severity_local` field, which is
+   what postgres.js copies off the server's `ErrorResponse`. An arbitrary `code` is not enough —
+   Stripe (`resource_missing`), jose (`ERR_JOSE_*`), the AWS SDK and Node (`ECONNRESET`) all set one.
 4. Anything else (e.g. business-logic errors like `InvalidCredentialsError`) is re-thrown as-is.
+
+The gate is deliberately narrow: a hand-rolled `{ code: '23505' }` with no severity field is
+**not** converted. That trades a fake-driver edge case for the guarantee that no application
+error is ever flattened into a `QueryError 500` (issue #82). The driver's own connection codes are
+the one exception to the severity requirement — they name their origin unambiguously, so a socket
+that dies mid-transaction still reaches the client as a `QueryError` envelope rather than a bare
+`Error`.
+
+Note that Drizzle wraps driver errors in a `DrizzleQueryError` that carries no `code` of its own,
+so a query error raised inside the handler reaches the caller as that wrapper, with the driver's
+`PostgresError` on `.cause`. Step 3 fires for errors that reach the middleware unwrapped. The
+reconnect-trigger in step 1 walks the `cause` chain, so it sees the driver error either way.
 
 ### `TransactionalOptions`
 

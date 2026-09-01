@@ -35,9 +35,15 @@ const dbLogger = logger.child('@spfn/core:database');
 /**
  * postgres.js driver-level error codes that indicate a dead connection
  *
+ * These are the codes the driver puts on the errors it generates itself
+ * (`Errors.connection` / `Errors.generic`), as opposed to the SQLSTATE it
+ * copies off a server ErrorResponse. Exported because `Transactional()` reads
+ * the same list to recognise a driver-origin error — see `isDriverOriginError`
+ * in `db/transaction/middleware.ts`.
+ *
  * @see https://github.com/porsager/postgres/blob/master/src/errors.js
  */
-const POSTGRES_JS_CONNECTION_CODES: ReadonlySet<string> = new Set([
+export const POSTGRES_JS_CONNECTION_CODES: ReadonlySet<string> = new Set([
     'CONNECTION_ENDED',
     'CONNECTION_CLOSED',
     'CONNECTION_DESTROYED',
