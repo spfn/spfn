@@ -10,6 +10,11 @@
  * downstream permission/tenant code consumes one principal shape and never
  * branches on how it was authenticated.
  *
+ * An app adds its own scheme with `registerAuthProfile` at boot. The dispatch
+ * it joins is the one below, unchanged: a name nobody registered is still
+ * refused, and profile credentials mixed with an Authorization header are
+ * still refused before either path runs.
+ *
  * The clientProofV1 verifier reuses the phase-1 admission pieces (header
  * shape, canonical body, proof-input assembly, ECDSA verification) with two
  * production substitutions: the key directory is `user_public_keys` via
@@ -72,8 +77,13 @@ export interface AuthContext
     role: string | null;
     locale: string;
 
-    /** How the principal was authenticated. Informational — downstream code never branches on it. */
-    scheme: 'bearer' | 'clientProofV1' | 'oneTimeToken';
+    /**
+     * How the principal was authenticated. Informational — downstream code
+     * never branches on it. The union stays open for the profiles an app
+     * registers itself: the built-in names keep their autocomplete, and a
+     * registered profile names its own scheme without editing this file.
+     */
+    scheme: 'bearer' | 'clientProofV1' | 'oneTimeToken' | (string & {});
 }
 
 /** A profile's verifier: admits the request and returns the principal, or throws. */
@@ -215,7 +225,19 @@ export async function runAuthProfile(c: Context): Promise<AuthProfileOutcome>
             return { kind: 'none' };
         }
 
-        return { kind: 'authenticated', auth: await verifier.verify(c) };
+        // What the verifier resolved has to be a principal. `null` is the JS
+        // idiom for "no user", and taken at face value it would set `auth` to
+        // null and call the route: authenticated everywhere downstream, a 500
+        // in the handler. A resolve that carries no userId is a refusal, and
+        // it leaves here as one — the same throw the verifier's own refusal
+        // takes, so `optionalAuth` cannot downgrade it to anonymous passage.
+        const auth = await verifier.verify(c);
+        if (!auth?.userId)
+        {
+            throw new UnauthorizedError({ message: 'Auth profile verifier returned no principal' });
+        }
+
+        return { kind: 'authenticated', auth };
     }
     catch (err)
     {
@@ -434,6 +456,74 @@ function verifyProofOrThrow(
 }
 
 /** profile name → verifier. Registration is the only way to add a scheme. */
-const AUTH_PROFILE_VERIFIERS: ReadonlyMap<string, AuthProfileVerifier> = new Map([
+const AUTH_PROFILE_VERIFIERS: Map<string, AuthProfileVerifier> = new Map([
     [CLIENT_PROOF_PROFILE, { verify: verifyClientProofProfile }],
 ]);
+
+/**
+ * Registers an app's own verifier under a profile name.
+ *
+ * Call it at boot, before the first request: the registry is a module-global
+ * read on every dispatch, so a profile registered later is simply a profile
+ * the requests before it did not have. There is no freeze and no
+ * unregistration — an auth surface that can be rearranged at runtime is a
+ * surface an app bug can rearrange.
+ *
+ * A duplicate name throws rather than replacing the verifier that holds it,
+ * `clientProofV1` included. A silent override is how a second import order, or
+ * a copied profile name, quietly swaps the code that decides who is admitted.
+ *
+ * The verifier must expose a callable `verify` — a value that cannot admit
+ * anyone is refused at boot rather than becoming a registry entry the dispatch
+ * reads as "no profile header", which is anonymous passage under
+ * `optionalAuth` for a request that presented profile credentials.
+ *
+ * The verifier returns the same `AuthContext` the Bearer path sets and refuses
+ * by throwing. A resolve that carries no `userId` is refused as a throw too —
+ * "no user" is a refusal, never a principal. A throw is not caught here:
+ * `runAuthProfile` answers the internal clientProofV1 contract refusal and
+ * nothing else, so a verifier's own error reaches the app's generic error
+ * handler exactly as the Bearer path's `UnauthorizedError` does — and never
+ * becomes anonymous passage, not even under `optionalAuth`.
+ *
+ * @example
+ * ```typescript
+ * registerAuthProfile('serviceTokenV1', {
+ *     verify: async (c) =>
+ *     {
+ *         const user = await authenticateServiceToken(c.req.header('x-acme-service-token'));
+ *         if (user === null)
+ *         {
+ *             throw new UnauthorizedError({ message: 'Invalid service token' });
+ *         }
+ *
+ *         return { user, userId: String(user.id), keyId: 'service', role: null, locale: 'en', scheme: 'serviceTokenV1' };
+ *     },
+ * });
+ * ```
+ */
+export function registerAuthProfile(profileId: string, verifier: AuthProfileVerifier): void
+{
+    if (typeof profileId !== 'string' || profileId.length === 0)
+    {
+        throw new Error('registerAuthProfile: profileId must be a non-empty string');
+    }
+    if (typeof verifier?.verify !== 'function')
+    {
+        throw new Error(`registerAuthProfile: auth profile '${profileId}' needs a verifier with a callable verify(c)`);
+    }
+    if (AUTH_PROFILE_VERIFIERS.has(profileId))
+    {
+        throw new Error(`registerAuthProfile: auth profile '${profileId}' is already registered`);
+    }
+
+    // Stored as a bound copy, not the caller's object: `.set(profileId, verifier)`
+    // would leave the admitting code reassignable through the registrant's own
+    // reference, which is the silent override the duplicate-name throw exists
+    // to prevent. The bind keeps `this` for a method-style or class verifier.
+    // What the copy fixes is the `verify` function, not what it decides: a class
+    // verifier that consults its own mutable state through that function still
+    // changes behaviour when the registrant mutates it. This is a footgun guard
+    // against an accidental reassignment, not an immutability guarantee.
+    AUTH_PROFILE_VERIFIERS.set(profileId, { verify: verifier.verify.bind(verifier) });
+}
