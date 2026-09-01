@@ -42,6 +42,16 @@ export type BeforeCommitCallback = () => void | Promise<void>;
 export type AfterRollbackCallback = () => void | Promise<void>;
 
 /**
+ * Serializes the savepoint frames opened directly off one transaction context
+ *
+ * @see createNestedFrameGate
+ */
+export type NestedFrameGate = {
+    /** Run `frame` once every frame queued before it on this context has finished */
+    run<T>(frame: () => Promise<T>): Promise<T>;
+};
+
+/**
  * Transaction context stored in AsyncLocalStorage
  */
 export type TransactionContext<TDatabase extends DrizzleDatabase = DrizzleDatabase> = {
@@ -56,7 +66,89 @@ export type TransactionContext<TDatabase extends DrizzleDatabase = DrizzleDataba
     afterCommitCallbacks: AfterCommitCallback[];
     /** Callbacks to execute after the root transaction rolled back */
     afterRollbackCallbacks: AfterRollbackCallback[];
+    /** Serializes the savepoint frames opened directly off THIS context */
+    nestedFrames: NestedFrameGate;
 };
+
+/** The contention notice is a property of the process, not of a transaction */
+let concurrentNestingReported = false;
+
+/**
+ * Say once, on the first contention, that concurrent nested calls serialize
+ *
+ * Per-call it would be noise: `Promise.all` over nested calls is legal and its
+ * every element would log. Once per process it is the one line that explains
+ * both the lost concurrency and — if the caller ever writes the deadlocking
+ * shape — the hang.
+ */
+function reportConcurrentNesting(): void
+{
+    if (concurrentNestingReported)
+    {
+        return;
+    }
+
+    concurrentNestingReported = true;
+
+    txLogger.warn('Concurrent nested transactions are serialized', {
+        reason: 'sibling SAVEPOINTs share the outer transaction\'s connection, where one sibling\'s ROLLBACK TO would discard the other\'s writes',
+        hint: 'await nested calls one at a time, or pass requiresNew: true to give a branch its own connection. A nested call whose callback awaits a sibling started after it deadlocks.',
+    });
+}
+
+/**
+ * Create the gate that serializes one context's nested (SAVEPOINT) frames
+ *
+ * Sibling savepoints are two frames on ONE connection, and `ROLLBACK TO` unwinds
+ * the connection — not a branch of it. Left concurrent, a sibling that fails
+ * discards every row the other sibling wrote after its savepoint was taken, and
+ * the surviving sibling reports success. So a frame opens only once the frame
+ * queued before it has closed — returned, or unwound with ROLLBACK TO — which
+ * puts each sibling's writes strictly inside its own savepoint again.
+ * `Promise.all` over nested calls keeps working; it just stops overlapping.
+ *
+ * The gate belongs to the context the frames are opened off, NOT to the root, so
+ * it never blocks depth: a frame holds its PARENT's gate while its own gate —
+ * fresh, uncontended — serializes its children. `requiresNew` takes no gate at
+ * all; it runs on its own connection, where nothing interleaves.
+ *
+ * The one shape this cannot save is a frame that awaits a sibling queued BEHIND
+ * it: the waiter holds the gate, so the sibling it waits for never opens, and no
+ * statement is running for a timeout to interrupt. That is a deadlock (the
+ * reverse order is fine — a sibling created first has already run), documented as
+ * misuse — see the transaction README. Detecting it would mean tracking which
+ * pending promise a callback is blocked on, which the runner cannot see; a
+ * timeout would have to guess at how long a legitimate sibling may run and would
+ * abort transactions for being slow. What is cheap and honest is a notice the
+ * first time frames actually contend, so the hazard is on the record before it
+ * ever hangs.
+ */
+export function createNestedFrameGate(): NestedFrameGate
+{
+    let tail: Promise<unknown> = Promise.resolve();
+    let pending = 0;
+
+    return {
+        run<T>(frame: () => Promise<T>): Promise<T>
+        {
+            if (pending > 0)
+            {
+                reportConcurrentNesting();
+            }
+
+            pending++;
+
+            const result = tail.then(frame);
+
+            // The rejection is swallowed on the QUEUE only — a failed frame must
+            // not cancel the frames behind it — while `result` itself still
+            // rejects for the caller that opened the frame
+            tail = result.then(() => void pending--, () => void pending--);
+
+            return result;
+        },
+    };
+}
 
 /**
  * Global AsyncLocalStorage instance for transaction context
@@ -121,8 +213,12 @@ export function runWithTransaction<T, TDatabase extends DrizzleDatabase = Defaul
 
     if (existingContext)
     {
-        // Nested transaction detected. This means Drizzle will use a SAVEPOINT.
-        txLogger.info('Nested transaction started (SAVEPOINT)', {
+        // Nested transaction: the runner opened this one off the outer
+        // transaction's tx, so Drizzle issued a SAVEPOINT on its connection.
+        // Debug, not info: nesting is the documented default, so there is
+        // nothing for an operator to do about a line that fires on every
+        // nested call.
+        txLogger.debug('Nested transaction started (SAVEPOINT)', {
             outerTxId: existingContext.txId,
             innerTxId: txId,
             level: newLevel,
@@ -142,7 +238,11 @@ export function runWithTransaction<T, TDatabase extends DrizzleDatabase = Defaul
     const afterCommitCallbacks = existingContext?.afterCommitCallbacks ?? [];
     const afterRollbackCallbacks = existingContext?.afterRollbackCallbacks ?? [];
 
-    // Store transaction, new ID, and the current nesting level
+    // Store transaction, new ID, and the current nesting level.
+    //
+    // The frame gate is the one field that is NOT inherited: it serializes the
+    // frames opened off THIS context, so every level needs its own or a nested
+    // call would wait on the gate its own parent is holding.
     return asyncContext.run(
         {
             tx,
@@ -151,6 +251,7 @@ export function runWithTransaction<T, TDatabase extends DrizzleDatabase = Defaul
             beforeCommitCallbacks,
             afterCommitCallbacks,
             afterRollbackCallbacks,
+            nestedFrames: createNestedFrameGate(),
         } as TransactionContext,
         callback,
     );
@@ -167,7 +268,7 @@ export function runWithTransaction<T, TDatabase extends DrizzleDatabase = Defaul
  *
  * @example
  * ```typescript
- * import { onAfterCommit } from '@spfn/core/db/transaction';
+ * import { onAfterCommit } from '@spfn/core/db';
  *
  * async function submit(spaceId: string, chatId: string)
  * {
@@ -220,7 +321,7 @@ export function onAfterCommit(callback: AfterCommitCallback): void
  *
  * @example
  * ```typescript
- * import { runInTransaction, onBeforeCommit } from '@spfn/core/db/transaction';
+ * import { runInTransaction, onBeforeCommit } from '@spfn/core/db';
  *
  * async function transfer(fromId: string, toId: string, amount: number)
  * {
@@ -280,7 +381,7 @@ export function onBeforeCommit(callback: BeforeCommitCallback): void
  *
  * @example
  * ```typescript
- * import { runInTransaction, onAfterRollback } from '@spfn/core/db/transaction';
+ * import { runInTransaction, onAfterRollback } from '@spfn/core/db';
  *
  * async function importAvatar(userId: string, file: Blob)
  * {

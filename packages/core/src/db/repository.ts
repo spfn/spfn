@@ -38,11 +38,11 @@
  *
  * @example With Transactions
  * ```typescript
- * import { runWithTransaction } from '@spfn/core/db';
+ * import { runInTransaction } from '@spfn/core/db';
  *
  * const userRepo = new UserRepository();
  *
- * await runWithTransaction(async () => {
+ * await runInTransaction(async () => {
  *     // Both db and readDb automatically use the transaction context
  *     const user = await userRepo.create({ name: 'John' });
  *     await userRepo.findById(user.id); // Uses same transaction

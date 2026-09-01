@@ -428,7 +428,7 @@ These have their own READMEs — do not duplicate their APIs here, link to them:
   Helpers and repositories surface this as a thrown "Database not initialized" error.
 - **Standalone helpers are not transaction-context aware.** `findOne`/`create`/… resolve the
   *global* read/write instance, not the `AsyncLocalStorage` transaction. Inside a
-  `Transactional()` route or `runWithTransaction`, call **`BaseRepository._*` methods**
+  `Transactional()` route or `runInTransaction`, call **`BaseRepository._*` methods**
   (which check `getTransaction()`) or `getTransaction()` directly — otherwise the write
   escapes the transaction and won't roll back.
 - **`_findOne`/`_updateOne`/`_deleteOne` (and their plural update/delete forms) throw on an
@@ -448,7 +448,7 @@ These have their own READMEs — do not duplicate their APIs here, link to them:
   Transaction propagation works through `AsyncLocalStorage`, so a shared instance is correct
   — you do not pass a `db`/`tx` handle around. (Fresh instances in tests are fine.)
 - **Don't start your own transaction inside repository write methods.** Let route
-  `Transactional()` middleware (or an explicit `runWithTransaction`) own the boundary.
+  `Transactional()` middleware (or an explicit `runInTransaction`) own the boundary.
 - **`upsert` requires `target`.** `set` is optional and defaults to the inserted `data`;
   pass `set` explicitly (e.g. `updatedAt: new Date()`, or a `sql\`…\`` expression) when the
   conflict update should differ from the insert.
@@ -529,7 +529,7 @@ export const userRepo = new UserRepository();
 
 ```typescript
 // src/server/routes/users.ts — Transactional boundary owned by the route
-import { Transactional, runWithTransaction } from '@spfn/core/db';
+import { Transactional, runInTransaction } from '@spfn/core/db';
 import { userRepo } from '../repositories/user.repository';
 import { profileRepo } from '../repositories/profile.repository';
 
@@ -545,7 +545,7 @@ export async function POST(c: RouteContext)
 // Or an explicit boundary outside a route:
 export async function signup(data: NewUser, profile: NewProfile)
 {
-    return runWithTransaction(async () =>
+    return runInTransaction(async () =>
     {
         const user = await userRepo.createWithDedup(data);
         await profileRepo.create({ ...profile, userId: user.id });

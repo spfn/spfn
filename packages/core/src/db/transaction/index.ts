@@ -16,6 +16,7 @@ export {
 export type {
     TransactionContext,
     TransactionDB,
+    NestedFrameGate,
     BeforeCommitCallback,
     AfterCommitCallback,
     AfterRollbackCallback,

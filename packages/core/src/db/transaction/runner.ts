@@ -17,9 +17,16 @@
  * enforcement. This guarantees that long-running transactions are actually rolled
  * back at the database level, preventing data inconsistency.
  *
+ * Nesting:
+ * A call made while another transaction is already open on the async call chain
+ * takes a SAVEPOINT on that transaction's connection instead of opening a second
+ * one. Nested calls made off the same transaction run one at a time, because
+ * their savepoints share that connection. Pass `requiresNew: true` to opt out
+ * and get an independent transaction on a connection of its own.
+ *
  * @example
  * ```typescript
- * import { runInTransaction } from '@spfn/core/db/transaction';
+ * import { runInTransaction } from '@spfn/core/db';
  * import { users } from './schema';
  *
  * // Simple usage
@@ -47,6 +54,7 @@ import { sql } from 'drizzle-orm';
 import { logger } from '@spfn/core/logger';
 import { getDatabase } from '../manager';
 import {
+    asyncContext,
     runWithTransaction,
     getTransactionContext,
     type TransactionDB,
@@ -181,8 +189,12 @@ export interface RunInTransactionOptions
      * - `timeout: undefined` - Uses default (30s or TRANSACTION_TIMEOUT env var)
      * - `timeout: N` - Sets timeout to N milliseconds (1 to 2147483647)
      *
-     * Note: Timeout is only applied to root transactions. Nested transactions
-     * (SAVEPOINTs) inherit the timeout from the outer transaction.
+     * Note: Timeout is only applied to root transactions. A nested call takes a
+     * SAVEPOINT on the outer transaction's connection, where the outer
+     * transaction's `SET LOCAL statement_timeout` is already in force — so the
+     * nested call genuinely inherits it, and its own `timeout` is ignored (a
+     * warning is logged when the caller passed one explicitly). A
+     * `requiresNew: true` call is a root and gets its own.
      *
      * @default 30000 (30 seconds) or TRANSACTION_TIMEOUT environment variable
      *
@@ -221,6 +233,49 @@ export interface RunInTransactionOptions
      * @default 'transaction'
      */
     context?: string;
+
+    /**
+     * Run in an independent transaction instead of joining an ambient one.
+     *
+     * By default a call made while another transaction is open takes a SAVEPOINT
+     * on that transaction's connection: its writes commit or roll back with the
+     * outer transaction. `requiresNew: true` opens a real `BEGIN` on a SECOND
+     * pooled connection instead, so the work commits on its own and survives an
+     * outer rollback — an audit trail or a failed-attempt record, for example.
+     *
+     * Being a root transaction, it gets its own `statement_timeout`,
+     * `idle_in_transaction_session_timeout`, and its OWN hook queues:
+     * `onBeforeCommit` / `onAfterCommit` / `onAfterRollback` registered inside it
+     * fire on ITS outcome, not the outer transaction's.
+     *
+     * Two costs, both consequences of the second connection:
+     * - It holds a second connection for its whole duration, so it counts twice
+     *   against the pool. Keep it short and don't fan it out.
+     * - It cannot see the outer transaction's uncommitted writes, and it BLOCKS
+     *   on any row the outer transaction has locked. Since the outer transaction
+     *   is waiting for this call to return, that block is a self-deadlock that
+     *   only `statement_timeout` breaks. Never touch rows the outer transaction
+     *   wrote.
+     *
+     * @default false
+     *
+     * @example
+     * ```typescript
+     * await runInTransaction(async () =>
+     * {
+     *     await orderRepo.create(order);
+     *
+     *     // Lands even if the order below rolls the outer transaction back.
+     *     await runInTransaction(
+     *         () => auditRepo.record('order.attempted', order.id),
+     *         { requiresNew: true },
+     *     );
+     *
+     *     await inventoryRepo.reserve(order.items);   // may throw
+     * });
+     * ```
+     */
+    requiresNew?: boolean;
 }
 
 /**
@@ -232,6 +287,15 @@ export interface RunInTransactionOptions
  * - Tracks execution time
  * - Warns about slow transactions
  * - Enforces timeout if configured
+ *
+ * Called with a transaction already open on the async call chain, it takes a
+ * SAVEPOINT on that transaction rather than opening an independent one: the work
+ * runs on the same connection, sees the outer transaction's uncommitted writes,
+ * and commits with it. A throw that the caller catches unwinds to the SAVEPOINT
+ * and leaves the outer transaction healthy; a throw that propagates rolls the
+ * whole thing back. Nested calls off one transaction are serialized — see
+ * `openTransaction` — so `Promise.all` over them runs them one at a time. Pass
+ * `requiresNew: true` for an independent transaction on its own connection.
  *
  * Errors are propagated to the caller without modification.
  * Caller is responsible for error handling and conversion.
@@ -254,6 +318,7 @@ export async function runInTransaction<T, TDatabase extends DrizzleDatabase = De
         slowThreshold = 1000,
         enableLogging = true,
         context = 'transaction',
+        requiresNew = false,
     } = options;
 
     // Handle timeout: null/undefined → default, 0 → disabled, N → N milliseconds
@@ -374,19 +439,27 @@ export async function runInTransaction<T, TDatabase extends DrizzleDatabase = De
         throw error;
     }
 
-    // Check if we're in a nested transaction
-    const existingContext = getTransactionContext();
-    const isNested = existingContext !== null;
+    // The transaction this call nests into, as a SAVEPOINT on its connection.
+    //
+    // Null when nothing is open — the plain root case — and null under
+    // `requiresNew`, which asks for an independent transaction rather than a
+    // savepoint. Everything downstream keyed on `isNested` therefore reads as
+    // "this call is not a root": a requiresNew call IS a root, and gets the
+    // timeouts and the hook queues of one.
+    const savepointOwner = requiresNew ? null : getTransactionContext<TDatabase>();
+    const isNested = savepointOwner !== null;
 
-    // Warn about nested transaction timeout
-    if (isNested && timeout > 0 && enableLogging)
+    // Warn only when the caller passed a timeout explicitly: the 30s default
+    // would warn on every nested call and bury the case that matters — an
+    // explicit timeout the database never sees.
+    if (isNested && options.timeout !== undefined && options.timeout > 0 && enableLogging)
     {
         txLogger.warn('Timeout ignored in nested transaction', {
             txId,
             context,
-            outerTxId: existingContext.txId,
+            outerTxId: savepointOwner.txId,
             requestedTimeout: `${timeout}ms`,
-            reason: 'SET LOCAL statement_timeout affects the entire outer transaction',
+            reason: 'the SAVEPOINT runs under the outer transaction\'s statement_timeout; SET LOCAL here would re-scope the whole outer transaction',
         });
     }
 
@@ -412,16 +485,54 @@ export async function runInTransaction<T, TDatabase extends DrizzleDatabase = De
     let afterCommitCallbacks: AfterCommitCallback[] = [];
     let afterRollbackCallbacks: AfterRollbackCallback[] = [];
 
+    /**
+     * Open the transaction this call asked for and run `body` inside it.
+     *
+     * Three shapes, one body:
+     * - Nested: `savepointOwner.tx.transaction(...)`. Drizzle issues
+     *   SAVEPOINT / ROLLBACK TO on the connection the outer transaction already
+     *   holds, so the work joins it — same connection, outer uncommitted writes
+     *   visible, no second pool checkout, no self-deadlock. It runs through the
+     *   outer context's frame gate, which holds the frame back until the
+     *   previous frame opened off the SAME context has closed: two concurrent
+     *   siblings on one connection would otherwise overlap, and the first
+     *   `ROLLBACK TO` would take the other sibling's rows with it.
+     * - `requiresNew`: a real BEGIN, and it must enter as a root. Run through
+     *   `asyncContext.exit` so the ambient context is invisible to it: otherwise
+     *   `runWithTransaction` would hand it the outer transaction's hook queues
+     *   and a nested `level`, and its hooks would fire on the outer
+     *   transaction's outcome instead of its own.
+     * - Root: a real BEGIN, unchanged.
+     */
+    const openTransaction = (body: (tx: TransactionDB<TDatabase>) => Promise<T>): Promise<T> =>
+    {
+        if (savepointOwner)
+        {
+            return savepointOwner.nestedFrames.run(
+                () => savepointOwner.tx.transaction(body as never) as Promise<T>,
+            );
+        }
+
+        if (requiresNew)
+        {
+            return asyncContext.exit(() => writeDb.transaction(body as never) as Promise<T>);
+        }
+
+        return writeDb.transaction(body as never) as Promise<T>;
+    };
+
     // Execute transaction within try-catch to capture all errors
     try
     {
         // Execute transaction with PostgreSQL-level timeout
-        const result = await writeDb.transaction(async (tx) =>
+        const result = await openTransaction(async (tx) =>
         {
             const transaction = tx as TransactionDB<TDatabase>;
 
-            // Set PostgreSQL statement timeout only for root transactions
-            // Nested transactions (SAVEPOINTs) would affect the entire outer transaction
+            // Set PostgreSQL statement timeout only for root transactions.
+            // A SAVEPOINT shares the outer transaction's connection, so SET LOCAL
+            // here would re-scope the whole outer transaction — and it does not
+            // need to: the outer transaction's timeout already covers it.
             if (timeout > 0 && !isNested)
             {
                 // Using sql.raw() because SET commands don't support parameter binding
@@ -578,8 +689,10 @@ export async function runInTransaction<T, TDatabase extends DrizzleDatabase = De
         // Awaited so they complete before the error leaves the runner, and run
         // outside the transaction context — getTransactionContext() is null here,
         // so DB work inside them uses a fresh connection like afterCommit does.
-        // Nested calls skip this: only the root's fate fires rollback hooks, and
-        // that keeps a nested failure from firing them once per nesting level.
+        // Nested calls skip this: only the root's fate fires rollback hooks. A
+        // nested throw the caller catches unwinds to the SAVEPOINT and the root
+        // still commits — nothing to compensate for. One that propagates rolls
+        // the root back, and the root's catch fires the shared queue once.
         if (!isNested && afterRollbackCallbacks.length > 0)
         {
             // Last backstop: nothing in this stage — not a callback, not a log

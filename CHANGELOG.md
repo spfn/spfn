@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### @spfn/core
+
+- **BREAKING: a nested `runInTransaction` / `Transactional()` call is now a `SAVEPOINT` on the
+  outer transaction's connection, not an independent transaction on a second one** (#82). It
+  sees the outer transaction's uncommitted writes, takes no second connection from the pool,
+  no longer self-deadlocks on a row the outer transaction locked, and commits or rolls back
+  **with the root** — which is what the documentation had always claimed.
+    - **Migration**: code that relied on a nested call committing on its own — an audit row or
+      a failed-attempt record meant to survive an outer rollback — must pass
+      `requiresNew: true`, a new option on `RunInTransactionOptions` and `TransactionalOptions`
+      that opens a real `BEGIN` with its own timeouts and its own hook queues. Everything else
+      needs no change.
+    - **BREAKING, second dimension: nested calls made off one transaction no longer run
+      concurrently.** They share one connection, where two open savepoints corrupt each other
+      — the first `ROLLBACK TO` discards everything written on the connection since that
+      savepoint, including a sibling's rows, while the sibling reports success. The runner now
+      queues nested frames per transaction, so `Promise.all([nestedA(), nestedB()])` still
+      returns both results but runs them one at a time. A branch that needs real concurrency
+      takes `requiresNew: true` and its own connection. A nested call whose callback awaits a
+      sibling started after it deadlocks — documented as misuse, with a once-per-process
+      `warn` the first time frames contend.
+    - A `timeout` passed to a nested call is ignored, as before (the root's `statement_timeout`
+      is in force on the shared connection and is now genuinely inherited), but the `warn` for
+      it fires only when the caller passed a timeout explicitly — it used to fire on every
+      nested call, because the default is 30s.
+    - Driver caveats now documented in `src/db/transaction/README.md`: the pinned driver never
+      issues `RELEASE SAVEPOINT`, and a write inside a nested frame holds one of the backend's
+      64 cached subtransaction ids until the root ends, so per-row nesting in a loop pushes the
+      backend into subxid overflow.
+
 ### Added
 
 #### @spfn/signing

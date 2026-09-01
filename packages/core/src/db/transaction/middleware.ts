@@ -67,6 +67,22 @@ export interface TransactionalOptions
      * @default 30000 (30s) or TRANSACTION_IDLE_TIMEOUT environment variable
      */
     idleTimeout?: number;
+
+    /**
+     * Run in an independent transaction instead of joining an ambient one.
+     *
+     * Only bites when the middleware itself runs nested — a sub-app mounted
+     * under a route that already applied `Transactional()`, or a handler invoked
+     * from inside `runInTransaction`. By default that inner run takes a SAVEPOINT
+     * on the outer transaction; `requiresNew: true` gives it a real `BEGIN` on a
+     * second pooled connection, with its own timeouts and its own hook queues.
+     *
+     * See `RunInTransactionOptions.requiresNew` for the pool and self-deadlock
+     * costs — they apply here unchanged.
+     *
+     * @default false
+     */
+    requiresNew?: boolean;
 }
 
 /**

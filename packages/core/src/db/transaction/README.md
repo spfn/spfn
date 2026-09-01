@@ -48,7 +48,7 @@ From `@spfn/core/db`:
 - `getTransaction()` — current transaction `TransactionDB`, or `null`.
 - `getTransactionContext()` — current `TransactionContext` (`tx`, `txId`, `level`, callbacks), or `null`.
 - `runWithTransaction(tx, txId, callback)` — bind a `tx` into `AsyncLocalStorage` for a callback.
-- Types: `TransactionDB`, `TransactionContext`, `TransactionalOptions`, `RunInTransactionOptions`, `BeforeCommitCallback`, `AfterCommitCallback`, `AfterRollbackCallback`.
+- Types: `TransactionDB`, `TransactionContext`, `NestedFrameGate`, `TransactionalOptions`, `RunInTransactionOptions`, `BeforeCommitCallback`, `AfterCommitCallback`, `AfterRollbackCallback`.
 
 > `getTransactionId()` and `asyncContext` exist in `context.ts` but are **not** exported
 > from the module index — do not import them. Use `getTransactionContext()?.txId` if you
@@ -65,8 +65,12 @@ From `@spfn/core/db`:
 `Transactional` and `runInTransaction` both go through `runInTransaction`, which:
 
 1. Resolves the **write** DB (`getDatabase('write')`).
-2. Opens `writeDb.transaction(...)`.
-3. Calls `runWithTransaction(tx, txId, callback)` to store `{ tx, txId, level, beforeCommitCallbacks, afterCommitCallbacks, afterRollbackCallbacks }` in a global `AsyncLocalStorage`.
+2. Opens a transaction. With no ambient transaction on the call chain that is
+   `writeDb.transaction(...)` — a real `BEGIN` on a pooled connection. With one, it is
+   `ambientTx.transaction(...)` instead: a **SAVEPOINT on the connection the outer
+   transaction already holds**. (`requiresNew: true` forces the first shape — see
+   [Nested transactions](#nested-transactions-savepoints).)
+3. Calls `runWithTransaction(tx, txId, callback)` to store `{ tx, txId, level, beforeCommitCallbacks, afterCommitCallbacks, afterRollbackCallbacks, nestedFrames }` in a global `AsyncLocalStorage`.
 
 Inside that callback, any code that calls `getTransaction()` gets the live `tx`. The key
 consumer is **`BaseRepository`**: its `db` and `readDb` getters call `getTransaction()`
@@ -158,6 +162,8 @@ On rollback the middleware re-throws, but normalizes the error first:
 | `slowThreshold` | `number` | `1000` | ms; logs a `warn` if commit/rollback exceeds it |
 | `enableLogging` | `boolean` | `true` | start/commit/rollback debug logs |
 | `timeout` | `number` | `30000` / `env.TRANSACTION_TIMEOUT` | PostgreSQL `statement_timeout` in ms |
+| `idleTimeout` | `number` | `30000` / `env.TRANSACTION_IDLE_TIMEOUT` | PostgreSQL `idle_in_transaction_session_timeout` in ms |
+| `requiresNew` | `boolean` | `false` | when the middleware runs nested, open an independent transaction instead of a SAVEPOINT — see [Nested transactions](#nested-transactions-savepoints) |
 
 ---
 
@@ -194,7 +200,9 @@ await runInTransaction<void, AppDatabase>(async (tx) =>
 | `slowThreshold` | `number` | `1000` | ms; must be a non-negative integer or it throws `TransactionError` |
 | `enableLogging` | `boolean` | `true` | |
 | `timeout` | `number` | `env.TRANSACTION_TIMEOUT` (30000) | see timeout semantics below |
+| `idleTimeout` | `number` | `env.TRANSACTION_IDLE_TIMEOUT` (30000) | see timeout semantics below |
 | `context` | `string` | `'transaction'` | label in logs (the middleware passes `"METHOD /path"`) |
+| `requiresNew` | `boolean` | `false` | run in an independent transaction instead of joining an ambient one — see [Nested transactions](#nested-transactions-savepoints) |
 
 ### Timeout semantics
 
@@ -206,8 +214,13 @@ transaction (via `sql.raw`, since `SET` can't be parameterized). Resolution orde
 - `null` / `undefined` — falls back to `env.TRANSACTION_TIMEOUT` (default 30000).
 - `N` — must be an integer in `0 … 2147483647` (PG max int4). Out-of-range / non-integer values throw `TransactionError` (status 400) before any DB access.
 
-Timeout is applied **only to root transactions**. In a nested call the timeout is ignored
-(and a `warn` is logged), because `SET LOCAL` would re-scope the entire outer transaction.
+Timeout is applied **only to root transactions**. A nested call takes a SAVEPOINT on the
+outer transaction's connection, where that transaction's `SET LOCAL statement_timeout` is
+already in force — so the nested call **inherits** it, and its own `timeout` is ignored (a
+`warn` is logged only when the caller passed one explicitly; inheriting the root's is the
+normal case). Issuing `SET LOCAL` there would re-scope the entire outer transaction, not
+just the savepoint. A `requiresNew: true` call is a root on its own connection and gets its
+own timeouts.
 
 `idleTimeout` is the companion knob: `SET LOCAL idle_in_transaction_session_timeout = <ms>`,
 also root-only, resolved as `options.idleTimeout ?? env.TRANSACTION_IDLE_TIMEOUT` (default
@@ -229,29 +242,187 @@ non-integer, negative, or above the max; or the write database is not initialize
 ## Nested transactions (SAVEPOINTs)
 
 Nesting **is** supported. When `runInTransaction` / `Transactional` runs while an
-`AsyncLocalStorage` context already exists, Drizzle's `tx.transaction()` issues a
-PostgreSQL `SAVEPOINT`, and `runWithTransaction` increments `level` (root = 1).
+`AsyncLocalStorage` context already exists, the runner opens the inner transaction off the
+ambient one (`ambientTx.transaction(...)`), so Drizzle issues a PostgreSQL `SAVEPOINT` on the
+connection the outer transaction already holds, and `runWithTransaction` increments `level`
+(root = 1).
 
 ```typescript
-await runInTransaction(async () =>          // level 1 (root, real BEGIN)
+await runInTransaction(async () =>              // level 1 (root, real BEGIN)
 {
     await userRepo.create(...);
 
-    await runInTransaction(async () =>      // level 2 (SAVEPOINT)
+    try
     {
-        await postRepo.create(...);
-        throw new Error('inner');           // rolls back to the SAVEPOINT only
-    });
-});                                          // root still commits its own work
+        await runInTransaction(async () =>      // level 2 (SAVEPOINT, same connection)
+        {
+            await postRepo.create(...);
+            throw new Error('inner');           // ROLLBACK TO the SAVEPOINT
+        });
+    }
+    catch
+    {
+        // The catch is what makes this "the post was optional". Without it the
+        // error keeps propagating out of the root callback and rolls the ROOT
+        // back too — the savepoint limits what the ERROR undoes, never where it
+        // travels.
+    }
+
+    await auditRepo.record(...);                // the root is healthy; keep going
+});                                             // root commits the user + the audit row
 ```
 
 Behavior to know:
 
+- **One connection.** The nested call runs on the outer transaction's connection —
+  `pg_backend_pid()` is equal at every level. It therefore sees the outer transaction's
+  **uncommitted** writes, takes no second checkout from the pool, and cannot deadlock
+  against a row the outer transaction locked.
+- **One commit.** Nested writes are durable only when the **root** commits. There is no
+  intermediate commit at a savepoint boundary.
 - The inner level shares **all three of the root's** hook queues, so a hook registered in
   a nested call fires at the **root's** boundary, not the savepoint's. See
   [Transaction hooks](#transaction-hooks).
-- `timeout` passed to a nested call is ignored (warning logged); the root's timeout governs.
-- An inner rollback unwinds to its savepoint; the outer can catch and continue.
+- **One at a time.** Nested calls made off the same transaction are serialized: a frame
+  opens only after the previous frame on that connection has closed. See
+  [Concurrent nested calls](#concurrent-nested-calls-are-serialized).
+- `timeout` passed to a nested call is ignored; the root's timeout is already in force on
+  the shared connection and governs. A `warn` is logged only if you passed a `timeout`
+  explicitly — inheriting the root's is the normal case and says nothing worth logging.
+- An inner rollback unwinds to its savepoint; the outer can catch and continue issuing
+  statements. This holds for a failed *statement* too: inside a savepoint, PostgreSQL's
+  aborted-transaction state (`25P02`) unwinds to the savepoint rather than poisoning the
+  whole transaction.
+
+> **⚠️ BREAKING (from the release that introduced this)**
+>
+> A nested call **used to open an independent transaction on a second pooled connection**,
+> despite these docs. It committed on its own, could not see the outer transaction's
+> uncommitted writes, and self-deadlocked on rows the outer transaction had locked. It is now
+> a SAVEPOINT, as documented.
+>
+> **Code that relied on a nested call committing independently must now pass
+> `requiresNew: true`.** The usual case is an audit or failed-attempt record that must
+> survive the outer rollback. Everything else — the overwhelming majority of nesting, where
+> the inner work is simply part of the outer unit — needs no change and silently gets
+> correct behavior.
+>
+> **Second dimension: nested calls made off one transaction no longer run concurrently.**
+> They used to hold a connection each, so `Promise.all` over them really did overlap. They
+> now share the outer transaction's connection, where overlapping savepoints corrupt each
+> other, so the runner serializes them — `Promise.all([nestedA(), nestedB()])` still
+> resolves with both results, just one after the other, and a call chain that fanned out
+> N nested calls for latency loses that parallelism. Give a branch `requiresNew: true` to
+> get its own connection back, and read
+> [Concurrent nested calls](#concurrent-nested-calls-are-serialized) for the one shape that
+> deadlocks.
+
+### `requiresNew: true` — opt back out into an independent transaction
+
+Available on both `runInTransaction` and `Transactional()`. It opens a real `BEGIN` on a
+second pooled connection, ignoring the ambient transaction entirely:
+
+```typescript
+await runInTransaction(async () =>
+{
+    await orderRepo.create(order);
+
+    // Commits on its own — lands even though the outer transaction rolls back below.
+    await runInTransaction(
+        () => auditRepo.record('order.attempted', order.id),
+        { requiresNew: true },
+    );
+
+    await inventoryRepo.reserve(order.items);   // throws → outer rolls back
+});
+```
+
+Being a root transaction, it gets its own `statement_timeout`, its own
+`idle_in_transaction_session_timeout`, and its **own** hook queues: `onBeforeCommit` /
+`onAfterCommit` / `onAfterRollback` registered inside it fire on **its** outcome, not the
+outer transaction's. `getTransactionContext()?.level` reads `1` inside it, however deeply it
+sits lexically — `level` counts savepoint depth, and this call is a root.
+
+Two costs, both consequences of the second connection — this is where the pool-starvation
+caveat that used to apply to *every* nested call now lives:
+
+- It holds a **second connection** for its whole duration, so the call chain counts twice
+  against the pool. Keep it short, and don't fan it out.
+- It cannot see the outer transaction's uncommitted writes, and it **blocks** on any row the
+  outer transaction has locked. Since the outer transaction is waiting for this call to
+  return, that block is a **self-deadlock** that only `statement_timeout` breaks. Never touch
+  rows the outer transaction wrote.
+
+### Concurrent nested calls are serialized
+
+Two nested calls under `Promise.all` would be two savepoints on **one** connection, and
+`ROLLBACK TO` unwinds the connection, not a branch of it — so a failing sibling would
+discard everything written since its savepoint, including the other sibling's rows, while
+that sibling reported success. The runner therefore **queues nested frames per transaction**:
+a frame opens only after the frame before it on that connection has closed.
+
+```typescript
+// Still correct — and now genuinely atomic per branch. Just not parallel:
+// stepB's SAVEPOINT is taken after stepA's frame has closed.
+await Promise.all([
+    runInTransaction(() => stepA()),
+    runInTransaction(() => stepB()),
+]);
+```
+
+The queue belongs to the transaction the frames are opened off, so it never blocks depth
+(a nested call inside `stepA` waits on `stepA`'s own queue, which is empty) and never
+touches `requiresNew`, which runs on a connection of its own.
+
+- **You lose the parallelism, not the results.** Both branches still run and both results
+  still come back. If the fan-out existed for latency, give each branch `requiresNew: true`
+  — separate connections, genuinely concurrent, and each commits on its own instead of with
+  the root.
+- **⚠️ One shape deadlocks: a nested call whose callback awaits a sibling that was started
+  after it.** The waiting frame holds the queue, so the sibling behind it can never open,
+  and nothing breaks the cycle — `statement_timeout` does not fire, because no statement is
+  running. This is misuse rather than a guarded case: the runner cannot see which promise a
+  callback is blocked on, and a wait limit would have to guess how long a legitimate sibling
+  may run — aborting slow-but-correct transactions. The first time frames contend, one `warn`
+  ("Concurrent nested transactions are serialized") is logged per process, so the hazard is
+  on the record before it can hang.
+
+  ```typescript
+  // ❌ Deadlock: A entered the queue first, so it holds it — and it is waiting for
+  //    B, which is queued behind A and can never open. Frames open in the order the
+  //    calls were made, so this needs the awaited sibling to be created AFTER the
+  //    waiting one; the reverse (create B first, await it from A) is fine, because
+  //    B has already run by the time A opens.
+  const a = runInTransaction(async () => { await b; });
+  const b = runInTransaction(() => stepB());
+
+  await Promise.all([a, b]);
+  ```
+
+Statements issued **directly** on the outer transaction have the same hazard and no queue
+to protect them: `Promise.all([tx.insert(...), runInTransaction(() => stepB())])` writes the
+outer row after `stepB`'s savepoint was taken, so `stepB` failing discards it. Don't overlap
+outer-transaction work with an open nested frame either.
+
+### Operational caveats of the driver's savepoints
+
+Verified against the pinned driver (`drizzle-orm` 1.0.0-rc.4 over `postgres` 3.4.7) by
+logging the SQL it emits — worth knowing before nesting deeply or in a loop:
+
+- **`RELEASE SAVEPOINT` is never issued.** The driver emits `savepoint "sN"` on entry and
+  `rollback to "sN"` on failure, and nothing at all on success — the savepoint simply stays
+  defined until the root transaction ends. Names are unique per transaction (`s0`, `s1`, …),
+  so nothing shadows anything; they just accumulate.
+- **A write inside a nested frame costs a subtransaction, and the backend caches 64.** Each
+  savepoint that writes assigns a subtransaction id. PostgreSQL keeps 64 of them per backend
+  (`PGPROC_MAX_CACHED_SUBXIDS`); beyond that the backend is marked *suboverflowed*, and other
+  sessions' visibility checks stop being answerable from shared memory and go to `pg_subtrans`
+  on disk instead — a cliff that slows the **whole cluster's** snapshot checks, not just this
+  transaction. Measured on PostgreSQL 16.15: `subxact_count` climbs to 64 and
+  `subxact_overflowed` flips to `true` on the 65th write-savepoint.
+- **Practical rule:** don't put a nested `runInTransaction` inside a loop over more than a
+  few dozen rows. Do the batch as one statement, or as plain repository calls in the outer
+  transaction — nesting per row buys nothing unless you need per-row rollback.
 
 ---
 
@@ -395,10 +566,17 @@ decides everything:
   nested failure the outer code deliberately caught and recovered from is that code's job.
 - Conversely, hooks registered in a nested call fire exactly once, at the root's boundary —
   never once per nesting level.
-- **Do not register compensations with `onAfterRollback` inside a nested `runInTransaction`:**
-  a nested call is in fact an independent transaction rather than a SAVEPOINT, so the
-  compensation fires against the wrong outcome in both directions — that nested-transaction
-  behavior is a known separate issue.
+- **Registering compensations from a nested call is correct for the root's fate — and only
+  for it.** A nested call is a SAVEPOINT: its writes are durable only if the root commits,
+  so when the nested call *succeeded* and the root later rolls back, an `onAfterRollback`
+  registered inside it fires exactly when the work it compensates for disappears, and stays
+  silent when the root commits that work.
+  It is **not** a general "fires when my writes disappear" hook: in the caught-rollback case
+  above, the nested writes are gone and no hook fires at all. Code that catches a nested
+  failure and carries on must compensate **in the catch block**, at the moment it decides to
+  recover; deferring that to `onAfterRollback` compensates for nothing.
+- A `requiresNew: true` call is the exception, because it is a root: hooks registered inside
+  it belong to it and fire on its own commit or rollback.
 
 ### Why there is no `onBeforeRollback`
 
@@ -421,7 +599,7 @@ manually honor an ambient transaction.
 import { getTransaction, getTransactionContext, runWithTransaction } from '@spfn/core/db';
 
 getTransaction();          // TransactionDB | null
-getTransactionContext();   // { tx, txId, level, ...hook queues } | null
+getTransactionContext();   // { tx, txId, level, ...hook queues, nestedFrames } | null
 
 // Bind an existing Drizzle tx so nested code sees it via getTransaction().
 // NOTE the 3-arg signature: (tx, txId, callback)
@@ -469,7 +647,19 @@ await db.transaction(async (tx) =>
   so repositories inside it still use the *outer* tx, not the savepoint — your "inner"
   rollback won't isolate as expected. Use `runInTransaction` (which wires both) instead.
 - **`timeout` on a nested call is ignored.** Set the timeout on the outermost
-  transaction/middleware; nested values are dropped with a warning.
+  transaction/middleware; an explicitly passed nested value is dropped with a warning, and
+  the root's timeout governs the savepoint anyway.
+- **Concurrent nested calls are serialized, and one shape of them deadlocks.** Sibling
+  savepoints share the outer transaction's connection, so the runner queues them; `Promise.all`
+  over nested calls is correct but no longer parallel. A nested call whose callback *awaits a
+  sibling started after it* hangs forever — see
+  [Concurrent nested calls](#concurrent-nested-calls-are-serialized).
+- **Don't open a nested transaction per row in a loop.** Each writing savepoint burns one of
+  the backend's 64 cached subtransaction ids and is never released before the root ends; past
+  that the backend goes suboverflowed and every other session's visibility checks get slower.
+- **`requiresNew: true` costs a second connection and can self-deadlock.** Use it only when
+  the inner work must survive an outer rollback (an audit row, a failed-attempt record), keep
+  it short, and never let it touch rows the outer transaction wrote.
 - **Side effects belong in `onAfterCommit`, not the handler body.** Calling a notifier /
   job / external API directly in the handler runs it *before* commit and holds the
   transaction (and its pooled connection) open. If the tx later rolls back, you've already
@@ -575,19 +765,28 @@ type TransactionContext<TDatabase = DrizzleDatabase> = {
     beforeCommitCallbacks: BeforeCommitCallback[];    // shared with the root
     afterCommitCallbacks: AfterCommitCallback[];      // shared with the root
     afterRollbackCallbacks: AfterRollbackCallback[];  // shared with the root
+    nestedFrames: NestedFrameGate;                    // own — queues THIS context's frames
+};
+
+type NestedFrameGate = {
+    run<T>(frame: () => Promise<T>): Promise<T>;      // internal; the runner calls it
 };
 
 interface TransactionalOptions {
     slowThreshold?: number;   // default 1000 (ms)
     enableLogging?: boolean;  // default true
     timeout?: number;         // default 30000 / env.TRANSACTION_TIMEOUT (ms)
+    idleTimeout?: number;     // default 30000 / env.TRANSACTION_IDLE_TIMEOUT (ms)
+    requiresNew?: boolean;    // default false — independent tx instead of a SAVEPOINT
 }
 
 interface RunInTransactionOptions {
     slowThreshold?: number;   // default 1000 (ms)
     enableLogging?: boolean;  // default true
     timeout?: number;         // default env.TRANSACTION_TIMEOUT (30000 ms)
+    idleTimeout?: number;     // default env.TRANSACTION_IDLE_TIMEOUT (30000 ms)
     context?: string;         // default 'transaction'
+    requiresNew?: boolean;    // default false — independent tx instead of a SAVEPOINT
 }
 ```
 
