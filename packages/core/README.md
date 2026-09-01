@@ -185,10 +185,134 @@ import type { AppRouter } from '@/server/router';
 
 export const api = createApi<AppRouter>();
 
-// anywhere — server component, client component, or server action:
+// the same client in a Server Component, a Client Component or a Server Action:
 const user = await api.getUser.call({ params: { id: '123' } });    // typed { id, name }
 const made = await api.createUser.call({ body: { name: 'A' } });
 ```
+
+That the client is isomorphic does not make the three callers interchangeable. **A page's
+initial data is awaited in the Server Component**, where
+`api.getUser.fetchOptions({ next: { revalidate, tags } }).call(…)` participates in
+Next.js caching and reaches the backend without a browser round trip. Fetching that same
+first paint from a `'use client'` component inside a `useEffect` is the anti-pattern: it
+ships a loading state and a second network hop for data the server already had. Client
+Components and Server Actions are for what happens after the first paint — interaction
+and mutation. Cache tags, revalidation and SSR cookie forwarding are in
+[the Next.js bridge docs](https://superfunction.xyz/docs/packages/core/nextjs).
+
+---
+
+## How does a repository talk to the database?
+
+Through `BaseRepository`. Extending it gives a repository two transaction-aware
+connections — `this.db` (write/primary) and `this.readDb` (the replica, when one is
+configured) — plus the CRUD set as protected methods.
+
+```typescript
+// server/repositories/order.ts
+import { BaseRepository } from '@spfn/core/db';
+import { desc } from 'drizzle-orm';
+import { orders } from '../entities/order';
+
+export class OrderRepository extends BaseRepository
+{
+    findRecentFor(userId: string)
+    {
+        return this._findMany(orders, { where: { userId }, orderBy: desc(orders.createdAt) });
+    }
+
+    place(data: { userId: string; total: number })
+    {
+        return this._create(orders, data);
+    }
+}
+
+export const orderRepo = new OrderRepository();
+```
+
+Handlers never import drizzle query builders; repositories do. `_findMany` reads through
+`this.readDb`, `_create` writes through `this.db`, and both getters resolve to the active
+transaction's connection when there is one — so the same method is correct inside a
+transaction and outside it. When a helper cannot express a query, drop to
+`this.readDb.select()…` inside the repository rather than in the handler. The full
+protected CRUD set is in [src/db](./src/db/README.md).
+
+---
+
+## Where do transactions and their side effects go?
+
+`Transactional()` covers the route case — commit on return, rollback on throw. Two rules
+decide the rest.
+
+**Nothing takes a `tx` parameter.** The transaction travels in AsyncLocalStorage, so
+`this.db` inside a repository already resolves to it. A service that accepts `tx` and
+threads it downward re-implements propagation that already happened, and the first caller
+that forgets to pass it writes outside the transaction. For a service, script or job with
+no route around it, open one with `runInTransaction(fn, options?)`;
+`runWithTransaction(tx, txId, fn)` is the lower-level primitive that binds an existing
+Drizzle transaction into the context.
+
+**Side effects go on the commit hooks, not inline.** An event emitted or a mail sent from
+inside the transaction still went out when the transaction later rolls back.
+
+| Hook | When it runs | What it is for |
+|---|---|---|
+| `onBeforeCommit(fn)` | Inside the still-open transaction, just before commit — a throw aborts and rolls back | Last-moment invariant checks, and statements that must land in the same commit |
+| `onAfterCommit(fn)` | After the root transaction commits, outside the transaction context; errors are logged, never thrown | Events, mail, cache invalidation — anything the outside world observes |
+| `onAfterRollback(fn)` | After the root transaction rolls back, before the causing error propagates; errors are logged, never thrown | Undoing external work that cannot roll itself back, such as an object already uploaded |
+
+All three import from `@spfn/core/db`, can be registered anywhere inside the transaction,
+and bubble to the **root** transaction — a nested block's callbacks fire on the outermost
+outcome, not on a savepoint's.
+
+```typescript
+import { runInTransaction, onAfterCommit } from '@spfn/core/db';
+
+export async function placeOrder(input: { userId: string; total: number })
+{
+    return runInTransaction(async () =>
+    {
+        const order = await orderRepo.place(input);   // no tx argument, at any depth
+        onAfterCommit(() => orderPlacedEvent.emit({ orderId: order.id }));
+
+        return order;
+    });
+}
+```
+
+---
+
+## What else can defineServerConfig configure?
+
+`.port()` and `.routes()` are the two every app calls. The rest of the builder is how an
+app wires its infrastructure without touching the server's boot sequence. Every method
+returns the builder; `.build()` ends the chain.
+
+| Method | What it configures |
+|---|---|
+| `.port(n)` / `.host(s)` | Where the server listens |
+| `.routes(router)` | The `defineRouter` router to mount, with its own `.use()` and `.packages()` |
+| `.jobs(router, config?)` | Background jobs — a `defineJobRouter`, plus pg-boss options |
+| `.events(router, config?)` | SSE streaming — a `defineEventRouter`, served at `GET /events/stream` |
+| `.websockets(router, config?)` | Bidirectional WebSockets — a `defineWSRouter`, served at `WS /ws` |
+| `.workflows(router, config?)` | `@spfn/workflow` orchestration; the engine starts once the database is ready |
+| `.lifecycle(hooks)` | Boot and shutdown hooks. Callable more than once; hooks run in registration order |
+| `.migrations(opts)` | The migration boot gate — `{ allowPending: true }` lets a server start behind its migrations |
+| `.database(opts)` | Connection and pool settings |
+| `.infrastructure(opts)` | Which infrastructure is initialized at boot |
+| `.healthCheck(opts)` | The health endpoint |
+| `.serverTime(clock)` | The clock behind `GET /_core/time`; normally left at the default |
+| `.middleware(opts)` | The built-in middleware — `ErrorHandler`, `RequestLogger` |
+| `.use(handlers)` | Additional global Hono middleware |
+| `.middlewares(named)` | Global middleware under names, so a route can `.skip([...])` it |
+| `.cors(opts)` | CORS |
+| `.rateLimit(opts)` | A global default limiter plus the named policies routes resolve against |
+| `.proxyGuard(opts)` | Trusted-proxy signature and origin verification, resolved to a `clientType` |
+| `.outboundFetch(opts)` | The SSRF policy `safeFetch` applies to outbound calls |
+| `.timeout(opts)` / `.shutdown(opts)` | Request timeouts and graceful shutdown |
+| `.debug(bool)` | Debug logging |
+
+The options each one takes are in [src/server](./src/server/README.md).
 
 ---
 
@@ -196,7 +320,9 @@ const made = await api.createUser.call({ body: { name: 'A' } });
 
 There is **no root barrel**: `import … from '@spfn/core'` does not resolve. Every symbol
 comes from a subpath, and the table below is the complete public surface — one row per
-entry in `package.json` `exports`. Each module has its own README with the API detail.
+entry in `package.json` `exports`, with a single exclusion: `./client` is still listed in
+`exports` but the build no longer emits it, so it has no row (see [Pitfalls](#pitfalls)).
+Each module has its own README with the API detail.
 
 | Import path | Purpose | Doc |
 |-------------|---------|-----|
@@ -217,6 +343,7 @@ entry in `package.json` `exports`. Each module has its own README with the API d
 | `@spfn/core/env` | Schema-based environment validation, isomorphic. | [src/env](./src/env/README.md) |
 | `@spfn/core/env/loader` | The **server-only** `.env` file loader (uses `node:fs`). | [src/env](./src/env/README.md) |
 | `@spfn/core/config` | `@spfn/core`'s own validated env config (`env`, `envSchema`, `registry`), built on `@spfn/core/env`. | [src/config](./src/config/README.md) |
+| `@spfn/core/app-config` | Reads `spfn.config.js` — the one committed place that says which ports and host the app is served on (`loadAppConfig`, `resolvePorts`, `resolveHost`, `PORT_DEFAULTS`). Deliberately side-effect free, so the CLI can import it before an app's environment exists. | [src/app-config/index.ts](https://github.com/fxylabs/spfn/blob/main/packages/core/src/app-config/index.ts) |
 | `@spfn/core/logger` | Structured singleton `logger` with child loggers and level masking. No dependencies. | [src/logger](./src/logger/README.md) |
 | `@spfn/core/cache` | Valkey/Redis singleton over ioredis (`getCache`, `getCacheRead`). Degrades to disabled rather than throwing. | [src/cache](./src/cache/README.md) |
 | `@spfn/core/job` | Background jobs on pg-boss: a fluent `job()` builder, cron, run-once, event-driven, `defineJobRouter`. | [src/job](./src/job/README.md) |
@@ -227,6 +354,7 @@ entry in `package.json` `exports`. Each module has its own README with the API d
 | `@spfn/core/event/ws/client` | Browser WebSocket client. | [src/event](./src/event/README.md) |
 | `@spfn/core/codegen` | The codegen orchestrator and the built-in generators: `@spfn/core:route-map` for the proxy's route map, `@spfn/core:contract` for the client contract. | [src/codegen](./src/codegen/README.md) |
 | `@spfn/core/contract` | Route contracts for clients that ship separately: collect, snapshot, and the build gate that refuses a breaking change. | [src/contract](./src/contract/README.md) |
+| `@spfn/core/ops` | The operations surface `spfn ops` drives: `opsRoute`, `createOpsRouter`, `defineOpsModule`, and the manifest the CLI discovers commands from. Structure only — the router is always authenticated, and token verification lives in `@spfn/auth`. | [How do I operate the app from the terminal?](#how-do-i-operate-the-app-from-the-terminal) |
 
 `db/manager`, `db/schema` and `db/transaction` are **not** package subpaths of their own.
 They are internal modules re-exported by `@spfn/core/db` — import their symbols from

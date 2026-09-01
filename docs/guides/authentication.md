@@ -719,14 +719,16 @@ export default function OAuthCallbackPage()
 | `/_auth/oauth/start` | POST | Get OAuth URL (API mode) |
 | `/_auth/oauth/providers` | GET | List enabled providers |
 | `/_auth/oauth/finalize` | POST | Finalize OAuth session |
-| `/_auth/oauth/:provider/unlink-notify` | GET/POST | Provider발 연동 해제 웹훅 수신 (카카오 연결 해제 웹훅 · 네이버 연결끊기 Callback URL 등록용, 서명 검증 후 소셜 연결·저장 토큰 삭제) |
+| `/_auth/oauth/:provider/unlink-notify` | GET/POST | Receives a provider-initiated unlink webhook — register it as Kakao's unlink webhook or Naver's disconnect callback URL. Once the signature verifies, the social link and its stored tokens are deleted |
 
 Hono matches literal segments before `:provider`, so `/google` and `/providers` are taken by
 their own routes and every other provider id falls through to the generic handlers.
 
 ### Custom Providers (Pluggable)
 
-OAuth provider 분기는 registry 기반이라 내장 provider 외의 provider를 런타임에 끼울 수 있습니다. 내장 `google`·`kakao`·`naver`·`github`·`apple`은 자기 등록되고, 외부 패키지는 `registerOAuthProvider()`로 등록합니다.
+Provider dispatch runs off a registry, so a provider outside the built-in set can be plugged in at
+runtime. The built-in `google`, `kakao`, `naver`, `github` and `apple` register themselves; an
+external package registers with `registerOAuthProvider()`.
 
 ```typescript
 import { registerOAuthProvider, type OAuthProvider } from '@spfn/auth/server';
@@ -742,9 +744,14 @@ const myProvider: OAuthProvider = {
 registerOAuthProvider(myProvider);
 ```
 
-등록 후 `POST /_auth/oauth/start`, `GET /_auth/oauth/:provider`, `GET /_auth/oauth/:provider/callback`이 해당 provider를 자동 처리합니다 — 콜백 route를 따로 만들 필요는 없습니다 (제네릭 콜백이 이미 `Transactional()`로 감싸여 있어 중간 실패 시 orphan user가 남지 않습니다). provider id는 `SOCIAL_PROVIDERS` enum(`google`·`apple`·`github`·`kakao`·`naver`·`superself`)에 포함되어야 합니다.
+Once it is registered, `POST /_auth/oauth/start`, `GET /_auth/oauth/:provider` and
+`GET /_auth/oauth/:provider/callback` handle that provider automatically — you do not write a
+callback route of your own. The generic callback is already wrapped in `Transactional()`, so a
+failure part-way through leaves no orphan user behind. The provider id has to be a member of the
+`SOCIAL_PROVIDERS` enum (`google`, `apple`, `github`, `kakao`, `naver`, `superself`).
 
-> 인터페이스(`OAuthProvider` / `NormalizedIdentity` / `OAuthTokens`) 전체 명세는 [`@spfn/auth` README의 Custom OAuth Providers](../../packages/auth/README.md#custom-oauth-providers-pluggable) 참고.
+> The full interface specification (`OAuthProvider` / `NormalizedIdentity` / `OAuthTokens`) is under
+> [Custom providers in the `@spfn/auth` README](../../packages/auth/README.md#custom-providers).
 
 ---
 
@@ -990,7 +997,7 @@ instead, bind it with `.on(event)` from `@spfn/core/job`.
 | `authDeletionRequestedEvent` | `{ userId, userPublicId, purgeScheduledAt, requestedBy }` |
 | `authDeletionCancelledEvent` | `{ userId, userPublicId }` |
 | `authDeletionCompletedEvent` | `{ userPublicId, purgeStrategy }` — carries no PII, not even `userId` |
-| `oauthUnlinkedEvent` | `{ userId, provider, providerUserId, reason? }` — provider 쪽에서 연동을 끊어 소셜 연결이 삭제된 직후. 계정 탈퇴 연계 등 후속 정책은 이 이벤트를 구독해 처리 |
+| `oauthUnlinkedEvent` | `{ userId, provider, providerUserId, reason? }` — fires just after a social link is deleted because the provider unlinked it. Subscribe to it for follow-up policy, such as cascading into account deletion |
 
 ### Rejecting a Registration (`beforeRegister`)
 
