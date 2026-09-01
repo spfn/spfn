@@ -4,6 +4,7 @@
 
 export * from './authenticate';
 export {
+    registerAuthProfile,
     selectAuthProfile,
     runAuthProfile,
     resolveAuthenticatedUser,

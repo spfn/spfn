@@ -1178,6 +1178,67 @@ app.post('/v1/echo', createClientProofGuard(state), (c) => { /* handler */ });
 Responses and errors MUST be canonical bytes with the contract envelope — build them with
 `encodeCanonicalJson`/`ClientProofRefusal`, never `c.json()` (key order and int64 differ).
 
+## Custom auth profiles (`registerAuthProfile`)
+
+`clientProofV1` is not a special case in the middleware — it is one entry in a registry
+`authenticate` and `optionalAuth` dispatch on. An app registers its own scheme the same way,
+without forking the middleware or wrapping it:
+
+```typescript
+import { registerAuthProfile, type AuthContext } from '@spfn/auth/server';
+import { UnauthorizedError } from '@spfn/core/errors';
+
+// At boot — server.config.ts, before the server starts taking requests.
+registerAuthProfile('serviceTokenV1', {
+    verify: async (c): Promise<AuthContext> =>
+    {
+        const user = await findServiceAccount(c.req.header('x-acme-service-token'));
+        if (user === null)
+        {
+            // A refusal leaves the verifier as a throw. It reaches the app's
+            // error handler exactly as the Bearer path's does.
+            throw new UnauthorizedError({ message: 'Invalid service token' });
+        }
+
+        return {
+            user,
+            userId: String(user.id),
+            keyId: 'service-token',
+            role: null,
+            locale: 'en',
+            scheme: 'serviceTokenV1',
+        };
+    },
+});
+```
+
+A request naming the profile is then answered by that verifier:
+
+```http
+POST /v1/reports
+x-spfn-auth-profile: serviceTokenV1
+x-acme-service-token: <the app's own credential>
+```
+
+- **Register at boot, before the first request.** The registry is read on every dispatch, so a
+  profile registered later is simply a profile the requests before it did not have. Registration
+  is not frozen after startup — it is a contract, not a runtime check.
+- **A duplicate name throws**, `clientProofV1` included. Replacing a registered verifier silently
+  is how an import order or a copied profile name swaps the code that decides who is admitted, so
+  there is no override — and no unregistration API for the same reason.
+- **An unknown profile is still refused** (`PROFILE_REJECTED`, 400): registering one name does not
+  open the header to others.
+- **Mixing is still refused.** A request carrying both `x-spfn-auth-profile` and `Authorization` is
+  rejected before either path runs; a custom verifier never sees it.
+- **A verifier's throw propagates**, and only the internal clientProofV1 contract refusal is
+  answered with the canonical envelope. Under `optionalAuth` too: credentials that were presented
+  and refused are never downgraded to anonymous passage — only "presented nothing" continues
+  without an auth context.
+- **`AuthContext.scheme` is an open union** — `'bearer' | 'clientProofV1' | 'oneTimeToken' | (string
+  & {})`. The built-in names keep their autocomplete and a registered profile names its own scheme.
+  The field stays informational: downstream permission and tenant code takes one principal shape and
+  never branches on how it was produced.
+
 ## Account Deletion & Recovery
 
 Grace-period deletion with in-window recovery, an admin/GDPR-response entry point for immediate

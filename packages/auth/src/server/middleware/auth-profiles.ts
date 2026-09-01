@@ -10,6 +10,11 @@
  * downstream permission/tenant code consumes one principal shape and never
  * branches on how it was authenticated.
  *
+ * An app adds its own scheme with `registerAuthProfile` at boot. The dispatch
+ * it joins is the one below, unchanged: a name nobody registered is still
+ * refused, and profile credentials mixed with an Authorization header are
+ * still refused before either path runs.
+ *
  * The clientProofV1 verifier reuses the phase-1 admission pieces (header
  * shape, canonical body, proof-input assembly, ECDSA verification) with two
  * production substitutions: the key directory is `user_public_keys` via
@@ -72,8 +77,13 @@ export interface AuthContext
     role: string | null;
     locale: string;
 
-    /** How the principal was authenticated. Informational — downstream code never branches on it. */
-    scheme: 'bearer' | 'clientProofV1' | 'oneTimeToken';
+    /**
+     * How the principal was authenticated. Informational — downstream code
+     * never branches on it. The union stays open for the profiles an app
+     * registers itself: the built-in names keep their autocomplete, and a
+     * registered profile names its own scheme without editing this file.
+     */
+    scheme: 'bearer' | 'clientProofV1' | 'oneTimeToken' | (string & {});
 }
 
 /** A profile's verifier: admits the request and returns the principal, or throws. */
@@ -434,6 +444,56 @@ function verifyProofOrThrow(
 }
 
 /** profile name → verifier. Registration is the only way to add a scheme. */
-const AUTH_PROFILE_VERIFIERS: ReadonlyMap<string, AuthProfileVerifier> = new Map([
+const AUTH_PROFILE_VERIFIERS: Map<string, AuthProfileVerifier> = new Map([
     [CLIENT_PROOF_PROFILE, { verify: verifyClientProofProfile }],
 ]);
+
+/**
+ * Registers an app's own verifier under a profile name.
+ *
+ * Call it at boot, before the first request: the registry is a module-global
+ * read on every dispatch, so a profile registered later is simply a profile
+ * the requests before it did not have. There is no freeze and no
+ * unregistration — an auth surface that can be rearranged at runtime is a
+ * surface an app bug can rearrange.
+ *
+ * A duplicate name throws rather than replacing the verifier that holds it,
+ * `clientProofV1` included. A silent override is how a second import order, or
+ * a copied profile name, quietly swaps the code that decides who is admitted.
+ *
+ * The verifier returns the same `AuthContext` the Bearer path sets and refuses
+ * by throwing. A throw is not caught here: `runAuthProfile` answers the
+ * internal clientProofV1 contract refusal and nothing else, so a verifier's own
+ * error reaches the app's generic error handler exactly as the Bearer path's
+ * `UnauthorizedError` does — and never becomes anonymous passage, not even
+ * under `optionalAuth`.
+ *
+ * @example
+ * ```typescript
+ * registerAuthProfile('serviceTokenV1', {
+ *     verify: async (c) =>
+ *     {
+ *         const user = await authenticateServiceToken(c.req.header('x-acme-service-token'));
+ *         if (user === null)
+ *         {
+ *             throw new UnauthorizedError({ message: 'Invalid service token' });
+ *         }
+ *
+ *         return { user, userId: String(user.id), keyId: 'service', role: null, locale: 'en', scheme: 'serviceTokenV1' };
+ *     },
+ * });
+ * ```
+ */
+export function registerAuthProfile(profileId: string, verifier: AuthProfileVerifier): void
+{
+    if (typeof profileId !== 'string' || profileId.length === 0)
+    {
+        throw new Error('registerAuthProfile: profileId must be a non-empty string');
+    }
+    if (AUTH_PROFILE_VERIFIERS.has(profileId))
+    {
+        throw new Error(`registerAuthProfile: auth profile '${profileId}' is already registered`);
+    }
+
+    AUTH_PROFILE_VERIFIERS.set(profileId, verifier);
+}
