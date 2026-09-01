@@ -17,6 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const {
     usersRepository,
     keysRepository,
+    deviceAuthorizationsRepository,
     socialAccountsRepository,
     userProfilesRepository,
     verificationCodesRepository,
@@ -37,6 +38,9 @@ const {
     keysRepository: {
         revokeAllActiveByUserId: vi.fn(async () => []),
         deleteAllByUserId: vi.fn(async () => 0),
+    },
+    deviceAuthorizationsRepository: {
+        denyAllActiveByUserId: vi.fn(async () => []),
     },
     socialAccountsRepository: {
         deleteAllByUserId: vi.fn(async () => 0),
@@ -65,6 +69,7 @@ const {
 vi.mock('../../server/repositories', () => ({
     usersRepository,
     keysRepository,
+    deviceAuthorizationsRepository,
     socialAccountsRepository,
     userProfilesRepository,
     verificationCodesRepository,
@@ -154,6 +159,14 @@ describe('account-deletion.service', () =>
                 expect.objectContaining({ userId: user.id, userPublicId: user.publicId, status: 'pending' }),
             );
             expect(keysRepository.revokeAllActiveByUserId).toHaveBeenCalledWith(user.id, expect.any(String));
+
+            // Device-code requests in flight go with them. One that was already
+            // approved outlives the key revocation, and the poll that collects it
+            // registers a key created after this point — so cancelling the
+            // deletion later would restore an account holding a signing
+            // credential the deletion path never saw.
+            expect(deviceAuthorizationsRepository.denyAllActiveByUserId).toHaveBeenCalledWith(user.id);
+
             expect(result.requestId).toBe(99);
 
             // Default grace period is 30 days.

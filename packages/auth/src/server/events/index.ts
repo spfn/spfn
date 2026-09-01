@@ -23,11 +23,31 @@ export const AuthProviderSchema = Type.Union([
 ]);
 
 /**
+ * Login provider type
+ *
+ * AuthProviderSchema + `'device'`, which is how a device-code login names itself:
+ * the account was proven on another device that was already signed in, so no
+ * credential was presented here and none of the values above describes it.
+ *
+ * A separate union rather than a widened AuthProviderSchema. `'device'` is not a
+ * way to register — a device-code request can only ever be approved by an
+ * existing account — and it is not something a provider can unlink, so the two
+ * events that mean those things must not start accepting it.
+ */
+export const AuthLoginProviderSchema = Type.Union([
+    Type.Literal('email'),
+    Type.Literal('phone'),
+    Type.Literal('device'),
+    ...SOCIAL_PROVIDERS.map(p => Type.Literal(p)),
+]);
+
+/**
  * auth.login - 로그인 성공 이벤트
  *
  * 발행 시점:
  * - 이메일/전화 로그인 성공 시
  * - OAuth 기존 사용자 로그인 시
+ * - 기기 코드 승인이 소비되어 새 기기 키가 등록될 때 (provider: 'device')
  *
  * @example
  * ```typescript
@@ -40,7 +60,7 @@ export const authLoginEvent = defineEvent(
     'auth.login',
     Type.Object({
         userId: Type.String(),
-        provider: AuthProviderSchema,
+        provider: AuthLoginProviderSchema,
         email: Type.Optional(Type.String()),
         phone: Type.Optional(Type.String()),
     }),

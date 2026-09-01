@@ -283,6 +283,92 @@ export class KeyNotFoundError extends NotFoundError
 }
 
 /**
+ * Device Auth Not Found Error (404)
+ *
+ * Thrown when a device-code operation names a code the server cannot act on: one
+ * that was never issued, and one whose record has already been consumed.
+ *
+ * Those two are answered identically on purpose. A consumed record is a login
+ * that finished, and saying so would tell whoever holds the code that it was
+ * real — which is the difference between guessing at random and knowing a guess
+ * landed. Every route that accepts a code is rate limited for the same reason.
+ */
+export class DeviceAuthNotFoundError extends NotFoundError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({ message: data.message || 'Device authorization not found', details: data.details });
+        this.name = 'DeviceAuthNotFoundError';
+    }
+}
+
+/**
+ * Device Auth Expired Error (400)
+ *
+ * Thrown when a device-code operation names a record whose TTL has run out,
+ * whatever state it is in. The waiting device starts again; the approver is told
+ * the code on the other screen is stale.
+ *
+ * 400 rather than 401: on the approve and deny routes the caller's own session is
+ * fine, and answering 401 would send a signed-in user to a login screen over a
+ * code that simply sat too long.
+ */
+export class DeviceAuthExpiredError extends ValidationError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'This device code has expired. Start again on the other device.',
+            details: data.details,
+        });
+        this.name = 'DeviceAuthExpiredError';
+    }
+}
+
+/**
+ * Device Auth Already Handled Error (409)
+ *
+ * Thrown when an approve, deny or info call names a record that has already been
+ * approved or denied. A decision on a device is made once — a second approval
+ * would let one code be answered twice, and re-approving a record the owner
+ * denied would undo the refusal.
+ *
+ * This is also what the loser of two concurrent approvals sees, since the
+ * transition names the state it moves from and only one call can match it.
+ */
+export class DeviceAuthAlreadyHandledError extends ConflictError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'This device request has already been answered',
+            details: data.details,
+        });
+        this.name = 'DeviceAuthAlreadyHandledError';
+    }
+}
+
+/**
+ * Device Auth Denied Error (403)
+ *
+ * Thrown when the waiting device polls a record its owner refused. Distinct from
+ * a pending answer, and distinct from a code that does not exist: the device
+ * asked a person and the person said no, so it should stop polling and say so
+ * rather than time out looking like a network fault.
+ */
+export class DeviceAuthDeniedError extends ForbiddenError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'This device request was denied',
+            details: data.details,
+        });
+        this.name = 'DeviceAuthDeniedError';
+    }
+}
+
+/**
  * Nonce Key Binding Error (400)
  *
  * Thrown when a native id_token sign-in submits a nonce that is not the public

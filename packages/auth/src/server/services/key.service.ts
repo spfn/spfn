@@ -8,7 +8,7 @@ import { type KeyAlgorithmType, type KeyPlatformType } from '../types';
 import { verifyKeyFingerprint } from '../helpers/jwt';
 import { KEY_TTL_DAYS } from '../lib/key-policy';
 import { InvalidKeyFingerprintError, KeyIdAlreadyRegisteredError } from '@spfn/auth/errors';
-import { keysRepository } from '../repositories';
+import { deviceAuthorizationsRepository, keysRepository } from '../repositories';
 
 export interface RegisterPublicKeyParams
 {
@@ -288,6 +288,16 @@ export async function listKeysService(params: ListKeysParams): Promise<KeySummar
  * does not also end the session making the request. Passing
  * `includeCurrent: true` is the full sign-out, which until now was reachable
  * only as a side effect of changing a password.
+ *
+ * Live device authorizations are refused as well, in both modes. A device
+ * waiting on an approved code has no key yet, so it is never the caller's own
+ * device and never the one being spared — but its next poll would register a
+ * brand-new active key, which would undo the revocation seconds after it ran.
+ * That is the whole point of the call: the user has decided nothing else is to
+ * stay signed in.
+ *
+ * `revokedCount` counts keys only, since that is the number the caller's screen
+ * means by "devices signed out"; a code nobody had collected was never a session.
  */
 export async function revokeAllKeysService(
     params: RevokeAllKeysParams,
@@ -298,6 +308,8 @@ export async function revokeAllKeysService(
     const revoked = includeCurrent
         ? await keysRepository.revokeAllActiveByUserId(userId, reason)
         : await keysRepository.revokeAllActiveByUserIdExcept(userId, currentKeyId, reason);
+
+    await deviceAuthorizationsRepository.denyAllActiveByUserId(userId);
 
     return { revokedCount: revoked.length, currentKeyRevoked: includeCurrent };
 }

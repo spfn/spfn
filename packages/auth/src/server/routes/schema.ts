@@ -41,6 +41,82 @@ export const PlatformSchema = Type.Union(
     { description: 'Platform the key lives on' },
 );
 
+/**
+ * Key material as a device sends it, bounded.
+ *
+ * The bounds exist for the one route that takes this material from a caller who
+ * has not authenticated and cannot: `POST /_auth/device/start` persists what it
+ * is given, and a correctly fingerprinted megabyte of base64 would sit in
+ * `device_authorizations` until something swept it — and nothing sweeps it.
+ *
+ * The numbers are what real key material measures, with room to spare. The
+ * package's own generators produce SPKI DER in base64: 124 characters for
+ * ES256 (P-256), 392 for RS256 (RSA-2048). An RSA-4096 key would be 736, an
+ * RSA-8192 key about 1400, and the same 4096-bit key PEM-armoured about 800 —
+ * so 2048 admits every shape of key anyone could reasonably present, while a
+ * megabyte is refused three orders of magnitude before it reaches a row.
+ *
+ * `keyId` is a UUID (36) everywhere this package generates one; 64 leaves room
+ * for a client that prefixes or namespaces its own. `fingerprint` is SHA-256
+ * hex, exactly 64, and nothing else can ever verify against the public key —
+ * 128 is the length a longer digest would need, and no more.
+ */
+export const PublicKeySchema = Type.String({
+    maxLength: 2048,
+    description: 'Client public key, SPKI DER in base64',
+});
+
+export const KeyIdSchema = Type.String({
+    maxLength: 64,
+    description: 'Key identifier',
+});
+
+export const FingerprintSchema = Type.String({
+    maxLength: 128,
+    description: 'SHA-256 hex fingerprint of the public key',
+});
+
+/**
+ * The code a person reads off the waiting device and types on their own.
+ *
+ * Loose on purpose: 8 characters plus an optional dash is what is shown, but the
+ * server folds whitespace, dashes and lower case away before looking anything up,
+ * so refusing those spellings here would refuse a code that is on screen. The
+ * bounds exist to stop an unbounded string reaching the database, not to spell
+ * out the format — `USER_CODE_ALPHABET` is the only thing that can match a row.
+ */
+export const UserCodeSchema = Type.String({
+    minLength: 8,
+    maxLength: 16,
+    description: 'Device user code as displayed, e.g. WXYZ-2345. Dashes, spaces and case are ignored.',
+});
+
+/**
+ * What `POST /_auth/device/poll` answers with.
+ *
+ * A union, because the two answers are different kinds of thing rather than one
+ * shape with optional fields: pending says "ask again in this long", approved is
+ * a completed login carrying exactly what `/_auth/login` returns. `status` is the
+ * discriminant, so a generated client narrows on it instead of testing which
+ * fields happen to be present.
+ */
+export const DeviceAuthPollResponseSchema = Type.Union([
+    Type.Object({
+        status: Type.Literal('pending'),
+        intervalMillis: Type.Number({ description: 'Milliseconds to wait before polling again' }),
+    }),
+    Type.Object({
+        status: Type.Literal('approved'),
+        userId: Type.String(),
+        publicId: Type.String(),
+        email: Type.Optional(Type.String()),
+        phone: Type.Optional(Type.String()),
+        passwordChangeRequired: Type.Boolean(),
+    }),
+], {
+    description: 'Pending, or the login the approval produced',
+});
+
 export const PasswordSchema = Type.String({
     minLength: 8,
     maxLength: 72,

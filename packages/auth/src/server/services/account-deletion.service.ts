@@ -26,6 +26,7 @@ import {
 import {
     usersRepository,
     keysRepository,
+    deviceAuthorizationsRepository,
     socialAccountsRepository,
     userProfilesRepository,
     verificationCodesRepository,
@@ -302,6 +303,13 @@ export async function requestAccountDeletionService(
     }
 
     await keysRepository.revokeAllActiveByUserId(user.id, 'Account deletion requested');
+
+    // Device-code requests the user had in flight are refused in the same breath.
+    // An approved-but-uncollected one outlives the key revocation above, and the
+    // poll that collects it registers a key created *after* this revoke-all — so
+    // cancelling the deletion later would restore an account with a signing key
+    // nothing in the deletion path ever saw.
+    await deviceAuthorizationsRepository.denyAllActiveByUserId(user.id);
 
     // Deferred to after commit: event subscribers and the outbound email must not
     // observe (or be triggered by) a request that ultimately rolls back, and an

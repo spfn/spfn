@@ -15,7 +15,7 @@ import {
     VerificationTokenTargetMismatchError,
 } from '@spfn/auth/errors';
 
-import { usersRepository, keysRepository } from '../repositories';
+import { usersRepository, keysRepository, deviceAuthorizationsRepository } from '../repositories';
 import { runBeforeRegister } from '../lib/config';
 import { type KeyAlgorithmType, type KeyPlatformType } from '../types';
 import { hashPassword, verifyPassword, getDummyPasswordHash, normalizeEmail } from '../helpers';
@@ -383,6 +383,18 @@ export async function changePasswordService(
 
     // Update password and clear passwordChangeRequired flag
     await usersRepository.updatePassword(userId, newPasswordHash, true);
+
+    // The device-code requests still in flight are keys that have not been handed
+    // out yet: a poll on an approved one would register a fresh active key moments
+    // after the revocation below, defeating the "log me out everywhere" this call
+    // exists for.
+    //
+    // Refused first, and this route is the reason the order is worth a thought —
+    // it is the one revoke-all path with no surrounding transaction, so the two
+    // statements can be interrupted between. Losing the second leaves a device
+    // still signed in, which the user can see and revoke; losing them the other
+    // way round leaves a live approval that hands out a key nothing revoked.
+    await deviceAuthorizationsRepository.denyAllActiveByUserId(userId);
 
     // Revoke all existing sessions on password change (incident-response intent:
     // "change password" should log the user out everywhere). authenticate verifies

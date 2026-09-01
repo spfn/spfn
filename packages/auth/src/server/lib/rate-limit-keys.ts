@@ -15,6 +15,7 @@ import type { Context } from 'hono';
 import { createHash } from 'node:crypto';
 import { getClientIp, type RateLimitDimension } from '@spfn/core/middleware';
 import { normalizeEmail } from '../helpers/email';
+import { getOptionalAuth } from '../helpers/context';
 
 interface KeyOptions
 {
@@ -78,6 +79,33 @@ export function byIpAndAccount(options: KeyOptions = {})
         return [
             { key: `ip:${getClientIp(c)}`, limit: options.ipLimit },
             account ? `acct:${account}` : undefined,
+        ];
+    };
+}
+
+/**
+ * Limit by client IP (loose) AND the authenticated caller (tight, uses the policy
+ * limit). Use on routes whose body names no account because the account is the
+ * session — device-code approval among them, where the only identifier in the
+ * body is a short code the caller is trying values for.
+ *
+ * `byIpAndAccount` is the wrong helper there: it reads `body.email`/`body.phone`,
+ * finds neither, and silently degrades to an IP-only limit that an attacker with
+ * one signed-in account defeats by rotating addresses.
+ *
+ * Server-level middleware runs before route-level middleware, so the principal is
+ * already on the context. If it somehow is not, this degrades to IP-only rather
+ * than throwing — a rate limiter that 500s is worse than a loose one.
+ */
+export function byIpAndCaller(options: KeyOptions = {})
+{
+    return async (c: Context): Promise<(RateLimitDimension | undefined)[]> =>
+    {
+        const auth = getOptionalAuth(c);
+
+        return [
+            { key: `ip:${getClientIp(c)}`, limit: options.ipLimit },
+            auth ? `caller:${auth.userId}` : undefined,
         ];
     };
 }

@@ -13,6 +13,7 @@ import { authLogger } from './logger';
 import { initializeAuth, normalizeStoredEmails } from './services';
 import { initOneTimeTokenManager } from './lib/one-time-token';
 import { configureDeletion } from './lib/deletion-config';
+import { configureDeviceAuth } from './lib/device-auth-config';
 
 /**
  * Auth lifecycle configuration
@@ -202,6 +203,37 @@ export interface AuthLifecycleOptions extends AuthInitOptions
          */
         onBeforePurge?: (user: AccountDeletionPurgeUser) => Promise<void>;
     };
+
+    /**
+     * Device-code login configuration
+     *
+     * Controls the codes handed out by `POST /_auth/device/start` and obeyed by
+     * `POST /_auth/device/poll`. Both values are announced to the waiting device
+     * in the start response, so they are resolved here rather than read per call.
+     *
+     * @example
+     * ```typescript
+     * createAuthLifecycle({
+     *     deviceAuth: {
+     *         ttlMs: 5 * 60 * 1000,   // a code lives 5 minutes
+     *         intervalMs: 3000,       // poll every 3 seconds
+     *     },
+     * })
+     * ```
+     */
+    deviceAuth?: {
+        /**
+         * How long a device code stays usable, in milliseconds.
+         * @default 600000 (10 minutes)
+         */
+        ttlMs?: number;
+
+        /**
+         * Poll interval the server asks the waiting device to keep, in milliseconds.
+         * @default 5000
+         */
+        intervalMs?: number;
+    };
 }
 
 export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLifecycleConfig
@@ -212,6 +244,11 @@ export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLif
     // constructor returns (same builder chain), and it needs the resolved config
     // immediately. See lib/deletion-config.ts for the full ordering rationale.
     configureDeletion(options.deletion);
+
+    // Same reason, one step simpler: nothing but request handlers read this, and
+    // they all run later — but resolving it here keeps every knob set in one place
+    // and rules out a first request that is served under the defaults.
+    configureDeviceAuth(options.deviceAuth);
 
     return {
         /**

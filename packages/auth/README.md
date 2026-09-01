@@ -184,6 +184,11 @@ routes use `.skip(['auth'])`; the rest require `Authorization: Bearer <client-si
 | `confirmSignupLink` | POST `/_auth/signup/email/confirm` | public | exchange the link for a password-setup session |
 | `completeSignup` | POST `/_auth/signup/password` | setup session | set the password, which creates the account and signs in |
 | `login` | POST `/_auth/login` | public | password login + new session key |
+| `startDeviceAuth` | POST `/_auth/device/start` | public | begin a device-code login — see [Device-code login](#device-code-login) |
+| `pollDeviceAuth` | POST `/_auth/device/poll` | public | ask whether the request was answered; the approved answer *is* the login |
+| `getDeviceAuthInfo` | POST `/_auth/device/info` | yes | what device is asking, so the approval screen can show it |
+| `approveDeviceAuth` | POST `/_auth/device/approve` | yes | let the waiting device in |
+| `denyDeviceAuth` | POST `/_auth/device/deny` | yes | refuse it |
 | `logout` | POST `/_auth/logout` | yes | revoke current key |
 | `rotateKey` | POST `/_auth/keys/rotate` | yes | rotate public key before 90-day expiry |
 | `listKeys` | POST `/_auth/keys/list` | yes | the caller's registered devices — see [Registered devices](#registered-devices-key-management) |
@@ -287,6 +292,100 @@ override it there to change the copy.
 `spfn_auth.signup_link_tokens`. Neither credential is recoverable from the database, and
 both are one-time: a link opens one setup session, and a setup session sets one password.
 
+### Device-code login
+
+A way in for a device that has a screen but no comfortable keyboard — a TV, a console, a CLI
+on a headless box. The new device shows a short code; the account owner types that code on a
+device that is already signed in.
+
+```typescript
+// On the new device — it has no key on file, so this call is public.
+const { deviceCode, userCode, expiresAtMillis, intervalMillis } =
+    await authApi.startDeviceAuth.call({ body: {
+        publicKey, keyId, fingerprint, algorithm: 'ES256',
+        deviceName: 'Living room TV', platform: 'desktop',
+    } });
+
+// Show `userCode` (XXXX-XXXX) on this device's screen, then poll every intervalMillis.
+const answer = await authApi.pollDeviceAuth.call({ body: { deviceCode } });
+// → { status: 'pending', intervalMillis }
+// → { status: 'approved', userId, publicId, email?, phone?, passwordChangeRequired }
+```
+
+```typescript
+// On the signed-in device — the user typed the code they read off the other screen.
+const asking = await authApi.getDeviceAuthInfo.call({ body: { userCode } });
+// → { deviceName?, platform?, fingerprintPrefix, requestedAtMillis, expiresAtMillis }
+
+await authApi.approveDeviceAuth.call({ body: { userCode } });   // or denyDeviceAuth
+```
+
+**There is no token handed over, because there is no token.** Every request in this system is
+signed by the calling device's own key, so "logging a device in" means getting its public key
+into `user_public_keys` under the right account — which is exactly what the winning poll does.
+That is why the approved answer is the same shape `login` returns: from the client's side the
+two ways in are indistinguishable.
+
+- **Only ever show the code on the new device's screen.** The whole attack on this flow is
+  someone sending a victim a code and asking them to approve it — a support call, a chat
+  message, a "verify your account" email. A code that arrived any way other than off the
+  device in front of you is an attack. This is why `info` and `approve` answer with the
+  requesting device's name, platform and fingerprint prefix, and why an approval screen that
+  shows only the code is doing it wrong: it is asking the user to confirm a number they were
+  just told.
+- **The device code is stored only as a SHA-256 hash**, like the ops-token and signup-link
+  secrets. It is returned once. A dump of `spfn_auth.device_authorizations` does not let its
+  reader finish anyone's login.
+- **The user code is stored in the clear, and that is fine** — it authorizes nothing without
+  an approver who is already signed in. It is drawn from an alphabet with no `0`/`O` or
+  `1`/`I`/`L`, since it is read off one screen and typed on another.
+- **A decision is made once.** Approve and deny move the record from `pending` and nowhere
+  else, so a second approval, a deny after an approve, or two approvals racing each other all
+  get `DeviceAuthAlreadyHandledError` (409) — a refusal is never undone.
+- **The approval is one-shot.** The poll that registers the key spends the record in the same
+  statement that reads it, so of two polls arriving together exactly one registers the key and
+  the other is answered as if the code were unknown.
+- **A spent code and a code that never existed answer identically** (`DeviceAuthNotFoundError`,
+  404). Saying "that one was real, but it is used up" is the difference between guessing at
+  random and knowing a guess landed. Every route that accepts a code is rate limited for the
+  same reason: `start` and `poll` per IP, `info` / `approve` / `deny` per IP *and* per calling
+  account.
+- **Expiry outranks state.** A code that sat past its TTL is expired whatever it says, so an
+  approval nobody collected in time registers nothing. The TTL travels in the statement that
+  moves the record, not only in the read before it, so a code cannot be spent by a poll that
+  read it a moment before it died.
+- **A global revocation reaches the codes too.** `revoke-all`, a password change and a
+  deletion request each refuse the account's live device authorizations, so an approval nobody
+  collected cannot register a fresh key seconds after the user signed everything out — which
+  would hand one back to exactly the device they were cutting off. Revoking a single key,
+  logging out and rotating a key do not: those name one device, and the waiting one is not it.
+- **The poll re-checks the account.** It is a login, so it refuses a suspended or
+  pending-deletion account with the same errors `/_auth/login` does. Approval and collection
+  are separate moments, and what the account is when the key is registered is what counts.
+- **`start` bounds what it stores.** It is the one route that takes key material from a caller
+  who cannot authenticate, so `publicKey`, `keyId` and `fingerprint` carry length limits —
+  generous next to a real key (an RSA-2048 SPKI is 392 base64 characters against a 2048 limit)
+  and small next to the megabyte that would otherwise sit in a table no job clears.
+- **Clock skew cannot affect this.** Every timestamp in the decision is the server's. The
+  `expiresAtMillis` in the start response is for the waiting device's countdown display, and
+  nothing the client believes about the time reaches the server's judgement.
+
+Two knobs, both announced to the waiting device in the start response and therefore resolved
+at lifecycle time rather than read per call:
+
+```typescript
+createAuthLifecycle({
+    deviceAuth: {
+        ttlMs: 10 * 60 * 1000,   // how long a code lives. default 10 minutes
+        intervalMs: 5000,        // poll interval the server asks for. default 5s
+    },
+})
+```
+
+No job sweeps the table. Rows are judged by `expiresAt` whenever they are read or moved, so a
+stale row authorizes nothing; it only keeps its user code out of circulation, and 31⁸ codes do
+not run out.
+
 ### Registered devices (key management)
 
 Keys are per-device, so a login never revokes the previous key and they accumulate on purpose.
@@ -337,6 +436,10 @@ await authApi.revokeAllKeys.call({ body: { includeCurrent: true } });   // every
 - **`revokeAllKeys` spares the calling device unless you ask otherwise**, so the common case is
   "sign out my other devices". `includeCurrent: true` is the full sign-out — until now reachable
   only as a side effect of changing a password, which nobody does for that reason.
+- **It also refuses device-code approvals still in flight**, in both modes, because an approved
+  code is a key that has not been handed out yet: the next poll would register a fresh active one
+  and undo the sign-out. `revokedCount` still counts keys only — a code nobody collected was
+  never a session. See [Device-code login](#device-code-login).
 - **A key id you do not own answers 404** (`KeyNotFoundError`). Every lookup is scoped by user, so
   the answer is only ever "not yours" and reveals nothing about other accounts.
 - **Revocation takes effect immediately.** `authenticate` reads the key from the database on every
@@ -870,6 +973,12 @@ authRegisterEvent.subscribe(async ({ userId, email, provider, metadata }) =>
     if (email) await sendWelcome(email);
 });
 ```
+
+`authLoginEvent`'s `provider` is `'email'`, `'phone'`, a social provider, or `'device'` — the
+last one being a [device-code login](#device-code-login), where the account was proven on
+another device that was already signed in and no credential was presented here.
+`authRegisterEvent` does not accept `'device'`: a device-code request can only ever be
+approved by an account that already exists, so it is never a signup.
 
 Payload types: `AuthLoginPayload`, `AuthRegisterPayload`, `InvitationCreatedPayload`,
 `InvitationAcceptedPayload`, `AuthDeletionRequestedPayload`, `AuthDeletionCancelledPayload`,

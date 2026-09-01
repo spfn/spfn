@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 
-const { keysRepository } = vi.hoisted(() => ({
+const { keysRepository, deviceAuthorizationsRepository } = vi.hoisted(() => ({
     keysRepository: {
         listForUser: vi.fn(),
         revokeByKeyIdAndUserId: vi.fn(),
@@ -19,9 +19,12 @@ const { keysRepository } = vi.hoisted(() => ({
         findByKeyId: vi.fn(),
         create: vi.fn(),
     },
+    deviceAuthorizationsRepository: {
+        denyAllActiveByUserId: vi.fn(async () => []),
+    },
 }));
 
-vi.mock('../../server/repositories', () => ({ keysRepository }));
+vi.mock('../../server/repositories', () => ({ keysRepository, deviceAuthorizationsRepository }));
 
 import {
     listKeysService,
@@ -260,6 +263,42 @@ describe('revoking every key', () =>
         });
 
         expect(result.revokedCount).toBe(0);
+    });
+
+    it('refuses live device authorizations too, in both modes', async () =>
+    {
+        // An approved-but-uncollected device code is a key that has not been
+        // handed out yet. Leaving it live means the next poll registers a fresh
+        // active key and undoes the sign-out the user just asked for — and the
+        // waiting device is never the "current" one being spared, since it has no
+        // key at all.
+        keysRepository.revokeAllActiveByUserIdExcept.mockResolvedValue([]);
+        keysRepository.revokeAllActiveByUserId.mockResolvedValue([]);
+
+        await revokeAllKeysService({ userId: 1, currentKeyId: 'current', reason: 'Revoked by user' });
+        await revokeAllKeysService({
+            userId: 1,
+            currentKeyId: 'current',
+            includeCurrent: true,
+            reason: 'Revoked by user',
+        });
+
+        expect(deviceAuthorizationsRepository.denyAllActiveByUserId).toHaveBeenCalledTimes(2);
+        expect(deviceAuthorizationsRepository.denyAllActiveByUserId).toHaveBeenCalledWith(1);
+    });
+
+    it('counts keys, not device codes — a code nobody collected was never a session', async () =>
+    {
+        keysRepository.revokeAllActiveByUserIdExcept.mockResolvedValue([row()]);
+        deviceAuthorizationsRepository.denyAllActiveByUserId.mockResolvedValueOnce([{}, {}] as never);
+
+        const result = await revokeAllKeysService({
+            userId: 1,
+            currentKeyId: 'current',
+            reason: 'Revoked by user',
+        });
+
+        expect(result.revokedCount).toBe(1);
     });
 });
 

@@ -50,6 +50,28 @@ export type {
     CompleteSignupParams,
 } from './signup-link.service';
 
+// Device-code Login Service
+export {
+    startDeviceAuthService,
+    getDeviceAuthInfoService,
+    approveDeviceAuthService,
+    denyDeviceAuthService,
+    pollDeviceAuthService,
+} from './device-auth.service';
+
+export type {
+    StartDeviceAuthParams,
+    StartDeviceAuthResult,
+    DeviceAuthInfoParams,
+    DeviceAuthInfoResult,
+    ApproveDeviceAuthParams,
+    DenyDeviceAuthParams,
+    PollDeviceAuthParams,
+    PollDeviceAuthResult,
+    DeviceAuthPendingResult,
+    DeviceAuthApprovedResult,
+} from './device-auth.service';
+
 // Key Service
 export {
     registerPublicKeyService,

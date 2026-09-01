@@ -7,7 +7,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { usersRepository, keysRepository, verifyPassword, hashPassword } = vi.hoisted(() => ({
+const {
+    usersRepository,
+    keysRepository,
+    deviceAuthorizationsRepository,
+    verifyPassword,
+    hashPassword,
+} = vi.hoisted(() => ({
     usersRepository: {
         findById: vi.fn(),
         updatePassword: vi.fn(async () => undefined),
@@ -15,11 +21,18 @@ const { usersRepository, keysRepository, verifyPassword, hashPassword } = vi.hoi
     keysRepository: {
         revokeAllActiveByUserId: vi.fn(async () => []),
     },
+    deviceAuthorizationsRepository: {
+        denyAllActiveByUserId: vi.fn(async () => []),
+    },
     verifyPassword: vi.fn(async () => true),
     hashPassword: vi.fn(async () => 'new-hash'),
 }));
 
-vi.mock('../../server/repositories', () => ({ usersRepository, keysRepository }));
+vi.mock('../../server/repositories', () => ({
+    usersRepository,
+    keysRepository,
+    deviceAuthorizationsRepository,
+}));
 vi.mock('../../server/helpers', () => ({ hashPassword, verifyPassword }));
 
 import { changePasswordService } from '../../server/services/auth.service';
@@ -40,5 +53,20 @@ describe('changePasswordService — session revocation', () =>
         expect(usersRepository.updatePassword).toHaveBeenCalledWith(7, 'new-hash', true);
         expect(keysRepository.revokeAllActiveByUserId).toHaveBeenCalledTimes(1);
         expect(keysRepository.revokeAllActiveByUserId).toHaveBeenCalledWith(7, expect.any(String));
+    });
+
+    it('refuses the device authorizations still in flight', async () =>
+    {
+        // Those are keys not yet handed out. A poll on an approved one would
+        // register a fresh active key moments after the change revoked every
+        // other, which is the opposite of "log me out everywhere".
+        await changePasswordService({
+            userId: 7,
+            currentPassword: 'old-password',
+            newPassword: 'new-password',
+            passwordHash: 'old-hash',
+        });
+
+        expect(deviceAuthorizationsRepository.denyAllActiveByUserId).toHaveBeenCalledWith(7);
     });
 });
