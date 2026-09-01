@@ -239,7 +239,20 @@ describe('native sign-in answers each failure path with its own code', () =>
             expect(entry!.retryable, `retryable for ${cell.code}`).toBe(cell.retryable);
         }
 
-        expect(declared.filter(e => e.surface === 'rest')).toHaveLength(table.length);
+        // The fence stays exact rather than becoming "at least these": the rest
+        // surface is enumerated one operation at a time, so a code here that this
+        // table does not name must belong to another enumerated family. Device-code
+        // login is the second one (contract 0.10.0), and its four codes are held to
+        // their error classes in contract-export.test.ts.
+        const deviceCodes = [
+            'DeviceAuthExpiredError',
+            'DeviceAuthDeniedError',
+            'DeviceAuthNotFoundError',
+            'DeviceAuthAlreadyHandledError',
+        ];
+
+        expect(declared.filter(e => e.surface === 'rest').map(e => e.code).sort())
+            .toEqual([...table.map(cell => cell.code), ...deviceCodes].sort());
     });
 
     it('only the rate limit invites a retry of the same request', () =>

@@ -89,7 +89,9 @@ export interface DeviceAuthInfoParams
 export interface DeviceAuthInfoResult
 {
     deviceName?: string;
-    platform?: string;
+
+    /** One of `KEY_PLATFORM`, which is what the route accepts and the column stores. */
+    platform?: KeyPlatformType;
 
     /** First bytes of the pending key's fingerprint, as the device list truncates it. */
     fingerprintPrefix: string;

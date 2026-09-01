@@ -24,6 +24,12 @@ import {
     ServerTimeResponseSchema,
 } from '@spfn/core/server';
 
+import {
+    DeviceAuthAlreadyHandledError,
+    DeviceAuthDeniedError,
+    DeviceAuthExpiredError,
+    DeviceAuthNotFoundError,
+} from '../../../errors/auth-errors';
 import { CLIENT_PROOF_CONTENT_TYPE, CLIENT_PROOF_HEADERS } from '../admission';
 import type { CanonicalValue } from '../canonical-json';
 import {
@@ -47,6 +53,9 @@ import {
     encodeListItemsResponse,
 } from '../contract-types';
 import { ClientProofRefusal, type ClientProofErrorCode } from '../refusal';
+import { DeviceAuthPollResponseSchema } from '../../routes/schema';
+import { DEFAULT_KEY_ALGORITHM } from '../../services/key.service';
+import type { PollDeviceAuthResult } from '../../services/device-auth.service';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..', '..');
 const exportDir = join(repoRoot, 'contracts', 'mobile');
@@ -173,8 +182,22 @@ describe('operations describe the routes the server answers', () =>
             {
                 expect(declaredTypes.map((type) => type.name)).toContain(operation.requestType);
             }
-            expect(declaredTypes.map((type) => type.name)).toContain(operation.responseType);
+            if (operation.responseType !== undefined)
+            {
+                expect(declaredTypes.map((type) => type.name)).toContain(operation.responseType);
+            }
         }
+    });
+
+    it('only the operation with no response body omits a response type', () =>
+    {
+        // No response type means no body, and deny is the one operation that
+        // answers 204. Missing anywhere else it is an omission, and a consumer
+        // would be left with an answer it was never told how to read.
+        const bodyless = ALL_OPERATIONS.filter((operation) => operation.responseType === undefined);
+
+        expect(bodyless.map((operation) => operation.id)).toEqual(['auth.device.deny']);
+        expect((bundle.restOperations as Record<string, string>).responseBody).toContain('204');
     });
 
     // I1 — the /_auth surface is exported as contract operations.
@@ -220,14 +243,17 @@ describe('operations describe the routes the server answers', () =>
         }
     });
 
-    // I2 — the unproven class is stated and covers clock sync plus enrollment.
-    it('I2: core time and the three enrollment operations are the unproven class', () =>
+    // I2 — the unproven class is stated and covers clock sync, enrollment and
+    // the two device-code operations a keyless device calls.
+    it('I2: core time, the three enrollment operations and device start/poll are the unproven class', () =>
     {
         const unproven = ALL_OPERATIONS
             .filter((operation) => operation.authProfile === 'none')
             .map((operation) => operation.id)
             .sort();
         expect(unproven).toEqual([
+            'auth.device.poll',
+            'auth.device.start',
             'auth.enroll.login',
             'auth.enroll.oauthNative',
             'auth.enroll.register',
@@ -254,6 +280,98 @@ describe('operations describe the routes the server answers', () =>
         expect(keyPolicy.ttlDays).toBe(KEY_TTL_DAYS);
         expect(keyPolicy.ttlDays).toBe(90);
         expect(keyPolicy.rotationOperation).toBe('auth.keys.rotate');
+    });
+
+    // I6 — device-code login is exported whole: the approver's three operations
+    // and the two the device being let in calls.
+    it('I6: all five device-code operations are exported at the paths the routes answer', () =>
+    {
+        const byId = new Map(AUTH_SURFACE_OPERATIONS.map((operation) => [operation.id, operation]));
+
+        expect(byId.get('auth.device.start')?.path).toBe('/_auth/device/start');
+        expect(byId.get('auth.device.poll')?.path).toBe('/_auth/device/poll');
+        expect(byId.get('auth.device.info')?.path).toBe('/_auth/device/info');
+        expect(byId.get('auth.device.approve')?.path).toBe('/_auth/device/approve');
+        expect(byId.get('auth.device.deny')?.path).toBe('/_auth/device/deny');
+    });
+
+    it('I6: start and poll are unproven, because no key exists yet to sign them with', () =>
+    {
+        // Mislabelling these clientProofV1 would describe a flow nobody can run:
+        // the device is calling them precisely because it has no registered key.
+        for (const id of ['auth.device.start', 'auth.device.poll'])
+        {
+            const operation = AUTH_SURFACE_OPERATIONS.find((entry) => entry.id === id);
+
+            expect(operation?.authProfile, id).toBe('none');
+            expect(operation?.requiresSession, id).toBe(false);
+        }
+
+        const device = bundle.deviceAuthorization as Record<string, string>;
+        expect(device.unprovenOperations).toContain('no registered key yet');
+    });
+
+    it('I6: the approver\'s three are proven on the same terms as the key operations', () =>
+    {
+        const keysList = AUTH_SURFACE_OPERATIONS.find((entry) => entry.id === 'auth.keys.list');
+
+        for (const id of ['auth.device.info', 'auth.device.approve', 'auth.device.deny'])
+        {
+            const operation = AUTH_SURFACE_OPERATIONS.find((entry) => entry.id === id);
+
+            expect(operation?.authProfile, id).toBe('clientProofV1');
+            expect(operation?.requiresSession, id).toBe(keysList?.requiresSession);
+        }
+
+        const device = bundle.deviceAuthorization as Record<string, string>;
+        expect(device.approverOperations).toContain('never from the request body');
+    });
+
+    it('I6: only approve is described as binding an account, because only approve does', () =>
+    {
+        // approveDeviceAuthService takes the caller's userId and writes it to the
+        // record; getDeviceAuthInfoService and denyDeviceAuthService take a user
+        // code and nothing else. Prose that gave all three an account binding
+        // would have a client believe deny records who refused.
+        const device = bundle.deviceAuthorization as Record<string, string>;
+
+        expect(device.approverOperations).toContain('approve is the one of the three that binds an account');
+        expect(device.approverOperations).toContain('info and deny bind nobody');
+    });
+
+    it('I6: the omitted algorithm has its default stated, since start is where it is fixed', () =>
+    {
+        // StartDeviceAuthRequest.algorithm is the only optional algorithm in the
+        // contract, and the value is read from the key service rather than
+        // transcribed: a client that omits the field would otherwise be guessing
+        // what its own key was registered as.
+        const device = bundle.deviceAuthorization as Record<string, string>;
+        const optionalAlgorithms = declaredTypes
+            .flatMap((type) => type.fields.map((field) => ({ type: type.name, field })))
+            .filter((entry) => entry.field.name === 'algorithm' && entry.field.optional);
+
+        expect(optionalAlgorithms.map((entry) => entry.type)).toEqual(['StartDeviceAuthRequest']);
+        expect(device.algorithmDefaultRule).toContain(DEFAULT_KEY_ALGORITHM);
+        expect(device.algorithmDefaultRule).toContain('StartDeviceAuthRequest');
+    });
+
+    it('I6: approve answers with the same description info does', () =>
+    {
+        const byId = new Map(AUTH_SURFACE_OPERATIONS.map((operation) => [operation.id, operation]));
+
+        expect(byId.get('auth.device.approve')?.responseType).toBe(byId.get('auth.device.info')?.responseType);
+        expect(byId.get('auth.device.info')?.responseType).toBe('DeviceAuthInfoResponse');
+    });
+
+    it('I6: deny declares no response type, and the bundle says what that means', () =>
+    {
+        const deny = AUTH_SURFACE_OPERATIONS.find((entry) => entry.id === 'auth.device.deny');
+        const device = bundle.deviceAuthorization as Record<string, string>;
+
+        expect(deny?.requestType).toBe('DenyDeviceAuthRequest');
+        expect(deny).not.toHaveProperty('responseType');
+        expect(device.denyResponseRule).toContain('204');
+        expect(device.denyResponseRule).toContain('no responseType');
     });
 
     // I5 — the three dev operations survive the 0.3.0 export.
@@ -378,6 +496,7 @@ describe('every operation records when it became available', () =>
      * | auth.enroll.{register,login,oauthNative}, auth.keys.rotate | c041ef48 | 0.3.0 |
      * | auth.keys.{list,revoke,revokeAll} | ee286775 | 0.4.1 |
      * | core.time | issue #146 | 0.9.0 |
+     * | auth.device.{start,poll,info,approve,deny} | 1a5d6fd6 (#171), exported here | 0.10.0 |
      */
     const RECORDED_HISTORY: Record<string, string> = {
         'auth.clientProof.handshake': '0.1.0',
@@ -391,6 +510,11 @@ describe('every operation records when it became available', () =>
         'auth.keys.revoke': '0.4.1',
         'auth.keys.revokeAll': '0.4.1',
         'core.time': '0.9.0',
+        'auth.device.start': '0.10.0',
+        'auth.device.poll': '0.10.0',
+        'auth.device.info': '0.10.0',
+        'auth.device.approve': '0.10.0',
+        'auth.device.deny': '0.10.0',
     };
 
     it('every exported operation carries a since', () =>
@@ -702,6 +826,31 @@ describe('every declared field type is inside the grammar the consumer parses', 
         }
     });
 
+    it('KeyPlatform carries the values the server actually accepts', async () =>
+    {
+        const { KEY_PLATFORM } = await import('../../types');
+        const declared = declaredEnums.find((entry) => entry.name === 'KeyPlatform');
+
+        expect(declared?.values).toEqual([...KEY_PLATFORM]);
+    });
+
+    it('every platform field references the enum rather than string', () =>
+    {
+        // The routes take a platform through PlatformSchema and the columns are
+        // bounded by the same list, so `string` described a wider server than the
+        // one that is here — the understatement `algorithm` carried before 0.6.0.
+        const platformFields = declaredTypes
+            .flatMap((type) => type.fields.map((field) => ({ type: type.name, field })))
+            .filter((entry) => entry.field.name === 'platform');
+
+        expect(platformFields.length).toBeGreaterThan(0);
+
+        for (const entry of platformFields)
+        {
+            expect(entry.field.type, `${entry.type}.platform`).toBe('KeyPlatform');
+        }
+    });
+
     it('the grammar does not tell a consumer what to do with a value outside a set', () =>
     {
         // A contract states what the server sends. How a decoder survives a set
@@ -852,6 +1001,151 @@ describe('declared response types match the encoders', () =>
     });
 });
 
+describe('the poll answer keeps a union inside a grammar that has none', () =>
+{
+    const poll = typeNamed('PollDeviceAuthResponse');
+    const status = poll.fields.find((field) => field.name === 'status');
+    const branchFields = poll.fields.filter((field) => field.name !== 'status');
+
+    /** The bundle spelling of one TypeBox property, so the two are compared and never transcribed. */
+    function grammarTypeOf(name: string, property: unknown): string
+    {
+        if (name === 'status')
+        {
+            return 'DeviceAuthPollStatus';
+        }
+
+        const declared = (property as { type?: string }).type;
+        if (declared === 'integer' || declared === 'string' || declared === 'boolean')
+        {
+            return declared;
+        }
+
+        throw new Error(`the route answers ${name} as a ${declared}, which this grammar has no name for`);
+    }
+
+    it('the declared fields are the route schema\'s fields, integer included', () =>
+    {
+        // The declaration is written by hand, so this is what holds it to the
+        // schema the route actually answers with. A branch field added, renamed
+        // or widened back to Type.Number fails here instead of being published
+        // as an integer the server does not send — the grammar has no
+        // floating-point scalar to publish it as.
+        const fromSchema = new Map<string, string>();
+
+        for (const branch of DeviceAuthPollResponseSchema.anyOf)
+        {
+            for (const [name, property] of Object.entries(branch.properties))
+            {
+                fromSchema.set(name, grammarTypeOf(name, property));
+            }
+        }
+
+        expect(poll.fields.map((field) => field.name).sort()).toEqual([...fromSchema.keys()].sort());
+
+        for (const field of poll.fields)
+        {
+            expect(field.type, `PollDeviceAuthResponse.${field.name}`).toBe(fromSchema.get(field.name));
+        }
+    });
+
+    it('status is the one required field, and it references the declared enum', () =>
+    {
+        expect(status).toEqual({ name: 'status', type: 'DeviceAuthPollStatus', optional: false });
+        expect(poll.fields.filter((field) => !field.optional)).toEqual([status]);
+    });
+
+    it('DeviceAuthPollStatus carries the two answers the service can send', () =>
+    {
+        // The declared values are the service's own union, not a transcription of
+        // it: `satisfies` refuses a missing member and an invented one alike, so a
+        // third poll branch stops this file compiling before it can reach a
+        // consumer as a status nothing told it about. Same fence #167 put under
+        // the signing vectors.
+        const statuses = Object.keys(
+            { pending: true, approved: true } satisfies Record<PollDeviceAuthResult['status'], true>,
+        );
+        const declared = (bundle.enums as { name: string; values: string[] }[])
+            .find((entry) => entry.name === 'DeviceAuthPollStatus');
+
+        expect(declared?.values).toEqual(statuses);
+    });
+
+    it('every branch field is optional, because the other status does not carry it', () =>
+    {
+        for (const field of branchFields)
+        {
+            expect(field.optional, `PollDeviceAuthResponse.${field.name}`).toBe(true);
+        }
+    });
+
+    it('the approved branch is the login the approval produced, field for field', () =>
+    {
+        // pollDeviceAuthService spreads LoginResult into the approved answer, so
+        // the two must not drift: a field added to login reaches this response.
+        const approved = branchFields.filter((field) => field.name !== 'intervalMillis');
+        const loginFields = typeNamed('LoginResponse').fields;
+
+        expect(approved.map((field) => field.name)).toEqual(loginFields.map((field) => field.name));
+
+        for (const field of loginFields)
+        {
+            const branch = approved.find((entry) => entry.name === field.name);
+            expect(branch?.type, `PollDeviceAuthResponse.${field.name}`).toBe(field.type);
+        }
+    });
+
+    it('the bundle states which fields belong to which status', () =>
+    {
+        const device = bundle.deviceAuthorization as Record<string, string>;
+
+        expect(device.pollStatusRule).toContain('no union type');
+        expect(device.pollStatusRule).toContain('"pending" carries intervalMillis');
+        expect(device.pollStatusRule).toContain('Read the branch from status');
+    });
+
+    it('pending is an answer, not a refusal, and no error code stands for it', () =>
+    {
+        // The one thing a flattened union could lose. A client that read pending
+        // as an error would stop waiting at the moment the flow asks it to wait.
+        const device = bundle.deviceAuthorization as Record<string, string>;
+        const deviceCodes = (bundle.errors as { code: string }[])
+            .map((error) => error.code)
+            .filter((code) => code.startsWith('DeviceAuth'))
+            .sort();
+
+        expect(device.pendingRule).toContain('not a refusal');
+        expect(device.pendingRule).toContain('waits intervalMillis');
+        expect(deviceCodes).toEqual([
+            'DeviceAuthAlreadyHandledError',
+            'DeviceAuthDeniedError',
+            'DeviceAuthExpiredError',
+            'DeviceAuthNotFoundError',
+        ]);
+    });
+
+    it('the wait ends on any error the poll can answer, not on a closed list of three', () =>
+    {
+        // The route answers more than the device-code refusals — a rate limit, a
+        // malformed body, the account and key refusals the approved branch raises
+        // while registering the parked key, and whatever is added after this was
+        // written. A rule that named three would have a generated client read the
+        // fourth as "keep polling" and wait out a code that will never move.
+        const device = bundle.deviceAuthorization as Record<string, string>;
+        const retryable = (bundle.errors as { code: string; retryable: boolean }[])
+            .filter((error) => error.retryable)
+            .map((error) => error.code);
+
+        expect(device.pendingRule).toContain('an error response ends the wait');
+        expect(device.pendingRule).toContain('codes this bundle does not list');
+        expect(device.pendingRule).not.toContain('Only DeviceAuth');
+
+        // The one carve-out the rule names has to be the one the error list marks.
+        expect(retryable).toEqual(['TooManyRequestsError']);
+        expect(device.pendingRule).toContain('TooManyRequestsError is the only one that does');
+    });
+});
+
 describe('declared errors match the refusals', () =>
 {
     const REFUSALS: Record<ClientProofErrorCode, () => ClientProofRefusal> = {
@@ -863,7 +1157,7 @@ describe('declared errors match the refusals', () =>
         CONTRACT_UNSUPPORTED: () => ClientProofRefusal.unroutable(),
     };
 
-    const declared = bundle.errors as { code: string; httpStatus: number; surface: string }[];
+    const declared = bundle.errors as { code: string; httpStatus: number; retryable: boolean; surface: string }[];
 
     // 두 표면은 어휘가 다르다. 프로필 안의 거절은 여섯 코드로 닫혀 있고, REST 표면은 서버
     // 에러 클래스 이름을 그대로 쓴다. 한 목록에 같이 실리므로 surface로 갈라 검사한다.
@@ -893,6 +1187,39 @@ describe('declared errors match the refusals', () =>
     it('every declared error names the surface it can appear on', () =>
     {
         expect(declared.filter((error) => !['clientProofV1', 'rest'].includes(error.surface))).toEqual([]);
+    });
+
+    it('the four device refusals carry the status their error class carries', () =>
+    {
+        // Transcribed statuses are the place a wrong answer hides, so each one is
+        // compared with what the class the service throws actually answers with.
+        const thrown = [
+            new DeviceAuthNotFoundError(),
+            new DeviceAuthExpiredError(),
+            new DeviceAuthAlreadyHandledError(),
+            new DeviceAuthDeniedError(),
+        ];
+
+        for (const error of thrown)
+        {
+            const entry = declared.find((candidate) => candidate.code === error.name);
+
+            expect(entry, error.name).toBeDefined();
+            expect(entry?.httpStatus, error.name).toBe(error.statusCode);
+            expect(entry?.surface, error.name).toBe('rest');
+        }
+    });
+
+    it('no device refusal is retryable: the same request cannot be answered differently', () =>
+    {
+        // Every one of the four is a fact about the record, not about load. A
+        // client that retried on them would poll a code that will never move.
+        const deviceErrors = declared.filter((error) => error.code.startsWith('DeviceAuth'));
+
+        for (const error of deviceErrors)
+        {
+            expect(error.retryable, error.code).toBe(false);
+        }
     });
 });
 
@@ -1000,17 +1327,19 @@ describe('declared proof rules match the implementation', () =>
         replayWindowMillis: number;
     };
 
-    it('the contract line is the revision that adds process-first clock synchronization', () =>
+    it('the contract line is the revision that exports device-code login', () =>
     {
-        expect(bundle.contractVersion).toBe('0.9.0');
+        expect(bundle.contractVersion).toBe('0.10.0');
     });
 
-    it('the supported range moves with the bodyless GET operation', () =>
+    it('the supported range moves with the operation that answers no body', () =>
     {
-        // 0.8.x generator는 모든 operation에 requestType이 있다고 가정한다.
-        // core.time을 bodyless GET으로 읽으려면 생성 코드가 달라지므로 breaking이고,
-        // 0.x에서 minor가 breaking을 나르므로 범위도 같이 올라간다.
-        expect(bundle.supportedRange).toBe('>=0.9.0 <0.10.0');
+        // A 0.9.x generator assumes every operation names a response type, and
+        // auth.device.deny names none, so reading it takes different generated
+        // code. That is breaking, and under 0.x the minor carries breaking, so
+        // the range moves with it. The device operations by themselves would
+        // have been a patch, the way 0.4.1's key operations were.
+        expect(bundle.supportedRange).toBe('>=0.10.0 <0.11.0');
     });
 
     it('states the rule that binds a native id_token to the key it enrolls', () =>

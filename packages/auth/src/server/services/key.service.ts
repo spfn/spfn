@@ -69,7 +69,8 @@ export interface KeySummary
 {
     keyId: string;
     deviceName?: string;
-    platform?: string;
+    /** One of `KEY_PLATFORM`, which is what the routes accept and the column stores. */
+    platform?: KeyPlatformType;
     algorithm: KeyAlgorithmType;
     /** First bytes of the fingerprint — enough to tell two entries apart. */
     fingerprintPrefix: string;
@@ -101,6 +102,16 @@ export interface ListKeysParams
 
 /** How much of the fingerprint the list returns. */
 export const KEY_FINGERPRINT_PREFIX_LENGTH = 8;
+
+/**
+ * What a key is registered as when the caller names no algorithm.
+ *
+ * Named rather than repeated as a literal because it is a published fact: the
+ * mobile contract states it for `StartDeviceAuthRequest.algorithm`, the one
+ * optional algorithm on that surface, and a client that omits the field is
+ * relying on this value being what it was told.
+ */
+export const DEFAULT_KEY_ALGORITHM: KeyAlgorithmType = 'ES256';
 
 /**
  * Helper: Calculate key expiry date (KEY_TTL_DAYS from now)
@@ -136,7 +147,7 @@ export async function registerPublicKeyService(
     params: RegisterPublicKeyParams,
 ): Promise<void>
 {
-    const { userId, keyId, publicKey, fingerprint, algorithm = 'ES256', deviceName, platform } = params;
+    const { userId, keyId, publicKey, fingerprint, algorithm = DEFAULT_KEY_ALGORITHM, deviceName, platform } = params;
 
     const existing = await keysRepository.findByKeyId(keyId);
     if (existing)
@@ -191,7 +202,7 @@ export async function rotateKeyService(
     params: RotateKeyParams,
 ): Promise<RotateKeyResult>
 {
-    const { userId, oldKeyId, newKeyId, newPublicKey, fingerprint, algorithm = 'ES256' } = params;
+    const { userId, oldKeyId, newKeyId, newPublicKey, fingerprint, algorithm = DEFAULT_KEY_ALGORITHM } = params;
 
     // Verify fingerprint matches public key
     const isValidFingerprint = verifyKeyFingerprint(newPublicKey, fingerprint);

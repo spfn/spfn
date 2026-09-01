@@ -30,6 +30,11 @@ export interface ContractOperation
         | 'auth.keys.list'
         | 'auth.keys.revoke'
         | 'auth.keys.revokeAll'
+        | 'auth.device.start'
+        | 'auth.device.poll'
+        | 'auth.device.info'
+        | 'auth.device.approve'
+        | 'auth.device.deny'
         | typeof CORE_TIME_OPERATION_ID;
     method: 'GET' | 'POST';
     path: string;
@@ -44,7 +49,12 @@ export interface ContractOperation
     requiresSession: boolean;
     /** Absent only when the operation has no request body. */
     requestType?: string;
-    responseType: string;
+
+    /**
+     * Absent only when the operation answers with no body — a 204, which has
+     * nothing for a consumer to decode and therefore names no type.
+     */
+    responseType?: string;
     summary: string;
 
     /**
@@ -160,16 +170,23 @@ export const CONTRACT_OPERATIONS: readonly ContractOperation[] = [
 ];
 
 /**
- * The `/_auth` surface exported into the mobile contract: enrollment, login
- * and key rotation. These are ordinary SPFN REST routes, not canonical-JSON
- * operations — the dev handler never serves them, and their wire rules are
- * the `restOperations` section of the bundle, not `canonicalJson`.
+ * The `/_auth` surface exported into the mobile contract: enrollment, login,
+ * key rotation and device-code login. These are ordinary SPFN REST routes, not
+ * canonical-JSON operations — the dev handler never serves them, and their wire
+ * rules are the `restOperations` section of the bundle, not `canonicalJson`.
  *
- * The three `authProfile: 'none'` operations are the unproven class: they are
- * accepted with neither proof headers nor a session header, because they are
- * how a client obtains a key in the first place. `auth.keys.rotate` requires
- * an authenticated caller (a clientProofV1 proof on this surface); an
- * unproven call to it is refused like any failed admission.
+ * The `authProfile: 'none'` operations are the unproven class: they are accepted
+ * with neither proof headers nor a session header, because they are how a client
+ * obtains a key in the first place. `auth.keys.rotate` requires an authenticated
+ * caller (a clientProofV1 proof on this surface); an unproven call to it is
+ * refused like any failed admission.
+ *
+ * Device-code login is in both classes at once, because two devices run it. The
+ * device being let in calls `start` and `poll` unproven — it has no registered
+ * key to sign with, and getting one is the point of the flow. The approver calls
+ * `info`, `approve` and `deny` proven, from a device that is already signed in,
+ * which is what lets the server read the approving account from the caller
+ * rather than from the request body.
  */
 export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
     {
@@ -248,6 +265,60 @@ export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
         responseType: 'RevokeAllKeysResponse',
         summary: 'Revokes every key the caller has, sparing the calling device unless asked otherwise.',
         since: '0.4.1',
+    },
+    {
+        id: 'auth.device.start',
+        method: 'POST',
+        path: '/_auth/device/start',
+        authProfile: 'none',
+        requiresSession: false,
+        requestType: 'StartDeviceAuthRequest',
+        responseType: 'StartDeviceAuthResponse',
+        summary: 'Parks a new device\'s public key and returns the codes it shows and polls with.',
+        since: '0.10.0',
+    },
+    {
+        id: 'auth.device.poll',
+        method: 'POST',
+        path: '/_auth/device/poll',
+        authProfile: 'none',
+        requiresSession: false,
+        requestType: 'PollDeviceAuthRequest',
+        responseType: 'PollDeviceAuthResponse',
+        summary: 'Asks whether the request has been answered; the approved answer is the login it produced.',
+        since: '0.10.0',
+    },
+    {
+        id: 'auth.device.info',
+        method: 'POST',
+        path: '/_auth/device/info',
+        authProfile: 'clientProofV1',
+        requiresSession: false,
+        requestType: 'DeviceAuthInfoRequest',
+        responseType: 'DeviceAuthInfoResponse',
+        summary: 'Describes the device waiting on a user code, so the approver can recognise it before deciding.',
+        since: '0.10.0',
+    },
+    {
+        id: 'auth.device.approve',
+        method: 'POST',
+        path: '/_auth/device/approve',
+        authProfile: 'clientProofV1',
+        requiresSession: false,
+        requestType: 'ApproveDeviceAuthRequest',
+        responseType: 'DeviceAuthInfoResponse',
+        summary: 'Lets the waiting device in, answering with the device it just let in.',
+        since: '0.10.0',
+    },
+    {
+        id: 'auth.device.deny',
+        method: 'POST',
+        path: '/_auth/device/deny',
+        authProfile: 'clientProofV1',
+        requiresSession: false,
+        requestType: 'DenyDeviceAuthRequest',
+        summary: 'Refuses the waiting device. Answers 204 with no body, so it names no response type.',
+        since: '0.10.0',
     },
 ];
 

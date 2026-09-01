@@ -38,13 +38,33 @@ let config: AuthDeviceAuthConfig = {
  * Set the resolved device-auth config. Called synchronously from
  * `createAuthLifecycle()` for the same reason `configureDeletion` is: it must
  * take effect before any handler that reads `getDeviceAuthConfig()` can run.
+ *
+ * Both knobs are whole millisecond counts, and one that is not is refused here
+ * rather than served. `intervalMs` is the reason the check exists: it leaves as
+ * `intervalMillis` in the start and poll answers, which `DeviceAuthPollResponseSchema`
+ * declares an integer and the mobile contract exports as one, so a fractional
+ * value configured here would reach a generated client as a number its decoder
+ * refuses — at the one moment the flow depends on that client asking again.
  */
 export function configureDeviceAuth(options?: Partial<AuthDeviceAuthConfig>): void
 {
-    config = {
-        ttlMs: options?.ttlMs ?? DEFAULT_DEVICE_AUTH_TTL_MS,
-        intervalMs: options?.intervalMs ?? DEFAULT_DEVICE_AUTH_INTERVAL_MS,
-    };
+    const ttlMs = options?.ttlMs ?? DEFAULT_DEVICE_AUTH_TTL_MS;
+    const intervalMs = options?.intervalMs ?? DEFAULT_DEVICE_AUTH_INTERVAL_MS;
+
+    assertWholeMillis('ttlMs', ttlMs);
+    assertWholeMillis('intervalMs', intervalMs);
+
+    config = { ttlMs, intervalMs };
+}
+
+function assertWholeMillis(name: string, value: number): void
+{
+    if (!Number.isInteger(value) || value <= 0)
+    {
+        throw new Error(
+            `deviceAuth.${name} must be a positive whole number of milliseconds, received ${value}.`,
+        );
+    }
 }
 
 /**

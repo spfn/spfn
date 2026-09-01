@@ -209,7 +209,10 @@ export interface AuthLifecycleOptions extends AuthInitOptions
      *
      * Controls the codes handed out by `POST /_auth/device/start` and obeyed by
      * `POST /_auth/device/poll`. Both values are announced to the waiting device
-     * in the start response, so they are resolved here rather than read per call.
+     * in the start response, so they are resolved here rather than read per call,
+     * and both must be a positive whole number of milliseconds — the interval is
+     * published as an integer and a fraction is refused at startup rather than
+     * handed to a client that cannot decode it.
      *
      * @example
      * ```typescript

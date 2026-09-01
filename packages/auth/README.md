@@ -1216,6 +1216,7 @@ Every operation in the exported bundle carries `since` — the contract version 
 | `auth.enroll.register`, `auth.enroll.login`, `auth.enroll.oauthNative`, `auth.keys.rotate` | 0.3.0 |
 | `auth.keys.list`, `auth.keys.revoke`, `auth.keys.revokeAll` | 0.4.1 |
 | `core.time` | 0.9.0 |
+| `auth.device.start`, `auth.device.poll`, `auth.device.info`, `auth.device.approve`, `auth.device.deny` | 0.10.0 |
 
 - **This is history, not policy.** The mobile contract's compatibility policy is `allOrNothing`: one
   contract version passes or refuses the whole surface, so these three fields change no verdict here.

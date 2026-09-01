@@ -99,11 +99,24 @@ export const UserCodeSchema = Type.String({
  * a completed login carrying exactly what `/_auth/login` returns. `status` is the
  * discriminant, so a generated client narrows on it instead of testing which
  * fields happen to be present.
+ *
+ * The mobile contract has no union type, so it exports this as one object with
+ * `status` required and every branch field optional — see
+ * `deviceAuthorization.pollStatusRule` in the bundle. `intervalMillis` is an
+ * integer for the same reason: that grammar carries no floating-point scalar,
+ * and a count of milliseconds never needed one.
+ *
+ * That integer is a promise two things keep, because nothing validates a response
+ * against this schema on the way out. `configureDeviceAuth` refuses an interval
+ * that is not a whole number of milliseconds, so the only value this branch can
+ * carry is one; and `contract-export.test.ts` reads this schema to check the
+ * exported declaration, so writing `Type.Number` here fails the suite instead of
+ * publishing an integer the server does not send.
  */
 export const DeviceAuthPollResponseSchema = Type.Union([
     Type.Object({
         status: Type.Literal('pending'),
-        intervalMillis: Type.Number({ description: 'Milliseconds to wait before polling again' }),
+        intervalMillis: Type.Integer({ description: 'Milliseconds to wait before polling again' }),
     }),
     Type.Object({
         status: Type.Literal('approved'),

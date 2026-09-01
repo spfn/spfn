@@ -23,7 +23,7 @@ import {
 } from '@spfn/core/server';
 
 import { KEY_TTL_DAYS } from '../lib/key-policy';
-import { KEY_ALGORITHM } from '../types';
+import { KEY_ALGORITHM, KEY_PLATFORM } from '../types';
 import { CLIENT_PROOF_CONTENT_TYPE, CLIENT_PROOF_HEADERS } from './admission';
 import {
     AUTH_SURFACE_OPERATIONS,
@@ -181,19 +181,51 @@ import { CLIENT_IDENTITY_HEADERS, CLIENT_KINDS, SERVER_CONTRACT_HEADERS } from '
  * pins all four time-admission boundaries. Breaking because operation request
  * types were previously mandatory and every generated call therefore carried a
  * body; the supported range moves so an older generator cannot guess at GET.
+ *
+ * 0.10.0 puts device-code login in the contract: the five `/_auth/device/*`
+ * operations, the types they carry, the `DeviceAuthPollStatus` discriminant and
+ * the four device refusals. A phone runs both sides of that flow — it is the
+ * natural approver, and it may equally be the device asking to be let in — so
+ * all five are exported and not only the approver's three. The operations
+ * themselves are additive, the way 0.4.1's key management was.
+ *
+ * What makes it a minor is `auth.device.deny`. It answers 204 with an empty
+ * body, so `responseType` becomes optional exactly as `requestType` did in
+ * 0.9.0, and for the same reason: a consumer generated against 0.9.x reads a
+ * response type on every operation and would have to guess what deny answers
+ * with. The range moves so it is refused CONTRACT_UNSUPPORTED instead of
+ * guessing.
+ *
+ * The poll answer is a union on the wire — still waiting, or the login an
+ * approval produced — and this grammar has no union type. It is exported as one
+ * type whose `status` is a required enum and whose every other field is
+ * optional, which is what the wire actually shows. `deviceAuthorization` states
+ * which fields belong to which status, and that a pending answer is a 200 and
+ * never a refusal: a client that read pending as an error would stop waiting at
+ * the one moment the flow asks it to keep waiting.
+ *
+ * `platform` becomes the `KeyPlatform` enum wherever it appears — the two device
+ * types that carry it and `KeySummary` with them. The routes have only ever
+ * accepted the four values `KEY_PLATFORM` lists, and the columns store nothing
+ * else, so `string` understated the server in exactly the way `algorithm` did
+ * before 0.6.0. It rides this version because it changes what codegen produces
+ * for an existing field, which is breaking on its own, and 0.10.0 is where the
+ * break already is.
  */
-export const CONTRACT_VERSION = '0.9.0';
+export const CONTRACT_VERSION = '0.10.0';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
 /**
- * Under 0.x the minor carries breaking changes, so the range stops at 0.9.0.
+ * Under 0.x the minor carries breaking changes, so the range stops at 0.10.0.
  *
- * 0.9.0 moves the floor because it adds a bodyless GET operation. A consumer
- * generated against 0.8.x requires requestType on every operation and would
- * have to guess how to send core.time, so it is refused CONTRACT_UNSUPPORTED.
+ * 0.10.0 moves the floor because it adds an operation with no response body. A
+ * consumer generated against 0.9.x requires responseType on every operation and
+ * would have to guess what auth.device.deny answers with, so it is refused
+ * CONTRACT_UNSUPPORTED. Adding the device operations alone would have been a
+ * patch, as 0.4.1's key operations were.
  */
-export const CONTRACT_SUPPORTED_RANGE = '>=0.9.0 <0.10.0';
+export const CONTRACT_SUPPORTED_RANGE = '>=0.10.0 <0.11.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
@@ -202,12 +234,26 @@ export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
  * Bumped whenever the assembled shape changes, independent of the contract.
  *
  * The bump follows what a reader of this shape can still find. A major when a
- * section or key is removed or renamed, so code reading it stops finding what it
- * read; a minor when the shape only grows. 5.0.0 is a major because `typeGrammar`
- * lost `integerVersusNumber`, where 4.1.0 was a minor for availability fields that
+ * section or key is removed, renamed, or stops being present on every entry that
+ * carried it, so code reading it stops finding what it read; a minor when the
+ * shape only grows. 5.0.0 is a major because `typeGrammar` lost
+ * `integerVersusNumber`, where 4.1.0 was a minor for availability fields that
  * were purely added.
+ *
+ * 6.0.0 is a major because `responseType` becomes optional. `auth.device.deny`
+ * answers 204 and names none, so code that reads a response type off every
+ * operation finds nothing there — an optional key is an absent key to whoever
+ * reads it, which is the same reasoning that makes the contract itself 0.10.0
+ * rather than 0.9.1. The growth beside it — a `deviceAuthorization` section, more
+ * operations, types and errors — would have been a minor on its own, the way
+ * 5.1.0 was.
+ *
+ * 5.1.0 is what that rule was measured against: it made `requestType` optional
+ * and called the result a minor. That was this same change under a bump that
+ * understated it. A published version is not rewritten, so 5.1.0 stays as it is
+ * and the rule is spelled out here instead, so the next one is judged by it.
  */
-export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@5.1.0';
+export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@6.0.0';
 
 /**
  * The scalars the grammar admits.
@@ -257,7 +303,12 @@ type DecimalTypeName = `decimal<${DecimalScale}>`;
  * it, so deriving it would be circular, and a misspelled name has to fail here
  * rather than reach the consumer as a type it cannot find.
  */
-type ReferencedTypeName = 'Item' | 'KeySummary' | 'KeyAlgorithm';
+type ReferencedTypeName =
+    | 'Item'
+    | 'KeySummary'
+    | 'KeyAlgorithm'
+    | 'KeyPlatform'
+    | 'DeviceAuthPollStatus';
 
 type ElementTypeName = ScalarTypeName | DecimalTypeName | ReferencedTypeName;
 
@@ -516,7 +567,7 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
         fields: [
             required('keyId', 'string'),
             optional('deviceName', 'string'),
-            optional('platform', 'string'),
+            optional('platform', 'KeyPlatform'),
             required('algorithm', 'KeyAlgorithm'),
             required('fingerprintPrefix', 'string'),
             required('createdAtMillis', 'integer'),
@@ -559,16 +610,108 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
             required('currentKeyRevoked', 'boolean'),
         ],
     },
+    {
+        name: 'StartDeviceAuthRequest',
+        fields: [
+            required('publicKey', 'string'),
+            required('keyId', 'string'),
+            required('fingerprint', 'string'),
+            optional('algorithm', 'KeyAlgorithm'),
+            optional('deviceName', 'string'),
+            optional('platform', 'KeyPlatform'),
+        ],
+    },
+    {
+        name: 'StartDeviceAuthResponse',
+        fields: [
+            required('deviceCode', 'string'),
+            required('userCode', 'string'),
+            required('expiresAtMillis', 'integer'),
+            required('intervalMillis', 'integer'),
+        ],
+    },
+    {
+        name: 'PollDeviceAuthRequest',
+        fields: [
+            required('deviceCode', 'string'),
+        ],
+    },
+    /**
+     * The poll union, flattened into the one shape this grammar can carry.
+     *
+     * `status` is the discriminant and the only required field; everything else
+     * belongs to one branch and is therefore optional. `intervalMillis` is the
+     * pending branch, and the five after it are the approved branch — the same
+     * fields `LoginResponse` carries, because an approved poll is the login the
+     * approval produced. `deviceAuthorization.pollStatusRule` states the pairing
+     * the grammar cannot.
+     */
+    {
+        name: 'PollDeviceAuthResponse',
+        fields: [
+            required('status', 'DeviceAuthPollStatus'),
+            optional('intervalMillis', 'integer'),
+            optional('userId', 'string'),
+            optional('publicId', 'string'),
+            optional('email', 'string'),
+            optional('phone', 'string'),
+            optional('passwordChangeRequired', 'boolean'),
+        ],
+    },
+    /**
+     * Info, approve and deny each declare their own request type although all
+     * three carry nothing but `userCode`. An operation's request shape is its
+     * own: a field added to one of them later must not appear on the other two
+     * by accident, which is what a shared type would do.
+     */
+    {
+        name: 'DeviceAuthInfoRequest',
+        fields: [
+            required('userCode', 'string'),
+        ],
+    },
+    {
+        name: 'DeviceAuthInfoResponse',
+        fields: [
+            optional('deviceName', 'string'),
+            optional('platform', 'KeyPlatform'),
+            required('fingerprintPrefix', 'string'),
+            required('requestedAtMillis', 'integer'),
+            required('expiresAtMillis', 'integer'),
+        ],
+    },
+    {
+        name: 'ApproveDeviceAuthRequest',
+        fields: [
+            required('userCode', 'string'),
+        ],
+    },
+    {
+        name: 'DenyDeviceAuthRequest',
+        fields: [
+            required('userCode', 'string'),
+        ],
+    },
 ];
 
 /**
  * The enums this contract declares.
  *
- * `KeyAlgorithm` is read from the server's own list rather than transcribed, so
- * an algorithm added or withdrawn there moves this declaration with it.
+ * `KeyAlgorithm` and `KeyPlatform` are read from the server's own lists rather
+ * than transcribed, so a value added or withdrawn there moves this declaration
+ * with it. Every route that takes a platform validates it against that same list
+ * and every column that stores one is bounded by it, so exporting it as `string`
+ * described a wider server than the one that is here.
+ *
+ * `DeviceAuthPollStatus` has no such list to read: the two answers are literal
+ * types in the poll route's response schema and in `PollDeviceAuthResult`, and
+ * neither is a runtime value. It is declared here and held to the route's own
+ * schema by `contract-export.test.ts`.
  */
 export const CONTRACT_ENUMS: readonly EnumDeclaration[] = [
     { name: 'KeyAlgorithm', values: [...KEY_ALGORITHM] },
+    { name: 'KeyPlatform', values: [...KEY_PLATFORM] },
+    { name: 'DeviceAuthPollStatus', values: ['pending', 'approved'] },
 ];
 
 /** One line per code describing what it means on the wire. */
@@ -598,7 +741,8 @@ interface RestSurfaceError
 }
 
 /**
- * Every way `auth.enroll.oauthNative` refuses, as codes a consumer can switch on.
+ * Every way `auth.enroll.oauthNative` and the device-code operations refuse, as
+ * codes a consumer can switch on.
  *
  * "Every way" includes the app's own `beforeRegister` check: what that check
  * decides is the app's business, but the response it produces is the
@@ -610,12 +754,21 @@ interface RestSurfaceError
  * step, and the mapping between them is exactly the place a wrong answer
  * hides.
  *
- * Only this operation's codes are listed. The `error` envelope now reaches
+ * Only these operations' codes are listed. The `error` envelope now reaches
  * every REST operation, but a code list is a promise, and a promise about
  * routes whose failure paths have not been enumerated one by one would be a
  * guess. That the server sends codes outside this list is stated as
  * `unlistedCodes`; what a decoder does when it meets one is the decoder's
  * decision.
+ *
+ * The device-code operations add four codes and reuse the rest. Their other
+ * refusals are already here — a malformed body is `ValidationError`, a key whose
+ * fingerprint does not hold together is `InvalidKeyFingerprintError`, an account
+ * that cannot open a session is `AccountDisabledError` or
+ * `AccountPendingDeletionError`, a keyId already taken is
+ * `KeyIdAlreadyRegisteredError`, and every one of the five routes is rate
+ * limited — so a code is listed once and names the same failure wherever it
+ * appears.
  */
 const REST_SURFACE_ERRORS: readonly RestSurfaceError[] = [
     {
@@ -692,6 +845,36 @@ const REST_SURFACE_ERRORS: readonly RestSurfaceError[] = [
         retryable: false,
         summary: 'the server failed for a reason it does not describe to the client',
     },
+    {
+        code: 'DeviceAuthExpiredError',
+        httpStatus: 400,
+        retryable: false,
+        summary:
+            'the device code passed its TTL, whatever state it was in — the waiting device starts again, and the '
+            + 'approver is told the code on the other screen is stale',
+    },
+    {
+        code: 'DeviceAuthDeniedError',
+        httpStatus: 403,
+        retryable: false,
+        summary: 'the account owner refused this device; the waiting device stops polling instead of timing out',
+    },
+    {
+        code: 'DeviceAuthNotFoundError',
+        httpStatus: 404,
+        retryable: false,
+        summary:
+            'the code names no record this operation can act on — never issued, or already spent. The two answer '
+            + 'alike on purpose, so a guess that landed cannot be told from one that did not',
+    },
+    {
+        code: 'DeviceAuthAlreadyHandledError',
+        httpStatus: 409,
+        retryable: false,
+        summary:
+            'the request was already approved or denied, and a decision on a device is made once; it is also what '
+            + 'the loser of two concurrent approvals is told',
+    },
 ];
 
 export interface MobileContractBundle
@@ -722,7 +905,8 @@ export function buildMobileContractBundle(): MobileContractBundle
         operationAuthClasses: {
             none:
                 'the unproven class: the operation is accepted with neither proof headers nor a session header, '
-                + 'because it is called before any proof can be minted (clock synchronization, enrollment and login)',
+                + 'because it is called before any proof can be minted (clock synchronization, enrollment, login, '
+                + 'and the two device-code operations a device with no key on file calls)',
             [CLIENT_PROOF_PROFILE]:
                 'the operation is admitted by the clientProofV1 admission order; requiresSession states whether '
                 + 'the session header travels',
@@ -801,12 +985,63 @@ export function buildMobileContractBundle(): MobileContractBundle
                 + 'any key on that account; deriving the nonce from the key means a stolen id_token carries the '
                 + 'victim\'s fingerprint and cannot be paired with the attacker\'s key',
         },
+        deviceAuthorization: {
+            appliesTo: 'the auth.device.* operations',
+            flow:
+                'a device with no key on file parks its public key with start, shows the userCode it gets back and '
+                + 'polls; the account owner reads that code on a device that is already signed in, checks with info '
+                + 'that the device described is the one in front of them, and calls approve or deny. The next poll '
+                + 'registers the parked key',
+            unprovenOperations:
+                'start and poll are the unproven class. The device calling them has no registered key yet — '
+                + 'obtaining one is what the flow is for — so no proof can exist to sign them with. The deviceCode '
+                + 'start returned is what stands in for a credential on poll, and it is returned once',
+            algorithmDefaultRule:
+                'algorithm is the one optional field of StartDeviceAuthRequest, and an omitted one is ES256: the '
+                + 'parked key is stored as ES256 and the poll registers it as ES256. A device holding a key of any '
+                + 'other algorithm states it here, because the value is fixed when the key is parked and no later '
+                + 'request in this flow can correct it',
+            approverOperations:
+                'info, approve and deny are proven calls from a device that is already signed in, on the same '
+                + 'clientProofV1 terms as the key operations. approve is the one of the three that binds an '
+                + 'account: it reads the approving user from the admitted caller and never from the request body, '
+                + 'because that call is the entire authorization. info and deny bind nobody — info describes the '
+                + 'waiting device to any admitted caller holding the code, and deny records the refusal without '
+                + 'recording who refused',
+            pollStatusRule:
+                'PollDeviceAuthResponse is one object with a discriminant, because this grammar has no union type. '
+                + 'status is always present and every other field belongs to one branch, so every other field is '
+                + 'optional: status "pending" carries intervalMillis and nothing else, and status "approved" '
+                + 'carries userId, publicId, passwordChangeRequired and the optional email and phone — the fields '
+                + 'LoginResponse carries, because an approved poll is the login the approval produced. Read the '
+                + 'branch from status, never from which fields happen to be present',
+            pendingRule:
+                'a pending answer is a 200 carrying status "pending", not a refusal, and none of the error codes '
+                + 'stands for it. It is the answer to "has anyone decided yet", so the client waits intervalMillis '
+                + 'and asks again. Every other answer is an error response, and an error response ends the wait '
+                + 'unless its entry under errors marks it retryable — TooManyRequestsError is the only one that '
+                + 'does today, and it means the device polled faster than the limit allows, so it resumes after '
+                + 'the window rather than treating the code as answered. DeviceAuthDeniedError, '
+                + 'DeviceAuthExpiredError and DeviceAuthNotFoundError are the device-code outcomes among the ones '
+                + 'that end it, and they are not the whole set: this operation also answers ValidationError, the '
+                + 'account and key refusals raised when the approved branch turns the approval into a login, and '
+                + 'codes this bundle does not list. A client that kept polling on an answer it did not recognise '
+                + 'would wait out a code that will never move',
+            userCodeRule:
+                'the userCode is what a person reads off one screen and types on another; the server folds case, '
+                + 'spaces and dashes away before looking it up, so a client may send it as displayed',
+            denyResponseRule:
+                'deny answers 204 with an empty body and therefore declares no responseType, the way core.time '
+                + 'declares no requestType',
+        },
         restOperations: {
             appliesTo: 'every operation whose path starts with /_auth',
             requestBody:
                 'plain JSON of the request type, validated server-side; canonical-JSON encoding is required only '
                 + 'when the call is proven (the proof binds the canonical bytes)',
-            responseBody: 'the response type as plain JSON, with no envelope around it',
+            responseBody:
+                'the response type as plain JSON, with no envelope around it. An operation that declares no '
+                + 'responseType answers 204 with an empty body and there is nothing to decode',
             errorEnvelope:
                 'the same {"error":{"code","message","requestId"}} envelope every operation uses, carried '
                 + 'alongside the SPFN web fields (__type and the error class\'s own public fields) in one body: '
