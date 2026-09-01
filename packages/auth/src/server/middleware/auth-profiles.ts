@@ -521,5 +521,9 @@ export function registerAuthProfile(profileId: string, verifier: AuthProfileVeri
     // would leave the admitting code reassignable through the registrant's own
     // reference, which is the silent override the duplicate-name throw exists
     // to prevent. The bind keeps `this` for a method-style or class verifier.
+    // What the copy fixes is the `verify` function, not what it decides: a class
+    // verifier that consults its own mutable state through that function still
+    // changes behaviour when the registrant mutates it. This is a footgun guard
+    // against an accidental reassignment, not an immutability guarantee.
     AUTH_PROFILE_VERIFIERS.set(profileId, { verify: verifier.verify.bind(verifier) });
 }

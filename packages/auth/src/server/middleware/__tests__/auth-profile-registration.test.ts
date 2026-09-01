@@ -246,6 +246,31 @@ describe('registerAuthProfile — the dispatch around a registered verifier', ()
         });
     });
 
+    describe('3 — mixing is judged before the registry is consulted', () =>
+    {
+        // The dispatch order is the claim: an unregistered name mixed with an
+        // Authorization header answers the mixture, not PROFILE_REJECTED. Were
+        // the lookup to come first, an app could tell registered names from
+        // unregistered ones by which refusal a mixed request gets back.
+        // `authenticate` is where that order lives; optionalAuth reaches it
+        // through the same `selectAuthProfile`.
+        it('an UNREGISTERED profile mixed with Bearer credentials is refused as the mixture', async () =>
+        {
+            const driven = contextFor({
+                headers: {
+                    [CLIENT_PROOF_HEADERS.profile]: 'neverRegisteredMixedProfile',
+                    Authorization: 'Bearer also-present',
+                },
+            });
+            const envelope = await envelopeOf(await run(authenticate, driven));
+
+            expect(envelope.message).toContain('must not be mixed');
+            expect(envelope.message).not.toContain('allowlist');
+            expect(driven.next).not.toHaveBeenCalled();
+            expect(driven.authOf()).toBeUndefined();
+        });
+    });
+
     describe.each(EACH_MIDDLEWARE)('4 — a profile nobody registered (%s)', (_name, middleware) =>
     {
         it('is refused as an unknown profile (unknownProfilePolicy: reject)', async () =>
