@@ -225,7 +225,19 @@ export async function runAuthProfile(c: Context): Promise<AuthProfileOutcome>
             return { kind: 'none' };
         }
 
-        return { kind: 'authenticated', auth: await verifier.verify(c) };
+        // What the verifier resolved has to be a principal. `null` is the JS
+        // idiom for "no user", and taken at face value it would set `auth` to
+        // null and call the route: authenticated everywhere downstream, a 500
+        // in the handler. A resolve that carries no userId is a refusal, and
+        // it leaves here as one — the same throw the verifier's own refusal
+        // takes, so `optionalAuth` cannot downgrade it to anonymous passage.
+        const auth = await verifier.verify(c);
+        if (!auth?.userId)
+        {
+            throw new UnauthorizedError({ message: 'Auth profile verifier returned no principal' });
+        }
+
+        return { kind: 'authenticated', auth };
     }
     catch (err)
     {
@@ -461,12 +473,18 @@ const AUTH_PROFILE_VERIFIERS: Map<string, AuthProfileVerifier> = new Map([
  * `clientProofV1` included. A silent override is how a second import order, or
  * a copied profile name, quietly swaps the code that decides who is admitted.
  *
+ * The verifier must expose a callable `verify` — a value that cannot admit
+ * anyone is refused at boot rather than becoming a registry entry the dispatch
+ * reads as "no profile header", which is anonymous passage under
+ * `optionalAuth` for a request that presented profile credentials.
+ *
  * The verifier returns the same `AuthContext` the Bearer path sets and refuses
- * by throwing. A throw is not caught here: `runAuthProfile` answers the
- * internal clientProofV1 contract refusal and nothing else, so a verifier's own
- * error reaches the app's generic error handler exactly as the Bearer path's
- * `UnauthorizedError` does — and never becomes anonymous passage, not even
- * under `optionalAuth`.
+ * by throwing. A resolve that carries no `userId` is refused as a throw too —
+ * "no user" is a refusal, never a principal. A throw is not caught here:
+ * `runAuthProfile` answers the internal clientProofV1 contract refusal and
+ * nothing else, so a verifier's own error reaches the app's generic error
+ * handler exactly as the Bearer path's `UnauthorizedError` does — and never
+ * becomes anonymous passage, not even under `optionalAuth`.
  *
  * @example
  * ```typescript
@@ -490,10 +508,18 @@ export function registerAuthProfile(profileId: string, verifier: AuthProfileVeri
     {
         throw new Error('registerAuthProfile: profileId must be a non-empty string');
     }
+    if (typeof verifier?.verify !== 'function')
+    {
+        throw new Error(`registerAuthProfile: auth profile '${profileId}' needs a verifier with a callable verify(c)`);
+    }
     if (AUTH_PROFILE_VERIFIERS.has(profileId))
     {
         throw new Error(`registerAuthProfile: auth profile '${profileId}' is already registered`);
     }
 
-    AUTH_PROFILE_VERIFIERS.set(profileId, verifier);
+    // Stored as a bound copy, not the caller's object: `.set(profileId, verifier)`
+    // would leave the admitting code reassignable through the registrant's own
+    // reference, which is the silent override the duplicate-name throw exists
+    // to prevent. The bind keeps `this` for a method-style or class verifier.
+    AUTH_PROFILE_VERIFIERS.set(profileId, { verify: verifier.verify.bind(verifier) });
 }

@@ -36,7 +36,8 @@ vi.mock('@spfn/auth/server', async (importOriginal) =>
 });
 
 import { authenticate, optionalAuth } from '@/server/middleware/authenticate';
-import { registerAuthProfile, type AuthContext } from '@/server/middleware/auth-profiles';
+import { registerAuthProfile, type AuthContext, type AuthProfileVerifier } from '@/server/middleware/auth-profiles';
+import { UnauthorizedError } from '@spfn/core/errors';
 import { decodeToken, verifyClientToken, keysRepository, usersRepository } from '@spfn/auth/server';
 import type { User } from '@spfn/auth/server';
 import { CLIENT_PROOF_HEADERS } from '@/server/client-proof/admission';
@@ -306,17 +307,88 @@ describe('registerAuthProfile — the dispatch around a registered verifier', ()
             expect(driven.authOf()).toBeUndefined();
         });
     });
+
+    describe.each(EACH_MIDDLEWARE)('a registered verifier resolves no principal (%s)', (_name, middleware) =>
+    {
+        // `null` is the JS idiom for "no user", and `{}` is a principal the
+        // verifier forgot to fill in. Both are refusals: taken at face value
+        // they would be routed as authenticated and die in the handler, and
+        // under optionalAuth they must not become anonymous passage either.
+        it.each([
+            ['null', null],
+            ['an object with no userId', {}],
+        ])('refuses when the verifier resolves %s', async (_label, resolved) =>
+        {
+            const profileId = uniqueProfileId();
+            registerAuthProfile(profileId, { verify: async () => resolved as unknown as AuthContext });
+
+            const driven = contextFor({ headers: { [CLIENT_PROOF_HEADERS.profile]: profileId } });
+
+            expect(await run(middleware, driven)).toBeInstanceOf(UnauthorizedError);
+            expect(driven.next).not.toHaveBeenCalled();
+            expect(driven.authOf()).toBeUndefined();
+        });
+    });
+
+    describe("the registry holds a copy, not the registrant's object", () =>
+    {
+        it('answers with the verify that was registered, after the caller reassigns its own', async () =>
+        {
+            const goodVerify = vi.fn(async () => customPrincipal('the-registered-one'));
+            const evilVerify = vi.fn(async () => customPrincipal('the-swapped-one'));
+            const verifier = { verify: goodVerify };
+            const profileId = uniqueProfileId();
+            registerAuthProfile(profileId, verifier);
+
+            verifier.verify = evilVerify;
+
+            const driven = contextFor({ headers: { [CLIENT_PROOF_HEADERS.profile]: profileId } });
+            expect(await run(authenticate, driven)).toBeNull();
+            expect(driven.authOf()).toMatchObject({ scheme: 'the-registered-one' });
+            expect(goodVerify).toHaveBeenCalledTimes(1);
+            expect(evilVerify).not.toHaveBeenCalled();
+        });
+
+        it('keeps `this` for a class-based verifier, whose verify lives on the prototype', async () =>
+        {
+            class ServiceTokenVerifier
+            {
+                constructor(private readonly scheme: string)
+                {
+                }
+
+                async verify(): Promise<AuthContext>
+                {
+                    return customPrincipal(this.scheme);
+                }
+            }
+
+            const profileId = uniqueProfileId();
+            registerAuthProfile(profileId, new ServiceTokenVerifier(profileId));
+
+            const driven = contextFor({ headers: { [CLIENT_PROOF_HEADERS.profile]: profileId } });
+            expect(await run(authenticate, driven)).toBeNull();
+            expect(driven.authOf()).toMatchObject({ scheme: profileId });
+        });
+    });
 });
 
 describe('registerAuthProfile — what it refuses to register', () =>
 {
-    it('9: registering the same name twice throws rather than replacing the verifier', () =>
+    it('9: registering the same name twice throws rather than replacing the verifier', async () =>
     {
         const profileId = uniqueProfileId();
         registerAuthProfile(profileId, { verify: async () => customPrincipal(profileId) });
 
-        expect(() => registerAuthProfile(profileId, { verify: async () => customPrincipal(profileId) }))
-            .toThrow(/already registered/);
+        expect(() => registerAuthProfile(profileId, {
+            verify: async () => ({ ...customPrincipal(profileId), keyId: 'impostor-key' }),
+        })).toThrow(/already registered/);
+
+        // The throw left the registry as it was: the name still dispatches to
+        // the verifier that first claimed it, not to the one refused above.
+        const driven = contextFor({ headers: { [CLIENT_PROOF_HEADERS.profile]: profileId } });
+        expect(await run(authenticate, driven)).toBeNull();
+        expect(driven.authOf()).toMatchObject({ keyId: 'custom-key', scheme: profileId });
     });
 
     it('10: the built-in clientProofV1 is not re-registrable either', () =>
@@ -329,6 +401,34 @@ describe('registerAuthProfile — what it refuses to register', () =>
     {
         expect(() => registerAuthProfile('', { verify: async () => customPrincipal('') }))
             .toThrow(/non-empty string/);
+    });
+
+    // A verifier that cannot admit anyone is refused at boot, where it is an
+    // app bug, rather than becoming a registry entry: an entry whose value is
+    // null reads to the dispatch as "no profile header", which under
+    // optionalAuth is anonymous passage for a request that presented profile
+    // credentials.
+    it.each([
+        ['null', null],
+        ['a verifier whose verify is undefined', { verify: undefined }],
+    ])('a non-callable verifier (%s) throws', (_label, verifier) =>
+    {
+        expect(() => registerAuthProfile(uniqueProfileId(), verifier as unknown as AuthProfileVerifier))
+            .toThrow(/callable verify/);
+    });
+
+    it('the refused registration left nothing behind: the name is still an unknown profile', async () =>
+    {
+        const profileId = uniqueProfileId();
+        expect(() => registerAuthProfile(profileId, null as unknown as AuthProfileVerifier))
+            .toThrow(/callable verify/);
+
+        const driven = contextFor({ headers: { [CLIENT_PROOF_HEADERS.profile]: profileId } });
+        const envelope = await envelopeOf(await run(authenticate, driven));
+
+        expect(envelope.code).toBe('PROFILE_REJECTED');
+        expect(driven.next).not.toHaveBeenCalled();
+        expect(driven.authOf()).toBeUndefined();
     });
 
     it('the built-in verifier still answers its own profile after the failed re-registration', async () =>
@@ -345,13 +445,20 @@ describe('registerAuthProfile — what it refuses to register', () =>
     });
 });
 
+// The union is a compile-time claim, so its gate is `pnpm type-check` (the
+// package tsconfig includes src/**/*), not vitest: a runtime `toEqual` on two
+// string literals passes whether the union is open or closed. The annotation
+// below is the assertion — it stops compiling the moment `scheme` narrows back
+// to the built-in names.
+const widenedScheme: AuthContext['scheme'] = 'serviceTokenV1';
+void widenedScheme;
+
 describe('the scheme field is open without losing the built-in names', () =>
 {
-    it('accepts both a built-in literal and an app-registered name', () =>
+    it('still accepts the built-in literals (the open union kept their autocomplete)', () =>
     {
         const builtIn: AuthContext['scheme'] = 'bearer';
-        const registered: AuthContext['scheme'] = 'serviceTokenV1';
 
-        expect([builtIn, registered]).toEqual(['bearer', 'serviceTokenV1']);
+        expect(builtIn).toBe('bearer');
     });
 });

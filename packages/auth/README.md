@@ -1226,6 +1226,9 @@ x-acme-service-token: <the app's own credential>
 - **A duplicate name throws**, `clientProofV1` included. Replacing a registered verifier silently
   is how an import order or a copied profile name swaps the code that decides who is admitted, so
   there is no override — and no unregistration API for the same reason.
+- **The verifier must expose a callable `verify`**, and what it resolves must carry a `userId` — a
+  verifier that cannot admit anyone is refused at boot, and a resolve without a principal (`null`,
+  the JS idiom for "no user") is refused as a throw rather than routed as authenticated.
 - **An unknown profile is still refused** (`PROFILE_REJECTED`, 400): registering one name does not
   open the header to others.
 - **Mixing is still refused.** A request carrying both `x-spfn-auth-profile` and `Authorization` is
