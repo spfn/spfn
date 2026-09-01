@@ -29,4 +29,5 @@ export type {
     ResponseInterceptor,
     InterceptorRule,
     ProxyConfig,
+    ProxyAbort,
 } from './proxy/interceptors/types';

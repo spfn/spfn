@@ -52,6 +52,32 @@ export interface InterceptorRule
 }
 
 /**
+ * Response an interceptor refuses a request with
+ */
+export interface ProxyAbort
+{
+    /** HTTP status returned to the caller */
+    status: number;
+
+    /** JSON body returned to the caller */
+    body: unknown;
+
+    /**
+     * Cookies to set on the refusal itself
+     *
+     * A refusal skips the backend and every response interceptor, so this is the
+     * only way a refused request can hand the browser anything. The CSRF check in
+     * @spfn/auth uses it to reissue the readable token cookie on the 403 it emits,
+     * which is what makes "retry and it works" true rather than aspirational: the
+     * client that was refused now holds the value the next attempt needs.
+     *
+     * Set nothing an unauthenticated caller could not already have — a refusal is
+     * reachable by whoever sent the request.
+     */
+    setCookies?: SetCookie[];
+}
+
+/**
  * Request Interceptor Context
  *
  * Available before calling SPFN API
@@ -97,6 +123,18 @@ export interface RequestInterceptorContext
      * Metadata for sharing data between interceptors
      */
     metadata: Record<string, any>;
+
+    /**
+     * Refuse the request without calling the backend
+     *
+     * An interceptor that sets this stops the proxy before the fetch: the status
+     * and body are returned to the caller as-is and no response interceptor runs.
+     * A refusal therefore sets only the cookies the refusing interceptor put on
+     * `abort.setCookies` itself. Used by the CSRF check in @spfn/auth, the only
+     * layer that knows a request was authenticated from the session cookie rather
+     * than from a caller-supplied bearer token.
+     */
+    abort?: ProxyAbort;
 }
 
 /**

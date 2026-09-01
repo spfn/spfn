@@ -13,6 +13,7 @@ import { COOKIE_NAMES, getSessionTtl } from '../../server/lib/config';
 import { authLogger } from '../../server/logger';
 import { sealPendingSession, unsealPendingSession } from '../session-helpers';
 import { cookieSecure } from './cookie-options';
+import { pushCsrfCookie } from './csrf';
 
 /**
  * OAuth URL Interceptor
@@ -246,6 +247,9 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                     path: '/',
                 },
             });
+
+            // Set the readable CSRF cookie the client mirrors into a header
+            await pushCsrfCookie(ctx.setCookies, keyId, ttl);
 
             // pending session 쿠키 삭제 (maxAge: 0)
             ctx.setCookies.push({

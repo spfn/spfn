@@ -13,6 +13,7 @@ import { sealSession } from '../../server/lib/session';
 import { getSessionTtl, COOKIE_NAMES } from '../../server/lib/config';
 import { authLogger } from '../../server/logger';
 import { cookieSecure } from './cookie-options';
+import { pushCsrfCookie } from './csrf';
 
 /**
  * Login, Register, and Invitation-Accept Interceptor
@@ -127,6 +128,9 @@ export const loginRegisterInterceptor: InterceptorRule =
                         path: '/',
                     },
                 });
+
+                // Set the readable CSRF cookie the client mirrors into a header
+                await pushCsrfCookie(ctx.setCookies, ctx.metadata.keyId, ttl);
             }
             catch (error)
             {

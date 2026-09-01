@@ -22,10 +22,17 @@ NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
 SPFN_APP_URL=http://localhost:3790
 `;
 
+// A new app has no legacy clients to break, so it starts enforcing rather than
+// warning: the Next.js proxy refuses a cookie-session mutation that arrives
+// without the CSRF header. Unset, the framework only warns.
+const CSRF_ENV_LINES = `# CSRF for cookie-session mutations: off | warn | enforce (unset = warn)
+SPFN_AUTH_CSRF=enforce`;
+
 const FULL_ENV_LOCAL_EXAMPLE = `
 # Full scaffold: auth session encryption (Next.js server only; never NEXT_PUBLIC_*)
 SPFN_AUTH_SESSION_SECRET=replace-with-a-random-secret-at-least-32-characters
 SPFN_AUTH_SESSION_TTL=7d
+${CSRF_ENV_LINES}
 NEXT_PUBLIC_SPFN_APP_URL=http://localhost:3790
 `;
 
@@ -111,6 +118,7 @@ function envLocalTemplate(mode: ScaffoldMode): string
 # Full scaffold: auth session encryption (Next.js server only; never NEXT_PUBLIC_*)
 SPFN_AUTH_SESSION_SECRET=${randomSecret('base64url')}
 SPFN_AUTH_SESSION_TTL=7d
+${CSRF_ENV_LINES}
 NEXT_PUBLIC_SPFN_APP_URL=http://localhost:3790
 `;
 }

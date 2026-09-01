@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers.js';
 import { sealSession } from '../server/lib/session';
+import { deriveCsrfToken } from '../server/lib/csrf';
 import { COOKIE_NAMES, getSessionTtl } from '../server/lib/config';
 import { env } from '@spfn/core/config';
 import { logger } from '@spfn/core/logger';
@@ -119,6 +120,15 @@ export function createOAuthCallbackHandler(options?: OAuthCallbackOptions)
             // Set keyId cookie
             response.cookies.set(COOKIE_NAMES.SESSION_KEY_ID, keyId, {
                 httpOnly: true,
+                secure: env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: ttl,
+                path: '/',
+            });
+
+            // Readable CSRF cookie — the client mirrors it into x-spfn-csrf
+            response.cookies.set(COOKIE_NAMES.CSRF, await deriveCsrfToken(keyId), {
+                httpOnly: false,
                 secure: env.NODE_ENV === 'production',
                 sameSite: 'lax',
                 maxAge: ttl,

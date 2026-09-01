@@ -7,6 +7,7 @@
 import * as jose from 'jose';
 import { cookies } from 'next/headers.js';
 import { sealSession, unsealSession, type SessionData } from '../server/lib/session';
+import { deriveCsrfToken } from '../server/lib/csrf';
 import { COOKIE_NAMES, getSessionTtl, parseDuration } from '../server/lib/config';
 import { type KeyAlgorithmType } from '../server/types';
 import { env } from '@spfn/auth/config';
@@ -112,6 +113,17 @@ export async function saveSession(
         path: '/',
         maxAge,
     });
+
+    // Readable companion: the client mirrors it into x-spfn-csrf, and the proxy
+    // refuses cookie-session mutations that arrive without it. A session saved
+    // here without one would be a session that cannot mutate anything.
+    cookieStore.set(COOKIE_NAMES.CSRF, await deriveCsrfToken(data.keyId), {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge,
+    });
 }
 
 /**
@@ -161,6 +173,7 @@ export async function clearSession(): Promise<void>
     const cookieStore = await cookies();
     cookieStore.delete(COOKIE_NAMES.SESSION);
     cookieStore.delete(COOKIE_NAMES.SESSION_KEY_ID);
+    cookieStore.delete(COOKIE_NAMES.CSRF);
 }
 
 // ============================================================================

@@ -83,6 +83,10 @@ describe('scaffold modes', () =>
         expect(await readFile(join(directory, 'src/app/login/page.tsx'), 'utf8'))
             .toContain('getProviderOAuthUrl');
         expect(localEnv).toMatch(/SPFN_AUTH_SESSION_SECRET=.{32,}/);
+        // A new app has no legacy client to break, so CSRF starts enforced
+        // rather than warning.
+        expect(localEnv).toContain('SPFN_AUTH_CSRF=enforce');
+        expect(envExample).toContain('SPFN_AUTH_CSRF=enforce');
         expect((await stat(join(directory, '.env.local'))).mode & 0o777).toBe(0o600);
         expect(serverEnv).not.toContain('SPFN_MCP_API_KEY');
         // The ops surface needs no variable — only the administrator that issues

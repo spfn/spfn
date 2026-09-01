@@ -19,6 +19,11 @@
 export * from './crypto';
 export * from './session';
 export * from './config';
+// Named rather than `export *`: `timingSafeEqualString` is an implementation
+// detail of the check, and putting a comparison helper of that name on the public
+// surface invites it to be mistaken for node's Buffer-based `timingSafeEqual`,
+// which this package uses elsewhere.
+export { CSRF_HEADER, deriveCsrfToken, matchesCsrfToken } from './csrf';
 export * from './oauth';
 export * from './one-time-token';
 export * from './deletion-config';

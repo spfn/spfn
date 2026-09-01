@@ -13,6 +13,7 @@ import { generateClientToken } from '../../server/lib/crypto';
 import { getSessionTtl, COOKIE_NAMES } from '../../server/lib/config';
 import { authLogger } from '../../server/logger';
 import { cookieSecure } from './cookie-options';
+import { refuseInvalidCsrf, pushCsrfCookie, pushCsrfCookieIfStale, pushCsrfCookieRemoval } from './csrf';
 
 /**
  * Check if path requires authentication
@@ -95,6 +96,14 @@ export const generalAuthInterceptor: InterceptorRule =
                     keyId: session.keyId,
                 });
 
+                // The request is authenticated from the session cookie — the one
+                // fact only this layer knows, and the whole reason the CSRF check
+                // lives here. Refusals stop before the backend is called.
+                if (await refuseInvalidCsrf(ctx, session.keyId))
+                {
+                    return;
+                }
+
                 // Check if session should be refreshed (within 24h of expiry)
                 const needsRefresh = await shouldRefreshSession(sessionCookie, 24);
 
@@ -126,6 +135,7 @@ export const generalAuthInterceptor: InterceptorRule =
 
                 // Store session info in metadata
                 ctx.metadata.userId = session.userId;
+                ctx.metadata.keyId = session.keyId;
                 ctx.metadata.sessionValid = true;
             }
             catch (error)
@@ -176,6 +186,8 @@ export const generalAuthInterceptor: InterceptorRule =
                     options: { maxAge: 0, path: '/' },
                 });
 
+                pushCsrfCookieRemoval(ctx.setCookies);
+
                 await next();
 
                 return;
@@ -201,6 +213,8 @@ export const generalAuthInterceptor: InterceptorRule =
                         path: '/',
                     },
                 });
+
+                pushCsrfCookieRemoval(ctx.setCookies);
             }
             // Refresh session if needed and request was successful
             else if (ctx.metadata.refreshSession && ctx.response.status === 200)
@@ -238,6 +252,10 @@ export const generalAuthInterceptor: InterceptorRule =
                             path: '/',
                         },
                     });
+
+                    // Renewed session, renewed CSRF cookie — same lifetime, so the
+                    // readable value never outlives the session it belongs to.
+                    await pushCsrfCookie(ctx.setCookies, sessionData.keyId, ttl);
 
                     authLogger.interceptor.general.info('Session refreshed', {
                         userId: sessionData.userId,
@@ -278,6 +296,25 @@ export const generalAuthInterceptor: InterceptorRule =
                     value: '',
                     options: { ...base, sameSite: 'lax' },
                 });
+
+                pushCsrfCookieRemoval(ctx.setCookies);
+            }
+
+            // A session that predates CSRF protection carries no readable cookie,
+            // and renewal only happens near expiry — an app switching to enforce
+            // would otherwise refuse every mutation from everyone already signed
+            // in, for days. Issue it on any authenticated response whose cookie is
+            // missing or no longer matches; reads pass the check, so a page load
+            // is enough to heal.
+            const csrfQueued = ctx.setCookies.some(cookie => cookie.name === COOKIE_NAMES.CSRF);
+
+            if (ctx.metadata.sessionValid && !csrfQueued)
+            {
+                await pushCsrfCookieIfStale(
+                    ctx.setCookies,
+                    ctx.cookies.get(COOKIE_NAMES.CSRF),
+                    ctx.metadata.keyId,
+                );
             }
 
             await next();

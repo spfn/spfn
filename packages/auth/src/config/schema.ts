@@ -103,6 +103,15 @@ export const authEnvSchema = defineEnvSchema({
         }),
     },
 
+    SPFN_AUTH_CSRF: {
+        ...envString({
+            description: 'CSRF protection for cookie-session mutations in the Next.js proxy: off | warn | enforce. Unset behaves as "warn" (log what would be refused, allow it through). configureAuth({ csrf: { mode } }) takes precedence.',
+            required: false,
+            nextjs: true, // The check runs in the Next.js proxy
+            examples: ['enforce', 'warn', 'off'],
+        }),
+    },
+
     SPFN_AUTH_BCRYPT_SALT_ROUNDS: {
         ...envNumber({
             description: 'Bcrypt salt rounds (cost factor, higher = more secure but slower)',

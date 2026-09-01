@@ -8,6 +8,7 @@ import { env } from '@spfn/auth/config';
 
 import type { SocialProvider } from '../types';
 import { normalizeOptionalEmail } from '../helpers/email';
+import { authLogger } from '../logger';
 
 /**
  * Cookie name suffix derived from the server port, so several local dev
@@ -56,6 +57,11 @@ export const COOKIE_NAMES = {
     get SIGNUP_SETUP()
     {
         return `spfn_signup_setup${getCookieSuffix()}`;
+    },
+    /** CSRF token — the only cookie here the browser can read */
+    get CSRF()
+    {
+        return `spfn_csrf${getCookieSuffix()}`;
     },
 };
 
@@ -158,6 +164,40 @@ export interface BeforeRegisterContext
 }
 
 /**
+ * How the Next.js proxy treats a cookie-authenticated mutation that arrives
+ * without a valid CSRF header.
+ *
+ * - `off`: no check
+ * - `warn`: allow it through, log one line per request that would be refused
+ * - `enforce`: refuse it with 403
+ */
+export type CsrfMode = 'off' | 'warn' | 'enforce';
+
+/**
+ * CSRF configuration for the Next.js proxy
+ */
+export interface AuthCsrfConfig
+{
+    /**
+     * @default 'warn' — an existing app gets signal before it gets breakage.
+     *          `SPFN_AUTH_CSRF` sets it when this is not; new apps scaffolded by
+     *          `spfn init` are given `enforce`.
+     */
+    mode?: CsrfMode;
+
+    /**
+     * Backend paths that skip the check, matched exactly.
+     *
+     * These are route paths as the backend sees them (`/webhooks/stripe`), not
+     * `/api/rpc/...` URLs, with route params already substituted. Intended for
+     * endpoints a browser session never calls — webhook receivers and the like.
+     * A path listed here is unprotected for cookie callers too, so list only
+     * endpoints that carry their own authentication.
+     */
+    exemptPaths?: string[];
+}
+
+/**
  * Auth configuration
  */
 export interface AuthConfig
@@ -202,6 +242,18 @@ export interface AuthConfig
      * ```
      */
     beforeRegister?: (context: BeforeRegisterContext) => void | Promise<void>;
+
+    /**
+     * CSRF protection for cookie-session mutations, enforced in the Next.js proxy.
+     *
+     * @example
+     * ```typescript
+     * configureAuth({
+     *     csrf: { mode: 'enforce', exemptPaths: ['/webhooks/stripe'] },
+     * });
+     * ```
+     */
+    csrf?: AuthCsrfConfig;
 }
 
 /**
@@ -293,4 +345,57 @@ export function getSessionTtl(override?: string | number): number
 
     // 4. Default: 7 days
     return 7 * 24 * 60 * 60;
+}
+
+const CSRF_MODES: CsrfMode[] = ['off', 'warn', 'enforce'];
+
+/** The typo notice is a property of the process, not of a request */
+let unrecognizedCsrfModeReported = false;
+
+/**
+ * Get the CSRF mode
+ *
+ * Priority:
+ * 1. Global config (configureAuth)
+ * 2. Environment variable (SPFN_AUTH_CSRF)
+ * 3. Default ('warn')
+ *
+ * An unrecognized value is a typo in the one setting that turns the check on;
+ * it resolves to `enforce` and says so, rather than quietly leaving mutations
+ * unprotected. It says so once per process: this runs on every mutation, so a
+ * per-call error would be pure repetition burying the rest of the log.
+ */
+export function getCsrfMode(): CsrfMode
+{
+    const configured = globalConfig.csrf?.mode ?? env.SPFN_AUTH_CSRF;
+
+    if (!configured)
+    {
+        return 'warn';
+    }
+
+    const normalized = String(configured).trim().toLowerCase() as CsrfMode;
+
+    if (!CSRF_MODES.includes(normalized))
+    {
+        if (!unrecognizedCsrfModeReported)
+        {
+            unrecognizedCsrfModeReported = true;
+            authLogger.interceptor.csrf.error(
+                `Unrecognized CSRF mode "${configured}" — expected off | warn | enforce. Enforcing.`,
+            );
+        }
+
+        return 'enforce';
+    }
+
+    return normalized;
+}
+
+/**
+ * Get the paths exempted from the CSRF check (exact match, backend route paths)
+ */
+export function getCsrfExemptPaths(): string[]
+{
+    return globalConfig.csrf?.exemptPaths ?? [];
 }

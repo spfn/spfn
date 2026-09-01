@@ -48,6 +48,7 @@ import {
     buildCookieHeader,
     autoDetectServerCookies,
 } from './helpers';
+import { CSRF_HEADER, csrfHeaderValue, documentCookieEntries } from './csrf';
 import { RouteCallBuilder } from './builder';
 import type { ApiConfig, CallOptions } from './types';
 import type { Client } from './builder';
@@ -183,6 +184,26 @@ export function createApi<TRouter extends Router<any>>(
         if (Object.keys(cookiesToSend).length > 0)
         {
             headers['Cookie'] = buildCookieHeader(cookiesToSend);
+        }
+
+        // Mirror the readable CSRF cookie into a header, from the browser jar or
+        // — server-side — from the jar being forwarded.
+        //
+        // Carried on GET calls too, deliberately: the wire method here is chosen
+        // by whether the input has a body, not by what the route does. A bodyless
+        // mutation (`api.logout.call({})`) travels as GET and the proxy still
+        // forwards it as the route's POST, so a GET-shaped call can be exactly
+        // the request that needs the header. The proxy decides what to check from
+        // the resolved route method, and ignores the header on safe routes.
+        const csrfToken = csrfHeaderValue(
+            typeof window === 'undefined' ? Object.entries(cookiesToSend) : documentCookieEntries(),
+        );
+
+        const csrfSetByCaller = Object.keys(headers).some(name => name.toLowerCase() === CSRF_HEADER);
+
+        if (csrfToken && !csrfSetByCaller)
+        {
+            headers[CSRF_HEADER] = csrfToken;
         }
 
         // Log cookie auto-detection if debug enabled

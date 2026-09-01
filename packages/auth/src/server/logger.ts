@@ -14,6 +14,7 @@ export const authLogger = {
         login: rootLogger.child('@spfn/auth:interceptor:login'),
         keyRotation: rootLogger.child('@spfn/auth:interceptor:key-rotation'),
         oauth: rootLogger.child('@spfn/auth:interceptor:oauth'),
+        csrf: rootLogger.child('@spfn/auth:interceptor:csrf'),
     },
     session: rootLogger.child('@spfn/auth:session'),
     service: rootLogger.child('@spfn/auth:service'),

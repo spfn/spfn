@@ -10,6 +10,7 @@ import { unsealSession, sealSession } from '../../server/lib/session';
 import { getSessionTtl, COOKIE_NAMES } from '../../server/lib/config';
 import { authLogger } from '../../server/logger';
 import { cookieSecure } from './cookie-options';
+import { pushCsrfCookie } from './csrf';
 
 /**
  * Key Rotation Interceptor
@@ -53,10 +54,13 @@ export const keyRotationInterceptor: InterceptorRule =
                 ctx.body.algorithm = newKeyPair.algorithm;
                 ctx.body.keySize = Buffer.from(newKeyPair.publicKey, 'base64').length;
 
-                console.log('New key generated:', newKeyPair);
-                console.log('publicKey:', newKeyPair.publicKey);
-                console.log('keyId:', newKeyPair.keyId);
-                console.log('fingerprint:', newKeyPair.fingerprint);
+                // Identity of the new key only — the pair carries `privateKey`,
+                // the credential the session is sealed around.
+                authLogger.interceptor.keyRotation.debug('Generated a new key pair', {
+                    keyId: newKeyPair.keyId,
+                    fingerprint: newKeyPair.fingerprint,
+                    algorithm: newKeyPair.algorithm,
+                });
 
                 // Authenticate with CURRENT key
                 const token = generateClientToken(
@@ -148,6 +152,10 @@ export const keyRotationInterceptor: InterceptorRule =
                         path: '/',
                     },
                 });
+
+                // Rotation changes the key id the token is derived from, so the
+                // old CSRF value stops verifying — reissue it in the same response.
+                await pushCsrfCookie(ctx.setCookies, ctx.metadata.newKeyId, ttl);
             }
             catch (error)
             {

@@ -136,6 +136,7 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_JWT_SECRET` / `SPFN_AUTH_JWT_EXPIRES_IN` | `.env.server` | — | legacy server-signed JWT mode only |
 | `SPFN_AUTH_BCRYPT_SALT_ROUNDS` | `.env.server` | — | default `12` (native bcrypt, off the event loop) |
 | `SPFN_AUTH_COOKIE_SECURE` | both | — | override Secure flag (defaults to `NODE_ENV==='production'`) |
+| `SPFN_AUTH_CSRF` | `.env.local` | — | `off` \| `warn` \| `enforce`; unset behaves as `warn` — see [CSRF protection](#csrf-protection) |
 | `SPFN_AUTH_ADMIN_*` | `.env.server` | — | admin seeding (see below) |
 | `SPFN_AUTH_GOOGLE_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | enables Google OAuth when both set |
 | `SPFN_AUTH_GOOGLE_SCOPES` | `.env.server` | — | comma-separated; default `email,profile` |
@@ -881,6 +882,134 @@ export default async function AdminPage()
 
 Also exported: `getAuthSessionData`, `getUserRole`, `getUserPermissions`, `hasAnyRole`,
 `hasAnyPermission`, the OAuth pending-session helpers, and `createOAuthCallbackHandler`.
+
+## CSRF protection
+
+Cookie-authenticated mutations carry a CSRF token by default. Nothing to write: the
+Next.js proxy issues the token with the session and the api client sends it back.
+
+**What it protects.** The session cookie is `SameSite=Lax`, which already blocks the
+classic cross-site form POST. What remains is what Lax does not cover: a sibling
+subdomain that can write cookies on your parent domain (an XSS on `blog.example.com`
+against `app.example.com`), browsers that predate or mis-implement Lax, and a domain
+layout that drifts into `SameSite=None` later. This closes those.
+
+**What it does not protect.** Nothing here helps against XSS on your own origin.
+Script running on your origin can read the token cookie and call your API as the
+user — that is true of every CSRF scheme, and no token design changes it. Same-origin
+XSS is out of scope; Content-Security-Policy and output escaping are the answer to it.
+
+### How it works
+
+- On login, OAuth finalize, key rotation and every session renewal, the proxy sets
+  `spfn_csrf` — a readable (non-HttpOnly) cookie holding only an HMAC of the session's
+  key id, keyed by a subkey derived from `SPFN_AUTH_SESSION_SECRET`. No new variable,
+  and the raw session secret is never used as the token key. Sessions that predate
+  the feature get one on their first authenticated response, so upgrading does not
+  require anyone to sign in again.
+- The api client mirrors the cookie into the `x-spfn-csrf` header on **every** RPC call,
+  GET-shaped ones included — see "Which requests are checked" for why it cannot narrow
+  that itself. Where the header is *checked* is the proxy's decision, not the client's.
+- The proxy **recomputes** the expected value from the session it just unsealed and
+  compares it to the header, in constant time. It never compares the cookie to the
+  header — that is the classic double-submit weakness, and it is exactly what a
+  sibling subdomain defeats by tossing a cookie it chose. A tossed cookie fails here.
+- The token derives from the session key id, so rotating the key invalidates it. The
+  proxy reissues the cookie in the same response that rotates or renews the session.
+
+The check runs in the proxy, not the backend, because only the proxy knows the
+request's credential was ambient: it turns the session cookie into a short-lived
+bearer JWT, so the backend sees `scheme:'bearer'` for cookie callers and for genuine
+bearer clients alike.
+
+### Which requests are checked
+
+Only requests the proxy authenticates from the session cookie, and only when the
+resolved **route** method is not GET/HEAD/OPTIONS.
+
+Route method, not the method the browser used to reach the proxy. The api client picks
+its wire method from whether the input has a body, and holds no route map — that is the
+point of "no metadata codegen required" — so a mutation with nothing to send travels as
+GET. `logout` is `POST /_auth/logout`; `revokeOpsToken` is
+`DELETE /_auth/ops-tokens/:id`, called with only a path param. Both are `GET` on the
+wire and both are forwarded as the route's real method. A client that withheld the
+header on GET-shaped calls would therefore 403 them under `enforce`, which is why the
+contract is "every call carries it" and the proxy alone decides where it is checked.
+Gating in the proxy on the wire method would be worse still: a cross-site top-level GET
+navigation *does* carry a `SameSite=Lax` cookie, so every mutation would stay reachable
+that way.
+
+Untouched, by construction: requests with no session, direct-to-backend bearer
+clients, `clientProofV1` mobile callers, machine and ops tokens. None of them pass
+through this code. A request without a session is answered exactly as before (the
+backend returns 401) — a CSRF refusal only ever answers an authenticated request, so
+the refusal itself cannot tell an anonymous caller whether anyone is signed in.
+
+### Modes
+
+| Mode | Behaviour |
+|---|---|
+| `off` | No check. |
+| `warn` | **Default.** Allows the request, logs one line per request that would be refused. |
+| `enforce` | Refuses with `403 {"error":"Forbidden","message":"CSRF token missing or invalid"}`. |
+
+Existing apps get signal before breakage: unset means `warn`. Watch for
+`@spfn/auth:interceptor:csrf` lines, then switch on. Apps scaffolded by `spfn init`
+start at `enforce`.
+
+```bash
+# .env.local — read by the Next.js process, where the proxy runs
+SPFN_AUTH_CSRF=enforce
+```
+
+```typescript
+import { configureAuth } from '@spfn/auth/server';
+
+configureAuth({
+    csrf: {
+        mode: 'enforce',
+        // Exact backend route paths, params already substituted — not /api/rpc/… URLs.
+        // For endpoints a browser session never calls, e.g. webhook receivers that
+        // authenticate themselves by signature. An exempt path is unprotected for
+        // cookie callers too, so list only endpoints that carry their own auth.
+        exemptPaths: ['/webhooks/stripe'],
+    },
+});
+```
+
+`configureAuth` wins over the environment variable. `enforce` and `warn` both need
+`SPFN_AUTH_SESSION_SECRET` — sessions need it anyway — and refuse rather than quietly
+passing everything if it is missing.
+
+### If a request is refused
+
+A refusal in a running app almost always means the token cookie is gone or stale while
+the session is not — cleared by hand or by an extension, or a session that predates this
+feature. Rotation is not a cause: the response that rotates the key reissues the cookie
+in the same breath, and one browser has one jar, so other tabs pick the new value up
+with it.
+
+Two things repair it, and both are mechanical:
+
+- **The 403 carries the fix.** The proxy is the one emitting the refusal, so it sets a
+  fresh `spfn_csrf` on that very response. A browser that repeats the mutation succeeds.
+  The refusal is otherwise unchanged — same status, same body.
+- **Any authenticated response reissues a wrong one.** A response whose request arrived
+  with no CSRF cookie, or with one that no longer matches the session, queues the
+  correct value. A cookie that is merely *present* is not taken as proof it is right.
+
+**The client does not retry a refused call**, so a user sees one failure before the
+repaired state takes effect — the framework fixes the browser, not the click.
+
+**Limitation — calls made from the server.** A Server Component cannot set cookies at
+all, and Next.js does not forward `Set-Cookie` from a fetch the api client made on the
+server to the browser. So neither repair reaches the jar when the refused call came from
+a Server Component, a Server Action or a Route Handler; the next browser-originated
+request through the proxy is what heals it. Server-side callers otherwise need no
+change: the api client reads the whole jar through `next/headers`, and an explicit
+`cookies` option merges over that rather than replacing it. Only a caller that
+hand-builds a jar somewhere `cookies()` cannot be reached — build time, static
+generation — has to include the CSRF cookie itself.
 
 ## How do I define roles and permissions?
 

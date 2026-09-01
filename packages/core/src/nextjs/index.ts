@@ -10,6 +10,7 @@
 export {
     createApi,
     ApiError,
+    CSRF_HEADER,
 } from './client';
 
 export type {

@@ -409,6 +409,32 @@ export function createRpcProxy(config: RpcProxyConfig)
                 }
             }
 
+            // An interceptor refused the request (e.g. the CSRF check in @spfn/auth).
+            // Return its response without touching the backend; no response
+            // interceptor runs, so the only cookies a refusal can carry are the
+            // ones the refusing interceptor attached to the abort. The CSRF check
+            // attaches a fresh token there, so the refusal is what repairs the
+            // browser instead of merely reporting the damage.
+            if (requestCtx.abort)
+            {
+                rpcLogger.warn('Request refused by an interceptor', {
+                    routeName,
+                    status: requestCtx.abort.status,
+                });
+
+                const abortResponse = NextResponse.json(
+                    requestCtx.abort.body,
+                    { status: requestCtx.abort.status },
+                );
+
+                for (const cookie of requestCtx.abort.setCookies ?? [])
+                {
+                    abortResponse.headers.append('Set-Cookie', buildSetCookieHeader(cookie));
+                }
+
+                return abortResponse;
+            }
+
             // ============================================================
             // Proxy → Backend signature (proxy-guard)
             // ============================================================
