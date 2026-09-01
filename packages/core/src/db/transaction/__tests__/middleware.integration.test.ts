@@ -8,7 +8,13 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { Transactional } from '../middleware';
-import { getTransaction, getTransactionId } from '../context';
+import {
+    getTransaction,
+    getTransactionId,
+    onBeforeCommit,
+    onAfterCommit,
+    onAfterRollback,
+} from '../context';
 import { testUsers } from '../../__tests__/fixtures/test-schema';
 import { createDbTestFixture } from '../../__tests__/helpers/db-fixture';
 
@@ -162,6 +168,48 @@ describe('Transaction Middleware (Integration)', () =>
             expect(response.status).toBe(500); // Database error
 
             // Verify both inserts were rolled back
+            const users = await dbFixture.db.select().from(testUsers);
+            expect(users).toHaveLength(0);
+        });
+    });
+
+    describe('Transaction Hooks', () =>
+    {
+        it('fires only afterRollback when a handler throws under the middleware', async () =>
+        {
+            if (!dbFixture.isAvailable) return;
+
+            const fired: string[] = [];
+            const app = new Hono();
+
+            app.use('*', Transactional({ enableLogging: false }));
+
+            // The middleware's rollback plumbing differs from a bare
+            // runInTransaction: Hono absorbs the handler's throw into c.error and
+            // the middleware re-throws it after next(). The hooks must still see
+            // that as a rollback.
+            app.post('/users', async () =>
+            {
+                onBeforeCommit(() => void fired.push('beforeCommit'));
+                onAfterCommit(() => void fired.push('afterCommit'));
+                onAfterRollback(() => void fired.push('afterRollback'));
+
+                await getTransaction()!.insert(testUsers).values({
+                    name: 'Hook Rollback User',
+                    email: 'hookrollback@example.com',
+                });
+
+                throw new Error('handler failed');
+            });
+
+            const response = await app.request('/users', { method: 'POST' });
+            expect(response.status).toBe(500);
+
+            // Flushed so a wrongly-queued afterCommit would have shown up by now
+            await new Promise(resolve => setTimeout(resolve, 20));
+
+            expect(fired).toEqual(['afterRollback']);
+
             const users = await dbFixture.db.select().from(testUsers);
             expect(users).toHaveLength(0);
         });

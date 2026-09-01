@@ -71,8 +71,8 @@ export type {
 } from './migrations';
 
 // Transaction
-export { Transactional, getTransaction, getTransactionContext, runWithTransaction, runInTransaction, onAfterCommit } from './transaction';
-export type { TransactionContext, TransactionDB, TransactionalOptions, RunInTransactionOptions, AfterCommitCallback } from './transaction';
+export { Transactional, getTransaction, getTransactionContext, runWithTransaction, runInTransaction, onBeforeCommit, onAfterCommit, onAfterRollback } from './transaction';
+export type { TransactionContext, TransactionDB, TransactionalOptions, RunInTransactionOptions, BeforeCommitCallback, AfterCommitCallback, AfterRollbackCallback } from './transaction';
 
 // PostgreSQL Error Utilities
 export { fromPostgresError } from './postgres-errors';

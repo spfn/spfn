@@ -46,7 +46,14 @@ import { randomUUID } from 'crypto';
 import { sql } from 'drizzle-orm';
 import { logger } from '@spfn/core/logger';
 import { getDatabase } from '../manager';
-import { runWithTransaction, getTransactionContext, type TransactionDB, type AfterCommitCallback } from './context';
+import {
+    runWithTransaction,
+    getTransactionContext,
+    type TransactionDB,
+    type AfterCommitCallback,
+    type BeforeCommitCallback,
+    type AfterRollbackCallback,
+} from './context';
 import { TransactionError } from '@spfn/core/errors';
 import { env } from '@spfn/core/config';
 import type { DefaultDatabase, DrizzleDatabase } from '../manager/types';
@@ -56,6 +63,93 @@ import type { DefaultDatabase, DrizzleDatabase } from '../manager/types';
  */
 const MAX_TIMEOUT_MS = 2147483647;
 const txLogger = logger.child('@spfn/core:transaction');
+
+/**
+ * Emit a status log line under a backstop
+ *
+ * The commit/rollback status lines sit at points where a throwing logger would
+ * be destructive and never useful: on the rollback path it would replace the
+ * error that caused the rollback and skip the afterRollback callbacks; on the
+ * success path it would report a failure for a transaction that already
+ * committed and drop the afterCommit queue. A broken logger changes neither.
+ */
+function logSafely(emit: () => void): void
+{
+    try
+    {
+        emit();
+    }
+    catch
+    {
+        // Reporting a logging failure would need the logger. Stay silent.
+    }
+}
+
+/**
+ * Run the beforeCommit callbacks, in registration order, inside the transaction
+ *
+ * The queue is SNAPSHOT before the pass. A callback that itself calls
+ * onBeforeCommit would otherwise grow the array while we walk it, and a
+ * self-registering callback would spin forever inside an open transaction,
+ * holding a pooled connection — statement_timeout cannot save us there, because
+ * no statement is running. The semantics that follow are documented on
+ * onBeforeCommit: a callback registered during the pass does not run for this
+ * commit.
+ *
+ * These run after the user callback resolved, so the transaction is still healthy
+ * and a callback may issue statements that join the same commit. A throw is
+ * deliberately NOT caught: it escapes writeDb.transaction(), which rolls the
+ * transaction back, and the afterRollback callbacks then fire. Later callbacks
+ * are skipped — the transaction they would have run in is already doomed.
+ */
+async function runBeforeCommitCallbacks(callbacks: BeforeCommitCallback[]): Promise<void>
+{
+    for (const cb of [...callbacks])
+    {
+        await cb();
+    }
+}
+
+/**
+ * Run the afterRollback callbacks, in registration order, outside the transaction
+ *
+ * The rollback error is already on its way to the caller, so nothing here may
+ * replace it: each callback's failure is logged through logSafely, so neither a
+ * broken callback nor a broken logger can stop the rest. The opening debug line
+ * goes through logSafely for the same reason — a throw there would skip every
+ * callback. Callbacks are awaited so they complete before the error leaves the
+ * runner.
+ */
+async function runAfterRollbackCallbacks(
+    callbacks: AfterRollbackCallback[],
+    txId: string,
+    context: string,
+    enableLogging: boolean,
+): Promise<void>
+{
+    if (enableLogging)
+    {
+        logSafely(() => txLogger.debug('Executing afterRollback callbacks', {
+            txId,
+            context,
+            count: callbacks.length,
+        }));
+    }
+
+    for (const cb of callbacks)
+    {
+        await Promise.resolve()
+            .then(cb)
+            .catch((err) => logSafely(() =>
+            {
+                txLogger.error('afterRollback callback failed', {
+                    txId,
+                    context,
+                    error: err instanceof Error ? err.message : String(err),
+                });
+            }));
+    }
+}
 
 /**
  * Transaction runner options
@@ -305,8 +399,18 @@ export async function runInTransaction<T, TDatabase extends DrizzleDatabase = De
     // Start timing from actual transaction execution
     const startTime = Date.now();
 
-    // Collect afterCommit callbacks from root transaction
+    // Hook queues of the root transaction context.
+    //
+    // These are ALIASES of the arrays inside the context, not copies, and they
+    // are bound on entry to the transaction closure — before the user callback
+    // can throw. That is what makes them reachable from the catch below, where
+    // the AsyncLocalStorage context is already gone: a throw can never lose a
+    // registered rollback callback. Callbacks registered later (including from
+    // nested transactions, which share the root's arrays) mutate these same
+    // arrays, so the runner always sees the complete queue.
+    let beforeCommitCallbacks: BeforeCommitCallback[] = [];
     let afterCommitCallbacks: AfterCommitCallback[] = [];
+    let afterRollbackCallbacks: AfterRollbackCallback[] = [];
 
     // Execute transaction within try-catch to capture all errors
     try
@@ -334,16 +438,38 @@ export async function runInTransaction<T, TDatabase extends DrizzleDatabase = De
             // Store transaction in AsyncLocalStorage
             return await runWithTransaction(transaction, txId, async () =>
             {
-                const innerResult = await callback(transaction);
-
-                // Capture afterCommit callbacks before transaction context is destroyed
+                // Bind the hook queues before running user code, so they survive
+                // a throw (see the declarations above)
                 if (!isNested)
                 {
                     const ctx = getTransactionContext();
                     if (ctx)
                     {
-                        afterCommitCallbacks = [...ctx.afterCommitCallbacks];
+                        beforeCommitCallbacks = ctx.beforeCommitCallbacks;
+                        afterCommitCallbacks = ctx.afterCommitCallbacks;
+                        afterRollbackCallbacks = ctx.afterRollbackCallbacks;
                     }
+                }
+
+                const innerResult = await callback(transaction);
+
+                // beforeCommit hooks run here: the user callback resolved, so the
+                // transaction is still usable, and we are still inside its context
+                // and before drizzle issues COMMIT
+                if (!isNested && beforeCommitCallbacks.length > 0)
+                {
+                    if (enableLogging)
+                    {
+                        // Backstopped: a throwing logger must not roll back a
+                        // transaction that is about to commit cleanly
+                        logSafely(() => txLogger.debug('Executing beforeCommit callbacks', {
+                            txId,
+                            context,
+                            count: beforeCommitCallbacks.length,
+                        }));
+                    }
+
+                    await runBeforeCommitCallbacks(beforeCommitCallbacks);
                 }
 
                 return innerResult;
@@ -353,26 +479,32 @@ export async function runInTransaction<T, TDatabase extends DrizzleDatabase = De
         // Transaction successful (committed)
         const duration = Date.now() - startTime;
 
+        // Backstopped: the commit already happened, so a throwing logger must
+        // not turn a committed transaction into a failed call — nor drop the
+        // afterCommit queue below
         if (enableLogging)
         {
-            if (duration >= slowThreshold)
+            logSafely(() =>
             {
-                txLogger.warn('Slow transaction committed', {
-                    txId,
-                    context,
-                    duration: `${duration}ms`,
-                    threshold: `${slowThreshold}ms`,
-                    hint: 'A transaction holds a pooled connection (and row locks) for its whole duration. If this is slow because of non-DB work (external API, etc.) inside the transaction, move that work out — it starves the connection pool.',
-                });
-            }
-            else
-            {
-                txLogger.debug('Transaction committed', {
-                    txId,
-                    context,
-                    duration: `${duration}ms`,
-                });
-            }
+                if (duration >= slowThreshold)
+                {
+                    txLogger.warn('Slow transaction committed', {
+                        txId,
+                        context,
+                        duration: `${duration}ms`,
+                        threshold: `${slowThreshold}ms`,
+                        hint: 'A transaction holds a pooled connection (and row locks) for its whole duration. If this is slow because of non-DB work (external API, etc.) inside the transaction, move that work out — it starves the connection pool.',
+                    });
+                }
+                else
+                {
+                    txLogger.debug('Transaction committed', {
+                        txId,
+                        context,
+                        duration: `${duration}ms`,
+                    });
+                }
+            });
         }
 
         // Execute afterCommit callbacks (root transaction only, after commit confirmed)
@@ -380,23 +512,23 @@ export async function runInTransaction<T, TDatabase extends DrizzleDatabase = De
         {
             if (enableLogging)
             {
-                txLogger.debug('Executing afterCommit callbacks', {
+                logSafely(() => txLogger.debug('Executing afterCommit callbacks', {
                     txId,
                     context,
                     count: afterCommitCallbacks.length,
-                });
+                }));
             }
 
             for (const cb of afterCommitCallbacks)
             {
-                Promise.resolve().then(cb).catch((err) =>
+                Promise.resolve().then(cb).catch((err) => logSafely(() =>
                 {
                     txLogger.error('afterCommit callback failed', {
                         txId,
                         context,
                         error: err instanceof Error ? err.message : String(err),
                     });
-                });
+                }));
             }
         }
 
@@ -407,33 +539,57 @@ export async function runInTransaction<T, TDatabase extends DrizzleDatabase = De
         // Transaction failed (rolled back)
         const duration = Date.now() - startTime;
 
+        // Backstopped, and for the same reason as the callback stage below: this
+        // line runs BEFORE the afterRollback callbacks and outside their catch,
+        // so a throwing logger here would both skip every registered callback and
+        // replace the error that caused the rollback. It stays ahead of the
+        // callbacks — the rollback record belongs in the log before the arbitrary
+        // user code that reacts to it — and is made non-throwing instead.
         if (enableLogging)
         {
-            if (duration >= slowThreshold)
+            logSafely(() =>
             {
-                txLogger.warn('Slow transaction rolled back', {
-                    txId,
-                    context,
-                    duration: `${duration}ms`,
-                    threshold: `${slowThreshold}ms`,
-                    error: error instanceof Error ? error.message : String(error),
-                    errorType: error instanceof Error ? error.name : 'Unknown',
-                    hint: 'If the error is an idle-in-transaction timeout, the transaction held a pooled connection while awaiting non-DB work (external API, etc.). Move that work out of the transaction.',
-                });
-            }
-            else
-            {
-                txLogger.error('Transaction rolled back', {
-                    txId,
-                    context,
-                    duration: `${duration}ms`,
-                    error: error instanceof Error ? error.message : String(error),
-                    errorType: error instanceof Error ? error.name : 'Unknown',
-                });
-            }
+                if (duration >= slowThreshold)
+                {
+                    txLogger.warn('Slow transaction rolled back', {
+                        txId,
+                        context,
+                        duration: `${duration}ms`,
+                        threshold: `${slowThreshold}ms`,
+                        error: error instanceof Error ? error.message : String(error),
+                        errorType: error instanceof Error ? error.name : 'Unknown',
+                        hint: 'If the error is an idle-in-transaction timeout, the transaction held a pooled connection while awaiting non-DB work (external API, etc.). Move that work out of the transaction.',
+                    });
+                }
+                else
+                {
+                    txLogger.error('Transaction rolled back', {
+                        txId,
+                        context,
+                        duration: `${duration}ms`,
+                        error: error instanceof Error ? error.message : String(error),
+                        errorType: error instanceof Error ? error.name : 'Unknown',
+                    });
+                }
+            });
         }
 
-        // Re-throw error for caller to handle
+        // Execute afterRollback callbacks (root transaction only, rollback done).
+        // Awaited so they complete before the error leaves the runner, and run
+        // outside the transaction context — getTransactionContext() is null here,
+        // so DB work inside them uses a fresh connection like afterCommit does.
+        // Nested calls skip this: only the root's fate fires rollback hooks, and
+        // that keeps a nested failure from firing them once per nesting level.
+        if (!isNested && afterRollbackCallbacks.length > 0)
+        {
+            // Last backstop: nothing in this stage — not a callback, not a log
+            // line — may replace the error that caused the rollback
+            await runAfterRollbackCallbacks(afterRollbackCallbacks, txId, context, enableLogging)
+                .catch(() => undefined);
+        }
+
+        // Re-throw the ORIGINAL error for caller to handle: nothing above may
+        // replace it
         throw error;
     }
 }

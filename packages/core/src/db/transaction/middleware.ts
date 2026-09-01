@@ -105,6 +105,9 @@ export interface TransactionalOptions
  * - Success: Auto-commit
  * - Error: Auto-rollback
  * - Detects context.error to trigger rollback
+ * - Hooks: this delegates to runInTransaction, so onBeforeCommit, onAfterCommit
+ *   and onAfterRollback behave exactly as they do there. afterRollback callbacks
+ *   have already run by the time the error reaches the conversion below.
  *
  * 📊 Transaction logging:
  * - Auto-logs transaction start/commit/rollback

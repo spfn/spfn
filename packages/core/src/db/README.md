@@ -22,7 +22,8 @@ import {
     // Connection (sub-module: manager/)
     initDatabase, getDatabase, closeDatabase, getDatabaseInfo,
     // Transactions (sub-module: transaction/)
-    Transactional, runWithTransaction, getTransaction, onAfterCommit,
+    Transactional, runWithTransaction, getTransaction,
+    onBeforeCommit, onAfterCommit, onAfterRollback,
     // Schema helpers (sub-module: schema/)
     id, uuid, timestamps, foreignKey, enumText, typedJsonb, createSchema,
     // Error mapping
@@ -60,9 +61,11 @@ Types: `DatabaseClients`, `DatabaseInitOptions`, `DatabaseOptions`, `DatabasePro
 `DrizzleConfigOptions`
 
 **Transactions** (sub-module — see [transaction/README](./transaction/README.md)):
-`Transactional`, `getTransaction`, `runWithTransaction`, `runInTransaction`, `onAfterCommit`
+`Transactional`, `getTransaction`, `runWithTransaction`, `runInTransaction`,
+`onBeforeCommit`, `onAfterCommit`, `onAfterRollback`
 Types: `TransactionContext`, `TransactionDB`, `TransactionalOptions`,
-`RunInTransactionOptions`, `AfterCommitCallback`
+`RunInTransactionOptions`, `BeforeCommitCallback`, `AfterCommitCallback`,
+`AfterRollbackCallback`
 
 **Schema helpers** (sub-module — see [schema/README](./schema/README.md), re-exported via
 `export * from './schema'`):
@@ -402,8 +405,8 @@ These have their own READMEs — do not duplicate their APIs here, link to them:
   rebuild / reconnect (`forceReconnectDatabase`, `reportDatabaseError`), and the Drizzle
   config generator.
 - [transaction/README.md](./transaction/README.md) — `Transactional()` middleware,
-  `runWithTransaction` / `runInTransaction`, `getTransaction`, `onAfterCommit`, and the
-  `AsyncLocalStorage`-based context.
+  `runWithTransaction` / `runInTransaction`, `getTransaction`, the `onBeforeCommit` /
+  `onAfterCommit` / `onAfterRollback` hooks, and the `AsyncLocalStorage`-based context.
 - [schema/README.md](./schema/README.md) — column helpers (`id`, `uuid`, `timestamps`,
   `foreignKey`, `enumText`, `typedJsonb`, …) and PostgreSQL schema isolation
   (`createSchema`, `packageNameToSchema`, `getSchemaInfo`).
