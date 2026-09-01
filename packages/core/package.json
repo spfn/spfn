@@ -242,7 +242,8 @@
         "dist",
         "docs",
         "README.md",
-        "LICENSE"
+        "LICENSE",
+        "src/**/README.md"
     ],
     "publishConfig": {
         "access": "public",

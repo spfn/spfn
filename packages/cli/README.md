@@ -145,8 +145,14 @@ no pre-build needed.
 | `-p, --port <port>` | SPFN server port (sets `SPFN_PORT`) | `spfn.config.js` `ports.server`, then `8790` |
 | `-H, --host <host>` | SPFN server host (sets `SPFN_HOST`) | `spfn.config.js` `host`, then `localhost` |
 | `--allow-pending-migrations` | Start even when migrations are pending (they are listed as a warning) | off |
+| `--no-agent-files` | Do not write the SPFN instruction block into `AGENTS.md` (same as `SPFN_AGENT_FILES=0`) | writes on |
 
 Note: hot reload is **off by default** — pass `--watch` to restart on file changes.
+
+On startup `spfn dev` refreshes a marked block of SPFN conventions in the project's
+`AGENTS.md` (creating the file, and a `CLAUDE.md` that references it, when absent) so
+coding agents read the right idioms. Only the marked region is rewritten, and only when
+its content actually changed.
 
 Pending migrations stop the boot — see [Database](#spfn-db) for what the refusal looks
 like and how to override it.

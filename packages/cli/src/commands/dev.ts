@@ -4,6 +4,7 @@ import { join, relative, sep } from 'path';
 import { execa, type ExecaChildProcess } from 'execa';
 import chokidar from 'chokidar';
 import { logger } from '../utils/logger.js';
+import { syncAgentInstructions } from '../lib/agent-instructions.js';
 import { detectPackageManager } from '../utils/package-manager.js';
 import { resolveKeychainEnv } from '../utils/secret-store/index.js';
 import { loadAppConfig, resolvePorts, resolveHost } from '@spfn/core/app-config';
@@ -18,6 +19,35 @@ function ignoreDotfilesUnder(root: string)
     return (watchedPath: string) => relative(root, watchedPath)
         .split(sep)
         .some(segment => segment.startsWith('.') && segment !== '.' && segment !== '..');
+}
+
+/**
+ * Refresh the generated instruction block coding agents read.
+ *
+ * Best effort by construction: a read-only checkout or an odd filesystem costs
+ * one warning, never the dev session.
+ */
+function writeAgentInstructions(cwd: string, agentFiles: boolean): void
+{
+    try
+    {
+        const { action, warning } = syncAgentInstructions(cwd, { agentFiles });
+
+        if (warning)
+        {
+            logger.warn(`[SPFN] ${warning}`);
+        }
+        else if (action !== 'unchanged' && action !== 'skipped')
+        {
+            logger.info(`[SPFN] Agent instructions ${action} in AGENTS.md`);
+        }
+    }
+    catch (error)
+    {
+        // The sync writes AGENTS.md and, when absent, CLAUDE.md — either write
+        // can be the one that failed, so the message names both.
+        logger.warn(`[SPFN] Could not write the agent instruction files (AGENTS.md, CLAUDE.md): ${error instanceof Error ? error.message : String(error)}`);
+    }
 }
 
 /**
@@ -61,6 +91,7 @@ export const devCommand = new Command('dev')
     .option('--server-only', 'Run only Hono server (skip Next.js)')
     .option('--watch', 'Enable hot reload (watch mode)')
     .option('--allow-pending-migrations', 'Start even when migrations are pending (they are listed as a warning)')
+    .option('--no-agent-files', 'Do not write the SPFN instruction block into AGENTS.md (same as SPFN_AGENT_FILES=0)')
     .action(async (options) =>
     {
         // Increase max listeners to prevent warning in dev mode
@@ -101,6 +132,10 @@ export const devCommand = new Command('dev')
             logger.info('Run "spfn init" first to initialize SPFN in your project.');
             process.exit(1);
         }
+
+        // Once, before anything long-running starts. `--no-agent-files` makes
+        // commander set `agentFiles` to false.
+        writeAgentInstructions(cwd, options.agentFiles !== false);
 
         // Resolve any secret:keychain: references in .env.server and inject the real
         // values into the server child process — mirrors GitOps env injection in prod,
