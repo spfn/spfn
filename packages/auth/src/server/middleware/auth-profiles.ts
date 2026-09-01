@@ -200,6 +200,22 @@ function refusalError(refusal: ClientProofRefusal): Error
     return new ClientProofRefusalError(refusal);
 }
 
+/**
+ * The contract refusal a throw from `selectAuthProfile` carries, or null.
+ *
+ * For a surface that drives the dispatch itself rather than through
+ * `runAuthProfile` — `machineAuth` does, because running a profile verifier on
+ * a route that admits machines only would authenticate a user there. Such a
+ * surface still answers through `clientProofRefusalResponse` like every other:
+ * letting the carrier escape produces the same status and the same code, but
+ * through the generic error handler, so without `requestId` and without the
+ * server's contract headers (see refusal-response).
+ */
+export function clientProofRefusalOf(err: unknown): ClientProofRefusal | null
+{
+    return err instanceof ClientProofRefusalError ? err.refusal : null;
+}
+
 /** What the profile path produced for one request. */
 export type AuthProfileOutcome =
     | { kind: 'none' }

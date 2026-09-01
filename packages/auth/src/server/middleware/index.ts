@@ -11,6 +11,14 @@ export {
     type AuthProfileOutcome,
     type AuthProfileVerifier,
 } from './auth-profiles';
+export {
+    registerMachineVerifier,
+    machineAuth,
+    getMachinePrincipal,
+    requireMachineScope,
+    type MachinePrincipal,
+    type MachineVerifierRegistration,
+} from './machine-principals';
 export * from './require-permission';
 export * from './require-role';
 export * from './role-guard';

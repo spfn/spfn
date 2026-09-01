@@ -1351,6 +1351,145 @@ x-acme-service-token: <the app's own credential>
   The field stays informational: downstream permission and tenant code takes one principal shape and
   never branches on how it was produced.
 
+## Machine principals (`registerMachineVerifier`)
+
+A machine credential is issued by a service to a non-interactive process, and its subject is
+an account or a tenant, not a person. `AuthContext` cannot hold one — it requires a `users`
+row — and resolving a machine token to its owning user is worse than the type error: it makes
+the machine's request indistinguishable from that user's own session.
+
+So a machine principal never enters `AuthContext`. It lives in its own context key, is read by
+its own helper, and is admitted by its own middleware:
+
+```typescript
+import { machineAuth, requireMachineScope, getMachinePrincipal } from '@spfn/auth/server';
+
+export const ingest = route.post('/v1/ingest')
+    .use([machineAuth, requireMachineScope('events:write')])
+    .handler(async (c) =>
+    {
+        const { subjectType, subjectId } = getMachinePrincipal(c.raw)!;
+        // subjectType: 'account' | 'service' | whatever the verifier named
+    });
+```
+
+`getAuth(c)` on that route returns nothing, because nothing put a user there. That is the
+whole design: a machine request cannot impersonate a user session, not because a check
+forbids it but because no code path leads there.
+
+**Ownership is not authentication.** Who issued a machine token, who owns it, and who may
+revoke or audit it are the registrant's data-level concerns — put the token id in `claims` and
+answer them from your own tables. What the request *acts as* is the token's own subject and
+scopes, and nothing here resolves a machine subject to a user.
+
+### Registering a verifier
+
+A verifier claims one namespace, by a raw `tokenPrefix` (for an opaque secret, the
+`spfn_ops_` shape) or by a `kidPrefix` on the unverified JOSE header of a JWS. Register at
+boot, before the first request:
+
+```typescript
+import { registerMachineVerifier } from '@spfn/auth/server';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+
+const RUNTIME_JWKS = createRemoteJWKSet(new URL('https://issuer.example.com/.well-known/jwks.json'));
+
+registerMachineVerifier({
+    id: 'runtimeJwsV1',
+    match: { kidPrefix: 'machine:runtime:' },
+    verify: async (token) =>
+    {
+        const { payload } = await jwtVerify(token, RUNTIME_JWKS, { issuer: 'https://issuer.example.com' });
+
+        return {
+            subjectType: 'account',
+            subjectId: String(payload.sub),
+            scopes: String(payload.scope ?? '').split(' ').filter(Boolean),
+            claims: { tokenId: payload.jti },
+            scheme: 'runtimeJwsV1',
+        };
+    },
+});
+```
+
+The request carries it as an ordinary bearer token — no new wire format, and the
+profile-header channel is not involved:
+
+```http
+POST /v1/ingest
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Im1hY2hpbmU6cnVudGltZTo...
+```
+
+- **Namespace your kids.** `machine:` is the convention this package documents, and a user
+  session JWT never carries that shape. The prefix is what tells the two apart before either
+  is verified.
+- **Conflicting discriminators are refused at registration** — a duplicate `id`, a duplicate
+  prefix, or a prefix that would shadow an already-registered one (`machine:` swallowing
+  `machine:runtime:`). Two verifiers one token could match would make admission depend on
+  registration order, so that is a boot-time error rather than something the dispatch
+  resolves per request.
+- **A `tokenPrefix` claims every token that starts with it**, and `authenticate` consults the
+  registry before it decodes anything. A prefix a user's JWT could begin with (`ey…`) would
+  therefore refuse every user session — pick a prefix no other credential on your surface
+  shares, as `spfn_ops_` does.
+- **Register at boot, before the first request.** The registry is module state read on every
+  dispatch, so a verifier registered later is simply a verifier the requests before it did
+  not have. There is no unregistration and no reset — the same contract, and the same reason,
+  as [`registerAuthProfile`](#custom-auth-profiles-registerauthprofile).
+- **Registering nothing costs nothing.** With no verifier registered, `authenticate` is two
+  array-length checks away from what it was. The unverified JOSE header peek happens only
+  once a `kidPrefix` verifier exists.
+- **`scheme` is the registry's answer**, not the verifier's: whatever a verifier returns
+  there, the principal carries the `id` that admitted it, so an audit trail cannot be made to
+  name the wrong verifier.
+
+### The case table
+
+| credential ↓ route → | `authenticate` (user) | `machineAuth` | `optionalAuth` |
+|---|---|---|---|
+| user bearer JWT | ✓ user (unchanged) | 401 | ✓ user (unchanged) |
+| machine token, registered namespace, valid | 401 — refused before the token is decoded | ✓ sets `machinePrincipal` | 401 |
+| machine token, registered namespace, verifier rejects | 401 | 401 | 401 |
+| machine-shaped token, unregistered namespace | 401 (the existing invalid-token path) | 401 | continues, no auth |
+| profile header + any Bearer | `PROFILE_REJECTED` (unchanged) | `PROFILE_REJECTED` | `PROFILE_REJECTED` |
+| nothing | 401 (unchanged) | 401 | continues, no auth |
+| valid principal, missing scope | — | 403 | — |
+| valid principal, sufficient scope | — | 200 | — |
+
+Every 401 above is one message. Whether a namespace is registered, whether a presented token
+was ever valid, and whether a verifier rejected it are not inferable from the answer — the
+same non-disclosure rule the [ops-token](#ops-tokens-spfn-ops) table keeps. 403 is reserved
+for scope, where the caller is already authenticated; `requireMachineScope` matches scopes
+exactly and has no wildcard, and it fails closed with a 401 if it runs without `machineAuth`
+before it.
+
+A verifier that throws something other than a refusal — a bug in registrant code — is the
+same generic 401 on the wire, with the real error logged. Never a 500 carrying registrant
+internals, and never a silent pass.
+
+The last row of the unregistered-namespace case is the one asymmetry: a token in a namespace
+nobody registered is not a machine credential as far as this package can tell, so under
+`optionalAuth` it gets what any unusable bearer token has always got. A token in a
+*registered* namespace is refused there, because refusing it is the difference between
+"presented the wrong credential" and "presented none".
+
+The non-disclosure above is therefore an `authenticate` and `machineAuth` property, not an
+`optionalAuth` one: on an `optionalAuth` route a caller can tell a registered namespace from
+an unregistered one, because one is refused and the other is served anonymously. Closing that
+gap would mean refusing every unusable bearer token on those routes — a change to behaviour
+that predates machine principals, and a worse trade than the inference it prevents. Mount
+`machineAuth` where the distinction matters.
+
+### Issuance is yours
+
+This package verifies machine tokens; it does not mint them. Issuance, rotation, and
+revocation belong to whoever owns the subject — keep the tokens short-lived, and prefer a
+signature you can verify offline (`kidPrefix` + JWKS) over a secret you must look up.
+
+`opsTokenAuth` is the built-in instance of exactly this pattern, hand-written for one
+credential before the registry existed: its own context key (`opsToken`), its own scope guard,
+`AuthContext` never set. It keeps its own implementation and is not registered here.
+
 ## Account Deletion & Recovery
 
 Grace-period deletion with in-window recovery, an admin/GDPR-response entry point for immediate

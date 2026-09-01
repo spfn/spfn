@@ -487,6 +487,11 @@ describe('auth profile branch (case table G)', () =>
                 join('middleware', 'auth-profiles.ts'),
                 join('middleware', 'authenticate.ts'),
                 join('middleware', 'one-time-token-auth.ts'),
+                // machine-principals sets the field on its own principal — the
+                // one that never enters AuthContext (#79). It is a
+                // scheme-setting middleware in exactly the sense this list
+                // means, and it branches on the field no more than the others.
+                join('middleware', 'machine-principals.ts'),
             ];
 
             const walk = (dir: string): void =>

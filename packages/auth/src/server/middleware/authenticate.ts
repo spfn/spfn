@@ -33,9 +33,28 @@ import {
 
 import { readContextClientIdentity } from '../client-proof/version-middleware';
 import { resolveAuthenticatedUser, runAuthProfile, type AuthContext } from './auth-profiles';
+import { matchesMachineDiscriminator } from './machine-principals';
 
 // Auth context type — one principal shape for every scheme (see auth-profiles).
 export type { AuthContext } from './auth-profiles';
+
+/**
+ * The refusal for a Bearer credential the user path will not admit.
+ *
+ * One message, shared by the machine-discriminator check and the decode step.
+ * On `authenticate` that makes the registry invisible: a token in a registered
+ * machine namespace answers exactly what a token in a namespace nobody
+ * registered gets, so whether a machine verifier exists is not inferable from
+ * the refusal (see machine-principals).
+ *
+ * `optionalAuth` is deliberately not that. A registered namespace is refused
+ * with this message there while an unregistered one continues anonymously, so
+ * on that route the registry is inferable — refusing the unregistered token
+ * instead would mean refusing every unusable Bearer token, which is a change to
+ * behaviour that predates machine principals. The trade is the paragraph after
+ * the case table in README.md's "Machine principals" section.
+ */
+const INVALID_TOKEN_MESSAGE = 'Invalid token: missing keyId';
 
 // Extend Hono context with auth
 declare module 'hono'
@@ -112,13 +131,28 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
+    // 0. A machine credential is refused here, before this path decodes it or
+    //    looks a key up. Resolving a machine token to its owning user is what
+    //    would make the machine's request indistinguishable from that user's
+    //    own session (#79), so the user path never admits one. With no machine
+    //    verifier registered this is two array-length checks and the flow below
+    //    is unchanged.
+    if (matchesMachineDiscriminator(token))
+    {
+        // The wire answer says nothing; the log says what happened, so an
+        // operator can tell this apart from an ordinary malformed token.
+        authLogger.middleware.warn('Machine credential presented to the user path — refused', { path: c.req.path });
+
+        throw new UnauthorizedError({ message: INVALID_TOKEN_MESSAGE });
+    }
+
     // 1. Decode JWT to extract keyId (without verification)
     // We need keyId to fetch the public key for verification
     const decoded = decodeToken(token);
 
     if (!decoded || !decoded.keyId)
     {
-        throw new UnauthorizedError({ message: 'Invalid token: missing keyId' });
+        throw new UnauthorizedError({ message: INVALID_TOKEN_MESSAGE });
     }
 
     const keyId = decoded.keyId as string;
@@ -275,6 +309,17 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
     }
 
     const token = authHeader.substring(7);
+
+    // A machine credential was presented, and this route cannot admit one:
+    // refused, not downgraded to anonymous passage — the same answer presented
+    // profile credentials get above, and the reason this check sits outside the
+    // try below, which exists to swallow an unusable *user* token.
+    if (matchesMachineDiscriminator(token))
+    {
+        authLogger.middleware.warn('Machine credential presented to the user path — refused', { path: c.req.path });
+
+        throw new UnauthorizedError({ message: INVALID_TOKEN_MESSAGE });
+    }
 
     try
     {
