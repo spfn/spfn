@@ -14,8 +14,13 @@ import { KEYCHAIN_REF_PREFIX } from '../../utils/secret-store/index.js';
 import { hasSopsConfig } from '../../utils/secret-config.js';
 import type { SecretOptions } from './options.js';
 
-/** Files that may be committed — a real secret value here is a leak. */
-const COMMITTED_FILES = ['.env', '.env.example'];
+/**
+ * Files that may be committed — a real secret value here is a leak. The reference
+ * is split by consumer (.env.local.example / .env.server.example); the combined
+ * .env.example stays on the list because a project scaffolded before the split
+ * still has one, and a leak in it is just as real.
+ */
+const COMMITTED_FILES = ['.env', '.env.example', '.env.local.example', '.env.server.example'];
 
 const PLACEHOLDER = /(your-|changeme|placeholder|example|<.*>)/i;
 
