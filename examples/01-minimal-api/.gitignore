@@ -21,6 +21,7 @@ npm-debug.log*
 # env files — the template is committed, the file holding real values is not
 .env*
 !.env.local.example
+!.env.server.example
 
 # typescript
 *.tsbuildinfo
