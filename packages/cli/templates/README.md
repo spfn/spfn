@@ -32,7 +32,8 @@ src/
   generated/           codegen output (route map) — do not edit by hand
 .env.local             Next.js runtime env (gitignored)
 .env.server            server secrets (gitignored)
-.env.example           committed reference — keys only, placeholder values
+.env.local.example     committed reference — the Next.js keys, placeholder values
+.env.server.example    committed reference — the backend keys, placeholder values
 .spfnrc.ts             codegen configuration
 spfn.config.js         deployment config
 ```
@@ -53,6 +54,12 @@ A feature is a vertical slice: `Entity` (Drizzle table) → `Repository` →
 ```
 
 ## Environment & secrets
+
+The env reference is split by consumer: `.env.local.example` lists what the Next.js
+process reads (`SPFN_API_URL`, `NEXT_PUBLIC_*`, the auth session secret), and
+`.env.server.example` lists what only the backend reads (`DATABASE_URL`, `CACHE_URL`,
+OAuth secrets). Which file a key belongs in follows who consumes it, not whether it
+is secret.
 
 `.env.server` holds backend-only secrets and is gitignored — Next.js never loads it.
 For a managed workflow use `spfn secret`: local values go to the OS keychain (only a

@@ -41,7 +41,9 @@ yarn-error.log*
 # Local env files
 .env
 .env*.local
+.env.server
 !.env.local.example
+!.env.server.example
 
 # IDE
 .vscode

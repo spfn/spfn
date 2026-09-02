@@ -38,13 +38,13 @@ describe('scaffold modes', () =>
             join(directory, 'src/app/api/rpc/[routeName]/route.ts'),
             'utf8',
         );
-        const envExample = await readFile(join(directory, '.env.example'), 'utf8');
+        const localExample = await readFile(join(directory, '.env.local.example'), 'utf8');
 
         expect(router).not.toContain('@spfn/auth');
         expect(router).not.toContain('opsRouter');
         expect(proxy).toContain('createRpcProxy({ routeMap: routeMap })');
         expect(proxy).not.toContain('authRouteMap');
-        expect(envExample).not.toContain('SPFN_AUTH_SESSION_SECRET');
+        expect(localExample).not.toContain('SPFN_AUTH_SESSION_SECRET');
         await expect(readFile(join(directory, 'src/server/routes/ops.ts'), 'utf8'))
             .rejects.toThrow();
     });
@@ -60,7 +60,8 @@ describe('scaffold modes', () =>
         );
         const localEnv = await readFile(join(directory, '.env.local'), 'utf8');
         const serverEnv = await readFile(join(directory, '.env.server'), 'utf8');
-        const envExample = await readFile(join(directory, '.env.example'), 'utf8');
+        const localExample = await readFile(join(directory, '.env.local.example'), 'utf8');
+        const serverExample = await readFile(join(directory, '.env.server.example'), 'utf8');
 
         expect(router).toContain('.packages([authRouter, opsRouter])');
         expect(router).toContain('.use([authenticate])');
@@ -86,16 +87,16 @@ describe('scaffold modes', () =>
         // A new app has no legacy client to break, so CSRF starts enforced
         // rather than warning.
         expect(localEnv).toContain('SPFN_AUTH_CSRF=enforce');
-        expect(envExample).toContain('SPFN_AUTH_CSRF=enforce');
+        expect(localExample).toContain('SPFN_AUTH_CSRF=enforce');
         expect((await stat(join(directory, '.env.local'))).mode & 0o777).toBe(0o600);
         expect(serverEnv).not.toContain('SPFN_MCP_API_KEY');
         // The ops surface needs no variable — only the administrator that issues
         // the first token, offered commented out so no privileged account is
         // seeded without the operator saying so.
         expect(serverEnv).toContain('# SPFN_AUTH_ADMIN_ACCOUNTS=');
-        expect(envExample).toContain('# SPFN_AUTH_ADMIN_ACCOUNTS=');
+        expect(serverExample).toContain('# SPFN_AUTH_ADMIN_ACCOUNTS=');
         expect(serverEnv).toMatch(/SPFN_AUTH_VERIFICATION_TOKEN_SECRET=.{32,}/);
-        expect(envExample).not.toContain(
+        expect(serverExample).not.toContain(
             serverEnv.match(/SPFN_AUTH_VERIFICATION_TOKEN_SECRET=(.+)/)?.[1] ?? 'generated-secret-not-found',
         );
     });
@@ -113,7 +114,7 @@ describe('scaffold modes', () =>
 
         await expect(readFile(localEnvPath, 'utf8')).resolves.toBe(original);
         const reference = await readFile(
-            join(testDirectory, '.env.local.spfn.example'),
+            join(testDirectory, '.env.local.example'),
             'utf8',
         );
         expect(reference).toContain(

@@ -703,10 +703,24 @@ docker-compose.yml                   # Postgres + Redis (dev)
 docker-compose.production.yml
 Dockerfile, .dockerignore
 next.config.ts                       # patched when auth is enabled: /_auth/:path* rewrite → SPFN API
-.env.example                         # committed reference — every key, placeholder values
+.env.local.example                   # committed reference — Next.js keys, placeholder values
+.env.server.example                  # committed reference — backend keys, placeholder values
 .env.local                           # generated, gitignored (values loaded by Next.js)
 .env.server                          # generated, gitignored (server secrets: DB, cache)
 ```
+
+The reference is split by consumer, never combined, and a key's file follows who
+reads it rather than whether it is secret:
+
+- `.env.local` / `.env.local.example` — the Next.js process (server routes, proxy,
+  SSR) and, through `NEXT_PUBLIC_*`, the browser: `SPFN_API_URL`, `SPFN_APP_URL`,
+  `SPFN_AUTH_SESSION_SECRET`, `SPFN_AUTH_SESSION_TTL`, `SPFN_AUTH_CSRF`.
+- `.env.server` / `.env.server.example` — the SPFN backend only, never loaded by
+  Next.js: `NODE_ENV`, `SPFN_LOG_LEVEL`, `DATABASE_URL`, `CACHE_URL`, `DB_POOL_*`,
+  and every OAuth, token, and admin secret.
+
+So the session secret is secret and still lives in `.env.local` — the Next.js proxy
+verifies cookies with it — while `DATABASE_URL` never appears there at all.
 
 Full mode overlays the Prototype-to-Production baseline:
 
@@ -726,7 +740,7 @@ next.config.ts                       # /_auth/* callback rewrite
 
 The full RPC proxy imports the auth interceptor and merges `authRouteMap`. Internal auth
 keys are generated with cryptographic randomness in ignored local env files;
-`.env.example` contains placeholders only. Add only the provider keys you use, then run
+`.env.local.example` and `.env.server.example` contain placeholders only. Add only the provider keys you use, then run
 `pnpm spfn db migrate`.
 
 Operating the app is [`spfn ops`](#spfn-ops), not a dashboard: the starter

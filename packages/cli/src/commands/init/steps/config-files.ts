@@ -1,3 +1,16 @@
+/**
+ * `spfn init` step: the project's configuration and environment files.
+ *
+ * The environment reference is split by consumer, never combined. `.env.local`
+ * and its committed `.env.local.example` hold what the Next.js process reads —
+ * `SPFN_API_URL`, `NEXT_PUBLIC_*`, and the session secret its proxy verifies
+ * cookies with. `.env.server` and `.env.server.example` hold what only the SPFN
+ * backend reads — `DATABASE_URL`, `CACHE_URL`, OAuth and token secrets — and
+ * Next.js never loads them. A key's file is decided by who consumes it, not by
+ * whether it is secret: the session secret is secret and still belongs in
+ * `.env.local`, because Next.js is what needs it.
+ */
+
 import { existsSync, readFileSync } from 'fs';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -86,20 +99,21 @@ SPFN_AUTH_TOKEN_ENCRYPTION_KEYS=v1:replace-with-a-base64-encoded-32-byte-key
 # SPFN_AUTH_ADMIN_ACCOUNTS=[{"email":"admin@example.com","password":"replace-with-a-strong-password","role":"admin"}]
 `;
 
-// .env.example — committed reference, derived from the two templates above so its
-// key list never drifts from what init actually generates. Documentation only:
-// real values go in .env.local / .env.server (gitignored). Because it is committed,
-// concrete DB credentials are replaced with placeholders (CONTRIBUTING.md hard rule #4).
-function envExampleTemplate(mode: ScaffoldMode): string
+/**
+ * The backend template's keys, commented-out ones included — every variable that
+ * must never appear in a file the Next.js process loads. Exported so the
+ * placement test can check the scaffold and the examples against one list
+ * instead of restating it and drifting from the templates.
+ */
+export function serverOnlyEnvKeys(): string[]
 {
-    return withPlaceholderCreds(`# Example environment — committed reference for the variables SPFN uses.
-# Real values live in .env.local (Next.js) and .env.server (backend secrets),
-# both gitignored. This file documents the keys; it is not loaded by anything.
-
-${ENV_LOCAL_TEMPLATE}${mode === 'full' ? FULL_ENV_LOCAL_EXAMPLE : ''}
-${ENV_SERVER_TEMPLATE}${mode === 'full' ? FULL_ENV_SERVER_EXAMPLE : ''}`);
+    return [...collectDeclaredKeys(`${ENV_SERVER_TEMPLATE}${FULL_ENV_SERVER_EXAMPLE}`)];
 }
 
+/**
+ * Committed backend reference. Placeholdered because it is committed
+ * (CONTRIBUTING.md hard rule #4) and never carries a generated secret.
+ */
 function envServerExampleTemplate(mode: ScaffoldMode): string
 {
     return withPlaceholderCreds(
@@ -123,9 +137,15 @@ NEXT_PUBLIC_SPFN_APP_URL=http://localhost:3790
 `;
 }
 
+/**
+ * Committed Next.js reference — the counterpart of envServerExampleTemplate, and
+ * placeholdered on the same rule.
+ */
 function envLocalExampleTemplate(mode: ScaffoldMode): string
 {
-    return `${ENV_LOCAL_TEMPLATE}${mode === 'full' ? FULL_ENV_LOCAL_EXAMPLE : ''}`;
+    return withPlaceholderCreds(
+        `${ENV_LOCAL_TEMPLATE}${mode === 'full' ? FULL_ENV_LOCAL_EXAMPLE : ''}`,
+    );
 }
 
 function envServerTemplate(mode: ScaffoldMode): string
@@ -177,7 +197,8 @@ function withPlaceholderCreds(text: string): string
  * Setup configuration files:
  * - .env.local (values needed by Next.js, including the full-mode session secret; gitignored)
  * - .env.server (SPFN backend env + secrets: DB, cache, pool — never loaded by Next.js, gitignored)
- * - .env.example (committed, placeholder-only reference for the variables above)
+ * - .env.local.example and .env.server.example (committed, placeholder-only references,
+ *   one per consumer, so a reader always knows which file a key belongs in)
  * - .spfnrc.ts (codegen configuration)
  * - .gitignore (add .spfn directory + env patterns)
  * - tsconfig.json (exclude src/server for Vercel)
@@ -221,19 +242,24 @@ export default defineConfig({
 }
 
 /**
- * Generate ready-to-use env files, split by which process loads them.
+ * Generate the env files, split by which process loads them.
  *
  * .env.local is loaded by Next.js (and also the SPFN backend), so it holds URLs
  * plus secrets Next.js itself needs, such as auth cookie encryption. .env.server
- * is loaded ONLY by the SPFN backend and holds DB and OAuth secrets. Both
- * files are gitignored; secrets are never prefixed NEXT_PUBLIC_.
+ * is loaded ONLY by the SPFN backend and holds DB and OAuth secrets. Both are
+ * gitignored; secrets are never prefixed NEXT_PUBLIC_.
+ *
+ * The two committed references come first, so the warning a conflicting real file
+ * triggers can point at a reference that is already on disk.
  */
 function generateEnvFiles(cwd: string, mode: ScaffoldMode): void
 {
+    writeReferenceEnv(cwd, '.env.local.example', envLocalExampleTemplate(mode));
+    writeReferenceEnv(cwd, '.env.server.example', envServerExampleTemplate(mode));
+
     // Create .env.local or merge only absent keys, preserving user values.
-    writeLocalEnv(cwd, envLocalTemplate(mode), envLocalExampleTemplate(mode));
-    writeServerEnv(cwd, envServerTemplate(mode), envServerExampleTemplate(mode));
-    writeExampleEnv(cwd, envExampleTemplate(mode));
+    writeLocalEnv(cwd, envLocalTemplate(mode));
+    writeServerEnv(cwd, envServerTemplate(mode));
 }
 
 /**
@@ -241,22 +267,14 @@ function generateEnvFiles(cwd: string, mode: ScaffoldMode): void
  * secrets to a tracked file would make the next commit leak them even after an
  * ignore rule is added, because .gitignore never untracks an indexed file.
  */
-function writeLocalEnv(cwd: string, template: string, exampleTemplate: string): void
+function writeLocalEnv(cwd: string, template: string): void
 {
     const filename = '.env.local';
     const filePath = join(cwd, filename);
 
     if (isGitTracked(cwd, filename))
     {
-        const referenceName = '.env.local.spfn.example';
-        const referencePath = join(cwd, referenceName);
-
-        if (!existsSync(referencePath))
-        {
-            writeFileSync(referencePath, exampleTemplate);
-        }
-
-        logger.warn(`${filename} is tracked by Git — left it untouched; wrote ${referenceName}. Untrack ${filename}, then add the missing keys with freshly generated values`);
+        logger.warn(`${filename} is tracked by Git — left it untouched; its keys are listed in .env.local.example. Untrack ${filename}, then add the missing keys with freshly generated values`);
 
         return;
     }
@@ -277,10 +295,10 @@ function isGitTracked(cwd: string, filename: string): boolean
 
 /**
  * Write .env.server only when absent. If the user already has one it holds their
- * real secrets, so never touch it — drop SPFN's template beside it as
- * .env.server.example (credentials placeholdered) and tell them to reconcile.
+ * real secrets, so never touch it — point them at the .env.server.example written
+ * above and let them reconcile the keys themselves.
  */
-function writeServerEnv(cwd: string, template: string, exampleTemplate: string): void
+function writeServerEnv(cwd: string, template: string): void
 {
     const filePath = join(cwd, '.env.server');
 
@@ -293,16 +311,16 @@ function writeServerEnv(cwd: string, template: string, exampleTemplate: string):
         return;
     }
 
-    writeFileSync(join(cwd, '.env.server.example'), exampleTemplate);
-    logger.warn('.env.server already exists — left it untouched; wrote SPFN\'s reference to .env.server.example, add any missing keys manually');
+    logger.warn('.env.server already exists — left it untouched; SPFN\'s reference is in .env.server.example, add any missing keys manually');
 }
 
 /**
- * Write the committed .env.example reference, but never clobber a user's own.
+ * Write a committed reference file, but never clobber one the project already has:
+ * an older scaffold's or a hand-maintained reference is the user's to keep.
  */
-function writeExampleEnv(cwd: string, content: string): void
+function writeReferenceEnv(cwd: string, filename: string, content: string): void
 {
-    const filePath = join(cwd, '.env.example');
+    const filePath = join(cwd, filename);
 
     if (existsSync(filePath))
     {
@@ -310,7 +328,7 @@ function writeExampleEnv(cwd: string, content: string): void
     }
 
     writeFileSync(filePath, content);
-    logger.success('Created .env.example (committed reference)');
+    logger.success(`Created ${filename} (committed reference)`);
 }
 
 /**
@@ -424,11 +442,17 @@ function pendingIgnoreRules(content: string): string[]
         rules.push('\n# spfn server env (secrets)\n.env.server\n');
     }
 
-    // Keep the committed .env.example reference tracked even when a broad `.env*`
-    // glob (create-next-app ships one) would otherwise ignore it.
-    if (!lines.some((line) => line.trim() === '!.env.example'))
+    // Keep the committed references tracked even when a broad `.env*` glob
+    // (create-next-app ships one) would otherwise ignore them. Checked
+    // independently: a project may already negate one name and not the other.
+    if (!lines.some((line) => line.trim() === '!.env.local.example'))
     {
-        rules.push('\n# spfn env reference (committed)\n!.env.example\n');
+        rules.push('\n# spfn env reference, Next.js keys (committed)\n!.env.local.example\n');
+    }
+
+    if (!lines.some((line) => line.trim() === '!.env.server.example'))
+    {
+        rules.push('\n# spfn env reference, backend keys (committed)\n!.env.server.example\n');
     }
 
     return rules;
