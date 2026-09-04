@@ -361,7 +361,7 @@ export const authEnvSchema = defineEnvSchema({
 
     SPFN_AUTH_GOOGLE_REDIRECT_URI: {
         ...envString({
-            description: 'Google OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/google/callback — the callback must return to the web app origin that set the oauth_csrf cookie (the app rewrites /_auth/:path* to the API). Set this explicitly only when the callback should hit a different host (e.g. the API host for the direct oauthStart flow).',
+            description: 'Google OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/google/callback. The override must stay on the web app origin at this exact path — the CSRF cookie for the callback is host-only and the app rewrites /_auth/:path* to the API, so a callback that lands anywhere else is refused for CSRF. Checked at boot: a value off the web app origin or off the callback path refuses to start. The one case for an override elsewhere is the direct POST /_auth/oauth/start flow on a split deployment (no Next.js interceptor, so its CSRF cookie is on the API host), which also needs SPFN_AUTH_OAUTH_CALLBACK_ORIGIN_CHECK=off.',
             required: false,
             examples: [
                 'https://app.example.com/_auth/oauth/google/callback',
@@ -409,7 +409,7 @@ export const authEnvSchema = defineEnvSchema({
 
     SPFN_AUTH_KAKAO_REDIRECT_URI: {
         ...envString({
-            description: 'Kakao OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/kakao/callback.',
+            description: 'Kakao OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/kakao/callback. The override must stay on the web app origin at this exact path — the CSRF cookie for the callback is host-only and the app rewrites /_auth/:path* to the API, so a callback that lands anywhere else is refused for CSRF. Checked at boot: a value off the web app origin or off the callback path refuses to start. The one case for an override elsewhere is the direct POST /_auth/oauth/start flow on a split deployment (no Next.js interceptor, so its CSRF cookie is on the API host), which also needs SPFN_AUTH_OAUTH_CALLBACK_ORIGIN_CHECK=off.',
             required: false,
             examples: ['https://app.example.com/_auth/oauth/kakao/callback'],
         }),
@@ -437,7 +437,7 @@ export const authEnvSchema = defineEnvSchema({
 
     SPFN_AUTH_NAVER_REDIRECT_URI: {
         ...envString({
-            description: 'Naver OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/naver/callback.',
+            description: 'Naver OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/naver/callback. The override must stay on the web app origin at this exact path — the CSRF cookie for the callback is host-only and the app rewrites /_auth/:path* to the API, so a callback that lands anywhere else is refused for CSRF. Checked at boot: a value off the web app origin or off the callback path refuses to start. The one case for an override elsewhere is the direct POST /_auth/oauth/start flow on a split deployment (no Next.js interceptor, so its CSRF cookie is on the API host), which also needs SPFN_AUTH_OAUTH_CALLBACK_ORIGIN_CHECK=off.',
             required: false,
             examples: ['https://app.example.com/_auth/oauth/naver/callback'],
         }),
@@ -473,9 +473,17 @@ export const authEnvSchema = defineEnvSchema({
 
     SPFN_AUTH_GITHUB_REDIRECT_URI: {
         ...envString({
-            description: 'GitHub OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/github/callback.',
+            description: 'GitHub OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/github/callback. The override must stay on the web app origin at this exact path — the CSRF cookie for the callback is host-only and the app rewrites /_auth/:path* to the API, so a callback that lands anywhere else is refused for CSRF. Checked at boot: a value off the web app origin or off the callback path refuses to start. The one case for an override elsewhere is the direct POST /_auth/oauth/start flow on a split deployment (no Next.js interceptor, so its CSRF cookie is on the API host), which also needs SPFN_AUTH_OAUTH_CALLBACK_ORIGIN_CHECK=off.',
             required: false,
             examples: ['https://app.example.com/_auth/oauth/github/callback'],
+        }),
+    },
+
+    SPFN_AUTH_OAUTH_CALLBACK_ORIGIN_CHECK: {
+        ...envString({
+            description: 'Boot-time check of the four SPFN_AUTH_<PROVIDER>_REDIRECT_URI overrides: each one that is set must sit on the web app origin ({NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}) at /_auth/oauth/<provider>/callback, because the callback CSRF cookie is host-only. "off" is the only value that disables the check — unset, "on" and anything else all run it.',
+            required: false,
+            examples: ['off'],
         }),
     },
 

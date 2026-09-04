@@ -140,14 +140,15 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_ADMIN_*` | `.env.server` | — | admin seeding (see below) |
 | `SPFN_AUTH_GOOGLE_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | enables Google OAuth when both set |
 | `SPFN_AUTH_GOOGLE_SCOPES` | `.env.server` | — | comma-separated; default `email,profile` |
-| `SPFN_AUTH_GOOGLE_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/google/callback` — see [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite) |
+| `SPFN_AUTH_GOOGLE_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/google/callback`; an override must stay on the web app origin at that path and is **checked at boot** — see [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite) |
 | `SPFN_AUTH_KAKAO_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | REST API key enables Kakao Login; secret is included when configured |
 | `SPFN_AUTH_KAKAO_ADMIN_KEY` | `.env.server` | — | app admin key; required to verify the Kakao User Unlinked webhook |
-| `SPFN_AUTH_KAKAO_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scope `account_email`; callback `/_auth/oauth/kakao/callback` |
+| `SPFN_AUTH_KAKAO_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scope `account_email`; callback `/_auth/oauth/kakao/callback` on the web app origin, **checked at boot** — see [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite) |
 | `SPFN_AUTH_NAVER_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | both values enable Naver Login |
-| `SPFN_AUTH_NAVER_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/naver/callback` |
+| `SPFN_AUTH_NAVER_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/naver/callback`; an override must stay on the web app origin at that path and is **checked at boot** — see [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite) |
 | `SPFN_AUTH_GITHUB_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | both values enable GitHub OAuth |
-| `SPFN_AUTH_GITHUB_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scopes `read:user,user:email`; callback `/_auth/oauth/github/callback` |
+| `SPFN_AUTH_GITHUB_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scopes `read:user,user:email`; callback `/_auth/oauth/github/callback` on the web app origin, **checked at boot** — see [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite) |
+| `SPFN_AUTH_OAUTH_CALLBACK_ORIGIN_CHECK` | `.env.server` | — | `off` disables the boot check of the four `_REDIRECT_URI` overrides; any other value (unset included) runs it — see [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite) |
 | `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated client IDs accepted as native id_token audience (iOS/Android/web); enables Google native sign-in |
 | `SPFN_AUTH_APPLE_CLIENT_IDS` | `.env.server` | — | comma-separated Apple client IDs (bundle ID / Services ID); enables Apple native sign-in |
 | `SPFN_AUTH_KAKAO_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated Kakao app keys accepted as native id_token audience (native app key); `SPFN_AUTH_KAKAO_CLIENT_ID` is also accepted, so either one enables Kakao native sign-in |
@@ -638,9 +639,25 @@ process), which differs from the API process in a split deployment — the callb
 matches every `spfn_oauth_csrf*` cookie candidate against the state nonce, so no PORT
 coordination is needed.
 
+An explicit `SPFN_AUTH_<PROVIDER>_REDIRECT_URI` is checked when the server boots, because the
+value used to be read lazily on the first OAuth request and a wrong one surfaced much later as
+a CSRF refusal nobody traced back to it. A value that does not parse, or whose origin is not the
+web app origin, or whose path is not `/_auth/oauth/<provider>/callback`, refuses to start — one
+error naming every offending variable:
+
+```
+SPFN_AUTH_GOOGLE_REDIRECT_URI must be on the web app origin (http://localhost:3790) at
+/_auth/oauth/google/callback: the callback's CSRF cookie is host-only and /_auth/* is forwarded
+to the API by the app's rewrite. Unset it to use the default, fix the origin, or set
+SPFN_AUTH_OAUTH_CALLBACK_ORIGIN_CHECK=off for a deployment that deliberately terminates the
+callback elsewhere.
+```
+
 One caveat: the direct `POST /_auth/oauth/start` flow (no Next.js interceptor) sets its CSRF
-cookie on the **API host**. If you use that flow in a split deployment, set
-the corresponding provider redirect URI explicitly to the API host callback instead.
+cookie on the **API host**. If you use that flow in a split deployment, set the corresponding
+provider redirect URI explicitly to the API host callback **and**
+`SPFN_AUTH_OAUTH_CALLBACK_ORIGIN_CHECK=off` — that is the one deployment the check is wrong
+about, and `off` is the only value that disables it.
 
 ### Native social sign-in (mobile / web id_token)
 
@@ -1738,7 +1755,9 @@ deploy.
 Almost always the callback origin. The CSRF check is a double-submit against a host-only
 cookie set on your **web app** host, so the provider must return to the web app origin, and
 the app must forward `/_auth/*` to the API with a Next.js rewrite. Without that rewrite the
-callback 404s — including in local dev. Details in
+callback 404s — including in local dev. An explicit `SPFN_AUTH_<PROVIDER>_REDIRECT_URI` on the
+wrong origin or path no longer gets that far: it fails at boot with a message naming the
+variable. Details in
 [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite).
 
 **Does the server hold my users' private keys?**
