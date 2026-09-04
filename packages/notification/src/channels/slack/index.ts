@@ -16,6 +16,7 @@ import {
     markManySent,
     markManyFailed,
 } from '../../services/notification.service';
+import { scrubSendResult } from '../../privacy';
 import { runWithConcurrency } from '../concurrency';
 import { sendBulkSlackItemJob } from '../../jobs/send-bulk-slack-item';
 import { logger } from '@spfn/core/logger';
@@ -143,7 +144,7 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
     }
 
     // Send via provider
-    const result = await provider.send(internalParams);
+    const result = scrubSendResult(await provider.send(internalParams));
 
     if (result.success)
     {
@@ -343,7 +344,7 @@ export async function sendSlackBulk(
 
     const sendResults = await runWithConcurrency(
         prepared,
-        (p) => provider.send(p.params),
+        (p) => provider.send(p.params).then(scrubSendResult),
         concurrency,
     );
 

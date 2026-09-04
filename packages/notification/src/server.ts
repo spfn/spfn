@@ -169,6 +169,8 @@ export {
     maskPhone,
     maskRecipient,
     maskRecipients,
+    scrubProviderError,
+    scrubSendResult,
 } from './privacy';
 
 // Auto-register built-in templates

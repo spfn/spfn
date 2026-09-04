@@ -5,7 +5,7 @@
 import type { SMSProvider, InternalSendSMSParams } from '../types';
 import type { SendResult } from '../../types';
 import { env } from '../../../config';
-import { maskPhone } from '../../../privacy';
+import { maskPhone, scrubProviderError } from '../../../privacy';
 import { logger } from '@spfn/core/logger';
 
 const log = logger.child('@spfn/notification:sns');
@@ -82,12 +82,22 @@ export const awsSnsProvider: SMSProvider = {
         }
         catch (error)
         {
-            const err = error as Error;
-            log.error('SNS send failed', err, { to: maskPhone(params.to) });
+            const err = error as Error & { $metadata?: { httpStatusCode?: number } };
+            // Same reason as SES: the raw Error would reach the log as a stack
+            // whose first line carries the number again.
+            const message = scrubProviderError(err.message) || 'Unknown error';
+
+            log.error('SNS send failed', {
+                provider: 'aws-sns',
+                name: err.name,
+                status: err.$metadata?.httpStatusCode,
+                error: message,
+                to: maskPhone(params.to),
+            });
 
             return {
                 success: false,
-                error: err.message,
+                error: message,
             };
         }
     },

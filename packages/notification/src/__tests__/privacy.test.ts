@@ -10,6 +10,7 @@ import {
     maskPhone,
     maskRecipient,
     maskRecipients,
+    scrubProviderError,
     historyRecipient,
     historyRecipientFilter,
 } from '../privacy';
@@ -137,5 +138,65 @@ describe('historyRecipientFilter', () =>
         configureNotification({ history: { storeRecipient: 'hashed', hashSecret: SECRET } });
 
         expect(historyRecipientFilter('a@x.com,b@x.com')).toBe(historyRecipient(['a@x.com', 'b@x.com']));
+    });
+});
+
+describe('scrubProviderError', () =>
+{
+    it('masks the address SES quotes in a sandbox rejection', () =>
+    {
+        const message = 'Email address is not verified. The following identities '
+            + 'failed the check in region US-EAST-1: learner@example.com';
+
+        expect(scrubProviderError(message)).toBe(
+            'Email address is not verified. The following identities '
+            + 'failed the check in region US-EAST-1: le***@example.com',
+        );
+    });
+
+    it('masks every address in a message that names two', () =>
+    {
+        expect(scrubProviderError('rejected: learner@example.com, tutor@school.ac.kr'))
+            .toBe('rejected: le***@example.com, tu***@school.ac.kr');
+    });
+
+    it('leaves a sentence-ending period outside the address', () =>
+    {
+        expect(scrubProviderError('Not verified: learner@example.com.'))
+            .toBe('Not verified: le***@example.com.');
+    });
+
+    it('masks an E.164 number in an SNS rejection', () =>
+    {
+        expect(scrubProviderError('Invalid parameter: PhoneNumber Reason: +821012345678 is not valid'))
+            .toBe('Invalid parameter: PhoneNumber Reason: +8210******78 is not valid');
+    });
+
+    it('masks a bare national-length digit run', () =>
+    {
+        expect(scrubProviderError('destination 821012345678 unreachable'))
+            .toBe('destination 82101*****78 unreachable');
+    });
+
+    it('leaves timestamps, request ids, regions and message ids alone', () =>
+    {
+        const message = 'MessageRejected at 2026-09-04T10:53:49.972Z '
+            + 'request f47ac10b-58cc-4372-a567-0e02b2c3d479 '
+            + 'in us-east-1, message id 0100019a2b3c4d5e-abc12345-0000';
+
+        expect(scrubProviderError(message)).toBe(message);
+    });
+
+    it('leaves a Slack ts value alone — it is a decimal, not a number to mask', () =>
+    {
+        expect(scrubProviderError('thread_ts 1725439200.123456 not found'))
+            .toBe('thread_ts 1725439200.123456 not found');
+    });
+
+    it('returns an empty string for empty or non-string input', () =>
+    {
+        expect(scrubProviderError('')).toBe('');
+        expect(scrubProviderError(undefined as unknown as string)).toBe('');
+        expect(scrubProviderError(42 as unknown as string)).toBe('');
     });
 });

@@ -11,6 +11,7 @@ import {
     markNotificationSent,
     markNotificationFailed,
 } from '../services/notification.service';
+import { scrubSendResult } from '../privacy';
 
 const SendBulkSlackItemInput = Type.Object({
     notificationId: Type.Number(),
@@ -30,7 +31,11 @@ export const sendBulkSlackItemJob = job('notification.send-bulk-slack-item')
     {
         const { notificationId, ...slackParams } = input;
 
-        const result = await webhookProvider.send(slackParams);
+        // This job calls the provider directly, so it stands in for the channel's
+        // provider boundary: the webhook returns Slack's raw response body, which
+        // echoes the posted message, and the rethrow below carries it into the job
+        // queue's failure record.
+        const result = scrubSendResult(await webhookProvider.send(slackParams));
 
         if (result.success)
         {

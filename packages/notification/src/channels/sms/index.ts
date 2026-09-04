@@ -8,7 +8,7 @@ import type { Notification } from '../../entities';
 import { awsSnsProvider } from './providers/aws-sns';
 import { env, isHistoryEnabled, isHistoryContentStored } from '../../config';
 import { renderTemplate, hasTemplate, getTemplate } from '../../templates';
-import { maskRecipients, maskPhone, historyRecipient } from '../../privacy';
+import { maskRecipients, maskPhone, historyRecipient, scrubSendResult } from '../../privacy';
 import {
     createNotificationRecord,
     createNotificationRecords,
@@ -140,7 +140,7 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
             }
         }
 
-        const result = await provider.send(internalParams);
+        const result = scrubSendResult(await provider.send(internalParams));
 
         if (result.success)
         {
@@ -372,7 +372,7 @@ export async function sendSMSBulk(
 
     const sendResults = await runWithConcurrency(
         prepared,
-        (p) => provider.send({ to: p.phone, message: p.message }),
+        (p) => provider.send({ to: p.phone, message: p.message }).then(scrubSendResult),
         concurrency,
     );
 
