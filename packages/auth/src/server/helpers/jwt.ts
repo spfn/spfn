@@ -304,7 +304,7 @@ function keyMatchesAlgorithm(key: crypto.KeyObject | null, algorithm: KeyAlgorit
         return key.asymmetricKeyType === 'ec' && key.asymmetricKeyDetails?.namedCurve === 'prime256v1';
     }
 
-    // 'rsa' only — rsa-pss signs under a different scheme and is not RS256.
+    // 'rsa' only — rsa-pss uses a different padding and is not RS256.
     return key.asymmetricKeyType === 'rsa';
 }
 
