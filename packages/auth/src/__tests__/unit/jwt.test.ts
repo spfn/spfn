@@ -7,6 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import crypto from 'crypto';
 import {
+    assertKeyMatchesAlgorithm,
     verifyClientToken,
     verifyKeyFingerprint,
     decodeToken,
@@ -14,6 +15,7 @@ import {
     verifyToken,
 } from '@/server/helpers/jwt';
 import { generateKeyPair, generateClientToken } from '@/server/lib/crypto';
+import { KeyAlgorithmMismatchError } from '@spfn/auth/errors';
 
 describe('JWT - Server-side Verification with ES256', () =>
 {
@@ -473,5 +475,95 @@ describe('JWT - Public key cache', () =>
         expect(spy).toHaveBeenCalledTimes(1);
 
         spy.mockRestore();
+    });
+});
+
+/**
+ * `algorithm` 컬럼은 키 자료 옆에 저장될 뿐 거기서 다시 유도되지 않는다. 선언한
+ * 알고리즘으로 서명할 수 없는 키가 등록되면 불일치는 등록이 아니라 proof 검증에서
+ * 드러난다 — 기기가 이미 등록됐다고 믿은 뒤에, 그 뒤 모든 요청에서. 그래서 저장 전에
+ * 키의 SPKI 타입을 직접 본다. 여기서 고정하는 것은 그 판정의 양쪽 방향이다.
+ */
+const EC_P256_PUBLIC_KEY = generateKeyPair('ES256').publicKey;
+const RSA_PUBLIC_KEY = generateKeyPair('RS256').publicKey;
+
+/** P-256이 아닌 곡선. EC라는 것만으로는 ES256이 될 수 없다는 것을 보이기 위한 키다. */
+function generateP384PublicKey(): string
+{
+    const { publicKey } = crypto.generateKeyPairSync('ec', {
+        namedCurve: 'secp384r1',
+        publicKeyEncoding: { type: 'spki', format: 'der' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'der' },
+    });
+
+    return publicKey.toString('base64');
+}
+
+describe('assertKeyMatchesAlgorithm', () =>
+{
+    it('accepts a P-256 EC key declared ES256', () =>
+    {
+        expect(() => assertKeyMatchesAlgorithm(EC_P256_PUBLIC_KEY, 'ES256')).not.toThrow();
+    });
+
+    it('accepts an RSA key declared RS256', () =>
+    {
+        expect(() => assertKeyMatchesAlgorithm(RSA_PUBLIC_KEY, 'RS256')).not.toThrow();
+    });
+
+    it('refuses a P-256 EC key declared RS256', () =>
+    {
+        expect(() => assertKeyMatchesAlgorithm(EC_P256_PUBLIC_KEY, 'RS256')).toThrow(KeyAlgorithmMismatchError);
+    });
+
+    it('refuses an RSA key declared ES256', () =>
+    {
+        expect(() => assertKeyMatchesAlgorithm(RSA_PUBLIC_KEY, 'ES256')).toThrow(KeyAlgorithmMismatchError);
+    });
+
+    it('refuses an EC key on a curve other than P-256 declared ES256', () =>
+    {
+        // ES256은 곡선까지 포함해 P-256을 뜻한다. asymmetricKeyType만 보면 통과한다.
+        expect(() => assertKeyMatchesAlgorithm(generateP384PublicKey(), 'ES256'))
+            .toThrow(KeyAlgorithmMismatchError);
+    });
+
+    it('refuses bytes that are not an SPKI public key, rather than throwing out of the parser', () =>
+    {
+        // createPublicKey는 malformed 입력에 그대로 throw한다. 잡아두지 않으면 400이어야 할
+        // 거절이 500이 된다.
+        expect(() => assertKeyMatchesAlgorithm('bm90LWEta2V5', 'ES256'))
+            .toThrow(KeyAlgorithmMismatchError);
+        expect(() => assertKeyMatchesAlgorithm('', 'RS256'))
+            .toThrow(KeyAlgorithmMismatchError);
+    });
+
+    it('names both the key it read and the algorithm that was declared', () =>
+    {
+        // 거절 메시지가 한쪽만 말하면 클라이언트는 어느 쪽을 고쳐야 하는지 알 수 없다.
+        const refusal = (() =>
+        {
+            try
+            {
+                assertKeyMatchesAlgorithm(EC_P256_PUBLIC_KEY, 'RS256');
+            }
+            catch (error)
+            {
+                return error as Error;
+            }
+
+            return null;
+        })();
+
+        expect(refusal?.message).toContain('prime256v1');
+        expect(refusal?.message).toContain('RS256');
+    });
+
+    it('answers 400, not 500 — a caller sent a bad key, the server is not broken', () =>
+    {
+        const error = new KeyAlgorithmMismatchError();
+
+        expect(error.name).toBe('KeyAlgorithmMismatchError');
+        expect((error as unknown as { statusCode: number }).statusCode).toBe(400);
     });
 });

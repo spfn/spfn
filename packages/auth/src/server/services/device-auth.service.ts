@@ -41,7 +41,7 @@ import { deviceAuthorizationsRepository, usersRepository } from '../repositories
 import type { DeviceAuthorization, DeviceAuthStatus } from '../entities/device-authorizations';
 import { type KeyAlgorithmType, type KeyPlatformType } from '../types';
 import { getDeviceAuthConfig } from '../lib/device-auth-config';
-import { verifyKeyFingerprint } from '../helpers/jwt';
+import { assertKeyMatchesAlgorithm, verifyKeyFingerprint } from '../helpers/jwt';
 import {
     formatUserCode,
     generateDeviceCode,
@@ -49,7 +49,7 @@ import {
     hashDeviceCode,
     normalizeUserCode,
 } from '../lib/device-code';
-import { registerPublicKeyService, KEY_FINGERPRINT_PREFIX_LENGTH } from './key.service';
+import { registerPublicKeyService, DEFAULT_KEY_ALGORITHM, KEY_FINGERPRINT_PREFIX_LENGTH } from './key.service';
 import { updateLastLoginService } from './user.service';
 import { getPendingDeletionInfo } from './account-deletion.service';
 import type { LoginResult } from './auth.service';
@@ -238,6 +238,11 @@ export async function startDeviceAuthService(
     {
         throw new InvalidKeyFingerprintError();
     }
+
+    // The algorithm the poll will register the key under is decided here, by the
+    // same default, so the key has to match it here — not once a person has
+    // approved a device whose key could never sign for what it declared.
+    assertKeyMatchesAlgorithm(params.publicKey, params.algorithm ?? DEFAULT_KEY_ALGORITHM);
 
     const { ttlMs, intervalMs } = getDeviceAuthConfig();
     const expiresAt = new Date(Date.now() + ttlMs);

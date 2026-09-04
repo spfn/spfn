@@ -14,7 +14,7 @@ import {
 } from '../repositories';
 import type { InvitationStatus, KeyAlgorithmType } from '../types';
 import { runBeforeRegister } from '../lib/config';
-import { hashPassword } from '../helpers';
+import { assertKeyMatchesAlgorithm, hashPassword } from '../helpers';
 import { invitationCreatedEvent, invitationAcceptedEvent } from '../events';
 import { BadRequestError, NotFoundError, ConflictError } from '@spfn/core/errors';
 
@@ -234,6 +234,12 @@ export async function acceptInvitation(params: {
 }) 
 {
     const { token, password, publicKey, keyId, fingerprint, algorithm } = params;
+
+    // This is the one key-storing path that does not go through
+    // registerPublicKeyService, so the check the other paths inherit is stated
+    // here. It runs before the account exists: a key that could never sign for
+    // its declared algorithm must not consume the invitation.
+    assertKeyMatchesAlgorithm(publicKey, algorithm);
 
     // Validate invitation
     const validation = await validateInvitation(token);

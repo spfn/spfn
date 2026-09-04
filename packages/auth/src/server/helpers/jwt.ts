@@ -13,6 +13,7 @@ import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 import { env } from '@spfn/auth/config';
 import { type KeyAlgorithmType } from '../types';
+import { KeyAlgorithmMismatchError } from '@spfn/auth/errors';
 
 /**
  * Parsed public-key cache.
@@ -258,5 +259,82 @@ export function verifyKeyFingerprint(
         console.error('Failed to verify key fingerprint:', error);
 
         return false;
+    }
+}
+
+/** The key, or null when the bytes are not a readable SPKI public key. */
+function readPublicKey(publicKeyB64: string): crypto.KeyObject | null
+{
+    try
+    {
+        return getPublicKeyObject(publicKeyB64);
+    }
+    catch
+    {
+        return null;
+    }
+}
+
+/** How a key's own SPKI describes it, for the message a refusal carries. */
+function describeKeyType(key: crypto.KeyObject | null): string
+{
+    if (!key)
+    {
+        return 'not a readable SPKI public key';
+    }
+
+    if (key.asymmetricKeyType === 'ec')
+    {
+        return `a ${key.asymmetricKeyDetails?.namedCurve ?? 'unknown-curve'} EC key`;
+    }
+
+    return `a ${key.asymmetricKeyType ?? 'unrecognised'} key`;
+}
+
+/** Whether the key is the type `algorithm` needs. A key that did not parse is not. */
+function keyMatchesAlgorithm(key: crypto.KeyObject | null, algorithm: KeyAlgorithmType): boolean
+{
+    if (!key)
+    {
+        return false;
+    }
+
+    if (algorithm === 'ES256')
+    {
+        return key.asymmetricKeyType === 'ec' && key.asymmetricKeyDetails?.namedCurve === 'prime256v1';
+    }
+
+    // 'rsa' only — rsa-pss signs under a different scheme and is not RS256.
+    return key.asymmetricKeyType === 'rsa';
+}
+
+/**
+ * Refuses a public key whose SPKI type is not the one its declared algorithm
+ * needs, before the key is stored.
+ *
+ * The algorithm column is what proof verification later reads, and nothing
+ * re-derives it from the key material — so an EC key parked as RS256 is
+ * accepted at enrollment and fails on every request afterwards, with the device
+ * already believing it is enrolled. Refusing at registration is what keeps that
+ * mismatch from ever being written.
+ *
+ * Bytes that are no SPKI public key at all are refused the same way: the parser
+ * throws on them, and an unreadable key is the same defect as a mismatched one.
+ * Neither is a server fault, so both answer 400 rather than falling out as a 500.
+ *
+ * @throws KeyAlgorithmMismatchError when the key is not the algorithm's type.
+ */
+export function assertKeyMatchesAlgorithm(
+    publicKeyB64: string,
+    algorithm: KeyAlgorithmType,
+): void
+{
+    const key = readPublicKey(publicKeyB64);
+
+    if (!keyMatchesAlgorithm(key, algorithm))
+    {
+        throw new KeyAlgorithmMismatchError({
+            message: `Public key is ${describeKeyType(key)} but the declared algorithm is ${algorithm}`,
+        });
     }
 }

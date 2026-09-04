@@ -211,8 +211,16 @@ import { CLIENT_IDENTITY_HEADERS, CLIENT_KINDS, SERVER_CONTRACT_HEADERS } from '
  * before 0.6.0. It rides this version because it changes what codegen produces
  * for an existing field, which is breaking on its own, and 0.10.0 is where the
  * break already is.
+ *
+ * 0.10.1 adds `KeyAlgorithmMismatchError` to the REST vocabulary: a key whose
+ * SPKI type is not the one its declared algorithm needs is now refused 400 at
+ * register, login, rotate and device start instead of being stored and failing
+ * at proof verification afterwards. A patch, by the rule 0.4.1 set — the code
+ * list is open (`unlistedCodes` says so), so a consumer generated against
+ * 0.10.0 already decodes an unlisted code and nothing it generates changes
+ * shape. The supported range does not move.
  */
-export const CONTRACT_VERSION = '0.10.0';
+export const CONTRACT_VERSION = '0.10.1';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
@@ -794,6 +802,12 @@ const REST_SURFACE_ERRORS: readonly RestSurfaceError[] = [
         httpStatus: 400,
         retryable: false,
         summary: 'the fingerprint is not the hash of the submitted public key',
+    },
+    {
+        code: 'KeyAlgorithmMismatchError',
+        httpStatus: 400,
+        retryable: false,
+        summary: 'the public key\'s type does not match the declared algorithm',
     },
     {
         code: 'UnverifiedEmailLinkError',

@@ -267,6 +267,31 @@ export class InvalidKeyFingerprintError extends ValidationError
 }
 
 /**
+ * Key Algorithm Mismatch Error (400)
+ *
+ * Thrown when the submitted public key's SPKI type is not the one its declared
+ * algorithm needs — a P-256 EC key declared RS256, an RSA key declared ES256, a
+ * curve other than P-256 declared ES256, or bytes that are no SPKI key at all.
+ *
+ * The algorithm is stored beside the key and read back at proof verification;
+ * nothing re-derives it from the key material. So a mismatch accepted here
+ * surfaces only after the device believes it is enrolled, on every request it
+ * then makes. It is refused at registration instead, wherever key material is
+ * stored: register, login, rotate, invitation acceptance and device start.
+ */
+export class KeyAlgorithmMismatchError extends ValidationError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'Public key type does not match the declared algorithm',
+            details: data.details,
+        });
+        this.name = 'KeyAlgorithmMismatchError';
+    }
+}
+
+/**
  * Key Not Found Error (404)
  *
  * Thrown when a key operation names a keyId the caller does not own. It says

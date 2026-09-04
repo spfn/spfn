@@ -5,7 +5,7 @@
  */
 
 import { type KeyAlgorithmType, type KeyPlatformType } from '../types';
-import { verifyKeyFingerprint } from '../helpers/jwt';
+import { assertKeyMatchesAlgorithm, verifyKeyFingerprint } from '../helpers/jwt';
 import { KEY_TTL_DAYS } from '../lib/key-policy';
 import { InvalidKeyFingerprintError, KeyIdAlreadyRegisteredError } from '@spfn/auth/errors';
 import { deviceAuthorizationsRepository, keysRepository } from '../repositories';
@@ -142,6 +142,7 @@ function isExpired(expiresAt: Date | null): boolean
  *
  * @throws KeyIdAlreadyRegisteredError keyId가 이미 쓰인 값일 때 (자기 폐기 키 재사용 · 남의 키)
  * @throws InvalidKeyFingerprintError fingerprint가 publicKey와 맞지 않을 때
+ * @throws KeyAlgorithmMismatchError 키의 SPKI 타입이 선언된 algorithm과 다를 때
  */
 export async function registerPublicKeyService(
     params: RegisterPublicKeyParams,
@@ -181,6 +182,11 @@ export async function registerPublicKeyService(
         throw new InvalidKeyFingerprintError();
     }
 
+    // The defaulted algorithm is what gets stored, so it is the one the key has
+    // to be: a key parked under an algorithm it cannot sign for would only fail
+    // at proof verification, after the caller believes it is enrolled.
+    assertKeyMatchesAlgorithm(publicKey, algorithm);
+
     // Store public key (90 days expiry)
     await keysRepository.create({
         userId,
@@ -197,6 +203,9 @@ export async function registerPublicKeyService(
 
 /**
  * Rotate user's public key (revoke old, register new)
+ *
+ * @throws InvalidKeyFingerprintError fingerprint가 newPublicKey와 맞지 않을 때
+ * @throws KeyAlgorithmMismatchError 새 키의 SPKI 타입이 선언된 algorithm과 다를 때
  */
 export async function rotateKeyService(
     params: RotateKeyParams,
@@ -210,6 +219,8 @@ export async function rotateKeyService(
     {
         throw new InvalidKeyFingerprintError();
     }
+
+    assertKeyMatchesAlgorithm(newPublicKey, algorithm);
 
     // Rotation replaces a key on the same device, so its label carries over unless
     // the client renames it. Read before the revoke — the row survives either way,

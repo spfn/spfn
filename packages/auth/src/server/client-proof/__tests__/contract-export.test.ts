@@ -29,6 +29,7 @@ import {
     DeviceAuthDeniedError,
     DeviceAuthExpiredError,
     DeviceAuthNotFoundError,
+    KeyAlgorithmMismatchError,
 } from '../../../errors/auth-errors';
 import { CLIENT_PROOF_CONTENT_TYPE, CLIENT_PROOF_HEADERS } from '../admission';
 import type { CanonicalValue } from '../canonical-json';
@@ -1210,6 +1211,20 @@ describe('declared errors match the refusals', () =>
         }
     });
 
+    it('the key-algorithm refusal carries the status its error class carries', () =>
+    {
+        // Added in 0.10.1. The class name is the code a client matches on, so the
+        // two are compared rather than the string being transcribed twice.
+        const thrown = new KeyAlgorithmMismatchError();
+        const entry = declared.find((candidate) => candidate.code === thrown.name);
+
+        expect(entry).toBeDefined();
+        expect(entry?.httpStatus).toBe(thrown.statusCode);
+        expect(entry?.httpStatus).toBe(400);
+        expect(entry?.retryable).toBe(false);
+        expect(entry?.surface).toBe('rest');
+    });
+
     it('no device refusal is retryable: the same request cannot be answered differently', () =>
     {
         // Every one of the four is a fact about the record, not about load. A
@@ -1327,9 +1342,9 @@ describe('declared proof rules match the implementation', () =>
         replayWindowMillis: number;
     };
 
-    it('the contract line is the revision that exports device-code login', () =>
+    it('the contract line is the revision that adds the key-algorithm refusal', () =>
     {
-        expect(bundle.contractVersion).toBe('0.10.0');
+        expect(bundle.contractVersion).toBe('0.10.1');
     });
 
     it('the supported range moves with the operation that answers no body', () =>

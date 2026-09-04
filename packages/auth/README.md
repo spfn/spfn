@@ -426,6 +426,11 @@ await authApi.revokeAllKeys.call({ body: { includeCurrent: true } });   // every
 > naming the cause. Proof-bearing auth operations are shaped this way; the unproven,
 > bodyless `core.time` synchronization prerequisite is the explicit exception.
 
+- **A key must be the type its algorithm names.** A P-256 SPKI declared `RS256`, an RSA key
+  declared `ES256`, and a curve other than P-256 declared `ES256` are each refused 400 with
+  `KeyAlgorithmMismatchError` on register, login, rotate and device start — the algorithm is
+  stored beside the key and read back at proof verification, so a mismatch accepted at
+  enrollment would surface only once the device already believed it was enrolled.
 - **The public key never leaves the server**, and the fingerprint is truncated to 8 characters.
   The list exists to recognise a device and point at it; the full fingerprint is what a native
   sign-in sends as its nonce, not a label.
