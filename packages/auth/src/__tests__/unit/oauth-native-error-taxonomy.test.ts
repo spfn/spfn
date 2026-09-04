@@ -213,6 +213,9 @@ describe('native sign-in answers each failure path with its own code', () =>
             { code: 'NativeSignInUnsupportedError', status: 400, retryable: false },
             { code: 'NonceKeyBindingError', status: 400, retryable: false },
             { code: 'InvalidKeyFingerprintError', status: 400, retryable: false },
+            // Added to the REST vocabulary in contract 0.10.1; held to its error
+            // class in contract-export.test.ts.
+            { code: 'KeyAlgorithmMismatchError', status: 400, retryable: false },
             { code: 'InvalidSocialTokenError', status: 401, retryable: false },
             { code: 'UnverifiedEmailLinkError', status: 400, retryable: false },
             { code: 'AccountDisabledError', status: 403, retryable: false },

@@ -206,6 +206,15 @@ describe.skipIf(!dbAvailable)('Device-code login', () =>
             .where(eq(deviceAuthorizations.userCode, userCode.replace('-', '')));
     }
 
+    /** What a refused start must leave behind: nothing under its keyId. */
+    function readRecordByKeyId(keyId: string)
+    {
+        return getDatabase('write')!
+            .select()
+            .from(deviceAuthorizations)
+            .where(eq(deviceAuthorizations.keyId, keyId));
+    }
+
     /** Drag a record's TTL into the past. Only the server clock ever decides this. */
     async function expire(userCode: string)
     {
@@ -680,6 +689,64 @@ describe.skipIf(!dbAvailable)('Device-code login', () =>
             });
 
             await expectError(response, 400, 'InvalidKeyFingerprintError');
+        });
+
+        it('refuses a key whose type is not the algorithm it declares', async () =>
+        {
+            // algorithmDefaultRule fixes the algorithm when the key is parked and
+            // nothing re-derives it from the key afterwards, so a P-256 key stored
+            // as RS256 would only fail at proof verification — after the device
+            // believes it is enrolled and a person has already approved it.
+            const keyPair = generateKeyPair('ES256');
+
+            const response = await post('/_auth/device/start', {
+                publicKey: keyPair.publicKey,
+                keyId: keyPair.keyId,
+                fingerprint: keyPair.fingerprint,
+                algorithm: 'RS256',
+                platform: 'ios',
+            });
+
+            await expectError(response, 400, 'KeyAlgorithmMismatchError');
+            expect(await readRecordByKeyId(keyPair.keyId)).toEqual([]);
+        });
+
+        it('refuses an RSA key that names no algorithm, because the default is ES256', async () =>
+        {
+            // Omitting the field is not "whatever the key is" — it is ES256, which
+            // is what the row would have stored. The check runs against the
+            // defaulted algorithm for exactly this case.
+            const keyPair = generateKeyPair('RS256');
+
+            const response = await post('/_auth/device/start', {
+                publicKey: keyPair.publicKey,
+                keyId: keyPair.keyId,
+                fingerprint: keyPair.fingerprint,
+                platform: 'ios',
+            });
+
+            await expectError(response, 400, 'KeyAlgorithmMismatchError');
+            expect(await readRecordByKeyId(keyPair.keyId)).toEqual([]);
+        });
+
+        it('parks an RSA key that declares RS256', async () =>
+        {
+            // The check refuses a mismatch, not RSA. RS256 is a supported algorithm
+            // and a key that is what it says it is goes through.
+            const keyPair = generateKeyPair('RS256');
+
+            const response = await post('/_auth/device/start', {
+                publicKey: keyPair.publicKey,
+                keyId: keyPair.keyId,
+                fingerprint: keyPair.fingerprint,
+                algorithm: 'RS256',
+                platform: 'ios',
+            });
+
+            expect(response.status).toBe(200);
+
+            const [record] = await readRecordByKeyId(keyPair.keyId);
+            expect(record.algorithm).toBe('RS256');
         });
 
         it('reports a colliding user code instead of aborting the transaction', async () =>

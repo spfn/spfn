@@ -16,27 +16,37 @@ const { keysRepository } = vi.hoisted(() => ({
         create: vi.fn(async () => undefined),
         extendExpiry: vi.fn(async () => null),
         revokeByKeyIdAndUserId: vi.fn(async () => null),
+        findByKeyIdAndUserId: vi.fn(async () => null),
     },
 }));
 
 vi.mock('../../server/repositories', () => ({ keysRepository }));
 
-// fingerprint 검증은 이 테스트의 관심사가 아니다 — 충돌 판정만 본다.
-vi.mock('../../server/helpers/jwt', () => ({ verifyKeyFingerprint: () => true }));
+// fingerprint 검증은 이 테스트의 관심사가 아니다 — 충돌 판정만 본다. 알고리즘 검사는
+// 통과시킨다: 실제 키 자료를 쓰므로 진짜 구현이 그대로 돌아야 한다.
+vi.mock('../../server/helpers/jwt', async (importActual) => ({
+    ...(await importActual<typeof import('../../server/helpers/jwt')>()),
+    verifyKeyFingerprint: () => true,
+}));
 
-import { registerPublicKeyService } from '../../server/services/key.service';
-import { KeyIdAlreadyRegisteredError } from '@spfn/auth/errors';
+import { generateKeyPair } from '../../server/lib/crypto';
+import { registerPublicKeyService, rotateKeyService } from '../../server/services/key.service';
+import { KeyAlgorithmMismatchError, KeyIdAlreadyRegisteredError } from '@spfn/auth/errors';
 
 const OWNER_ID = 1;
 const OTHER_ID = 2;
 const KEY_ID = 'key-abc';
+
+// 충돌 판정에도 진짜 P-256 SPKI를 쓴다 — 등록 경로가 키 자료를 파싱하기 때문이다.
+const EC_KEY = generateKeyPair('ES256');
+const RSA_KEY = generateKeyPair('RS256');
 
 function params(userId = OWNER_ID)
 {
     return {
         userId,
         keyId: KEY_ID,
-        publicKey: 'base64-der-public-key',
+        publicKey: EC_KEY.publicKey,
         fingerprint: 'a'.repeat(64),
         algorithm: 'ES256' as const,
     };
@@ -48,7 +58,7 @@ function keyRow(overrides: Record<string, unknown> = {})
         id: 10,
         userId: OWNER_ID,
         keyId: KEY_ID,
-        publicKey: 'base64-der-public-key',
+        publicKey: EC_KEY.publicKey,
         algorithm: 'ES256',
         fingerprint: 'a'.repeat(64),
         isActive: true,
@@ -176,5 +186,86 @@ describe('registerPublicKeyService - keyId collisions', () =>
         // 활성 필터가 걸린 조회로 되돌아가면 폐기 행을 다시 놓친다.
         expect(keysRepository.findByKeyId).toHaveBeenCalledWith(KEY_ID);
         expect(keysRepository.findActiveByKeyId).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * algorithm 컬럼은 저장될 뿐 키 자료에서 다시 유도되지 않는다. 선언한 알고리즘으로
+ * 서명할 수 없는 키가 등록되면 그 불일치는 등록이 아니라 proof 검증에서, 기기가 이미
+ * 등록됐다고 믿은 뒤에 드러난다. 그래서 저장 직전에 거절한다.
+ */
+describe('key type must match the declared algorithm', () =>
+{
+    beforeEach(() =>
+    {
+        vi.clearAllMocks();
+        keysRepository.findByKeyId.mockResolvedValue(null);
+        keysRepository.create.mockResolvedValue(undefined as never);
+    });
+
+    it('refuses to register an RSA key declared ES256', async () =>
+    {
+        const register = registerPublicKeyService({
+            userId: OWNER_ID,
+            keyId: KEY_ID,
+            publicKey: RSA_KEY.publicKey,
+            fingerprint: 'a'.repeat(64),
+            algorithm: 'ES256',
+        });
+
+        await expect(register).rejects.toBeInstanceOf(KeyAlgorithmMismatchError);
+        expect(keysRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('registers a P-256 key declared ES256', async () =>
+    {
+        await registerPublicKeyService(params());
+
+        expect(keysRepository.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('registers an RSA key declared RS256', async () =>
+    {
+        await registerPublicKeyService({
+            userId: OWNER_ID,
+            keyId: KEY_ID,
+            publicKey: RSA_KEY.publicKey,
+            fingerprint: 'a'.repeat(64),
+            algorithm: 'RS256',
+        });
+
+        expect(keysRepository.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses to rotate onto an EC key declared RS256, and revokes nothing', async () =>
+    {
+        const rotate = rotateKeyService({
+            userId: OWNER_ID,
+            oldKeyId: KEY_ID,
+            newKeyId: 'key-new',
+            newPublicKey: EC_KEY.publicKey,
+            fingerprint: 'a'.repeat(64),
+            algorithm: 'RS256',
+        });
+
+        await expect(rotate).rejects.toBeInstanceOf(KeyAlgorithmMismatchError);
+
+        // 거절이 회전을 시작시키면 안 된다 — 옛 키가 폐기된 채 새 키가 없는 상태가 된다.
+        expect(keysRepository.revokeByKeyIdAndUserId).not.toHaveBeenCalled();
+        expect(keysRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('rotates onto an RSA key declared RS256', async () =>
+    {
+        await rotateKeyService({
+            userId: OWNER_ID,
+            oldKeyId: KEY_ID,
+            newKeyId: 'key-new',
+            newPublicKey: RSA_KEY.publicKey,
+            fingerprint: 'a'.repeat(64),
+            algorithm: 'RS256',
+        });
+
+        expect(keysRepository.create).toHaveBeenCalledTimes(1);
     });
 });

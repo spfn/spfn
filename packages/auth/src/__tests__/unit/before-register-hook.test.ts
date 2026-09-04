@@ -88,6 +88,11 @@ import { configureAuth, type BeforeRegisterContext } from '../../server/lib/conf
 // Package specifier (not a relative path) so `instanceof` matches the classes
 // the services themselves throw.
 import { RegistrationRejectedError, AccountAlreadyExistsError } from '@spfn/auth/errors';
+import { generateKeyPair } from '../../server/lib/crypto';
+
+// acceptInvitation은 키 자료를 직접 저장하는 유일한 경로라 알고리즘 검사를 자기가 한다.
+// 자리표시자 문자열이면 훅에 닿기 전에 거절되므로, 여기서는 진짜 P-256 SPKI를 쓴다.
+const INVITE_PUBLIC_KEY = generateKeyPair('ES256').publicKey;
 
 const registerParams = {
     email: 'kid@example.com',
@@ -282,7 +287,7 @@ describe('beforeRegister hook', () =>
             await expect(acceptInvitation({
                 token: 'invite-token',
                 password: 'secret',
-                publicKey: 'pub',
+                publicKey: INVITE_PUBLIC_KEY,
                 keyId: 'key-2',
                 fingerprint: 'fp',
                 algorithm: 'ES256',
@@ -315,7 +320,7 @@ describe('beforeRegister hook', () =>
             await expect(acceptInvitation({
                 token: 'invite-token',
                 password: 'secret',
-                publicKey: 'pub',
+                publicKey: INVITE_PUBLIC_KEY,
                 keyId: 'key-3',
                 fingerprint: 'fp',
                 algorithm: 'ES256',
