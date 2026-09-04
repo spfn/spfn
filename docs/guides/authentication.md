@@ -640,7 +640,7 @@ SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-...
 SPFN_AUTH_GOOGLE_SCOPES=email,profile               # Default: email,profile
 SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback           # Default: /auth/callback
 SPFN_AUTH_OAUTH_ERROR_URL=/auth/error?error={error}  # Default: /auth/error?error={error}
-SPFN_AUTH_GOOGLE_REDIRECT_URI=                       # Default: {NEXT_PUBLIC_SPFN_APP_URL||SPFN_APP_URL}/_auth/oauth/google/callback
+SPFN_AUTH_GOOGLE_REDIRECT_URI=                       # Default: {NEXT_PUBLIC_SPFN_APP_URL||SPFN_APP_URL}/_auth/oauth/google/callback (an override is checked at boot)
 ```
 
 OAuth routes are **automatically enabled** when `SPFN_AUTH_GOOGLE_CLIENT_ID` is set.
@@ -668,9 +668,15 @@ const nextConfig = {
 ```
 
 Register the web app host callback URL in the Google console (e.g.
-`https://app.example.com/_auth/oauth/google/callback`). If you use the direct
-`POST /_auth/oauth/start` flow (no Next.js interceptor), set `SPFN_AUTH_GOOGLE_REDIRECT_URI`
-to the API host callback instead — that flow sets its CSRF cookie on the API host.
+`https://app.example.com/_auth/oauth/google/callback`). An explicit
+`SPFN_AUTH_<PROVIDER>_REDIRECT_URI` is checked when the server boots: a value off the web app
+origin, or off `/_auth/oauth/<provider>/callback`, refuses to start rather than failing later
+as a CSRF refusal on the callback.
+
+If you use the direct `POST /_auth/oauth/start` flow (no Next.js interceptor), set
+`SPFN_AUTH_GOOGLE_REDIRECT_URI` to the API host callback instead — that flow sets its CSRF
+cookie on the API host — **and** set `SPFN_AUTH_OAUTH_CALLBACK_ORIGIN_CHECK=off`, which is the
+only value that disables the boot check.
 
 ### OAuth Flow
 

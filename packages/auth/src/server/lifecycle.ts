@@ -14,6 +14,7 @@ import { initializeAuth, normalizeStoredEmails } from './services';
 import { initOneTimeTokenManager } from './lib/one-time-token';
 import { configureDeletion } from './lib/deletion-config';
 import { configureDeviceAuth } from './lib/device-auth-config';
+import { assertOAuthRedirectUris } from './lib/oauth/redirect-uri-check';
 
 /**
  * Auth lifecycle configuration
@@ -258,12 +259,22 @@ export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLif
          * Initialize auth system after database is ready
          *
          * Performs:
+         * 0. Refuses boot on an OAuth redirect URI override off the web app origin
          * 1. Ensures admin account exists (creates if missing)
          * 2. Initializes RBAC system with built-in + custom roles/permissions
          * 3. Initializes one-time token manager
          */
         afterInfrastructure: async () =>
         {
+            // Deliberately here rather than synchronously beside configureDeviceAuth:
+            // env is resolved at both points (startServer() calls loadEnv() before it
+            // imports server.config.ts), but loadAndMergeConfig() catches a throw from
+            // that import and continues on defaults — a refusal in the constructor
+            // would leave the server listening without routes instead of refusing.
+            // A throw here propagates out of initializeInfrastructure(), before
+            // startHttpServer(), so the process exits without ever listening.
+            assertOAuthRedirectUris();
+
             await initializeAuth(options);
             // Before any account is looked up: the repository folds addresses to
             // canonical form now, so a row still stored in mixed case would not
