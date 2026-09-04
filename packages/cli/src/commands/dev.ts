@@ -5,7 +5,7 @@ import { execa, type ExecaChildProcess } from 'execa';
 import chokidar from 'chokidar';
 import { logger } from '../utils/logger.js';
 import { syncAgentInstructions } from '../lib/agent-instructions.js';
-import { detectPackageManager } from '../utils/package-manager.js';
+import { detectPackageManager, getRunScriptArgs } from '../utils/package-manager.js';
 import { resolveKeychainEnv } from '../utils/secret-store/index.js';
 import { loadAppConfig, resolvePorts, resolveHost } from '@spfn/core/app-config';
 
@@ -475,9 +475,10 @@ catch (error)
             const nextCmd = pm === 'npm' ? 'npm' : pm;
 
             // The port is passed through rather than baked into the script, so
-            // spfn.config.js is the only place the number appears. `--` hands the
-            // flag to next itself instead of to the package manager.
-            const nextArgs = ['run', 'spfn:next', '--', '--port', String(nextPort)];
+            // spfn.config.js is the only place the number appears. Only npm needs a
+            // `--` to stop reading the flag as its own config; pnpm, yarn and bun
+            // forward the separator to next, which then reads `--port` as a directory.
+            const nextArgs = getRunScriptArgs(pm, 'spfn:next', ['--port', String(nextPort)]);
 
             nextProcess = execa(nextCmd, nextArgs, {
                 cwd,

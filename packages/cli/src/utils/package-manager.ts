@@ -95,3 +95,17 @@ export function getAddCommand(pm: PackageManager, packages: string[]): string
             return `npm install ${pkgs}`;
     }
 }
+
+/**
+ * Arguments for `<pm> run <script> <args…>` that reach the script itself.
+ *
+ * npm eats unknown flags as its own config unless a `--` separates them; pnpm,
+ * yarn and bun forward a `--` verbatim, which breaks any command whose parser
+ * honours it.
+ */
+export function getRunScriptArgs(pm: PackageManager, script: string, args: string[]): string[]
+{
+    return pm === 'npm'
+        ? ['run', script, '--', ...args]
+        : ['run', script, ...args];
+}
