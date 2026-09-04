@@ -5,7 +5,7 @@
 import type { EmailProvider, InternalSendEmailParams } from '../types';
 import type { SendResult } from '../../types';
 import { env } from '../../../config';
-import { maskRecipients } from '../../../privacy';
+import { maskRecipients, scrubProviderError } from '../../../privacy';
 import { logger } from '@spfn/core/logger';
 
 const log = logger.child('@spfn/notification:ses');
@@ -101,12 +101,25 @@ export const awsSesProvider: EmailProvider = {
         }
         catch (error)
         {
-            const err = error as Error;
-            log.error('SES send failed', err, { to: maskRecipients(params.to), from: params.from });
+            const err = error as Error & { $metadata?: { httpStatusCode?: number } };
+            // The Error object itself is not passed to the logger: it would print
+            // err.stack, whose first line repeats `${name}: ${message}` and with it
+            // the address this scrub just removed. The name and the HTTP status
+            // carry the diagnostic value instead.
+            const message = scrubProviderError(err.message) || 'Unknown error';
+
+            log.error('SES send failed', {
+                provider: 'aws-ses',
+                name: err.name,
+                status: err.$metadata?.httpStatusCode,
+                error: message,
+                to: maskRecipients(params.to),
+                from: params.from,
+            });
 
             return {
                 success: false,
-                error: err.message,
+                error: message,
             };
         }
     },

@@ -361,14 +361,25 @@ All channels log via `@spfn/core/logger`. Logs are tagged by channel.
 
 **Recipient fields never appear raw in logs.** Every recipient field this
 package writes — success, failure, and validation logs alike — carries a masked
-value (`jo***@example.com`, `+8210******78`). Provider SDK error *messages* are
-passed through as-is, and some embed the address themselves (e.g. an SES sandbox
-`MessageRejected`); the package cannot rewrite arbitrary provider text. A send resolved as `sensitive`
+value (`jo***@example.com`, `+8210******78`). A send resolved as `sensitive`
 (see [Sensitive sends](#sensitive-sends)) also keeps its subject out of the log,
 because a verification subject line carries the code itself; the log identifies
 the send by template name instead. The masking helpers are exported
 (`maskEmail`, `maskPhone`, `maskRecipient`, `maskRecipients`) for application-side
 logging of the same values.
+
+**Provider error text is scrubbed too.** A provider failure is free text and
+routinely quotes the recipient back — an SES sandbox `MessageRejected` reads
+*"The following identities failed the check in region US-EAST-1:
+learner@example.com"*. Every provider error is scrubbed of email and phone
+tokens before it reaches a log line or `history.error_message`, at the channel's
+provider boundary — so a custom provider (see [Custom Providers](#custom-providers))
+is covered without doing anything — and again in the service that writes the
+column. Only address-shaped tokens are replaced: the error *name* (`MessageRejected`),
+the region, the request id, timestamps and message ids are the diagnostic value
+and survive untouched, and the built-in AWS providers log that name and the HTTP
+status alongside the scrubbed message. `scrubProviderError(text)` is exported for
+applications that log provider errors themselves.
 
 Channel tags:
 
@@ -410,7 +421,9 @@ A history row is the anchor for tracking (FK), scheduling (cancellation) and
 bulk status, so the row itself is always created when history is enabled. What
 lands **in** it is configurable, because two of its columns are privacy
 surfaces: `recipient` is a person's address, and `content` / `template_data`
-can carry a live credential (a magic link, an OTP code).
+can carry a live credential (a magic link, an OTP code). `error_message` holds
+the scrubbed provider message, so a row whose `recipient` is hashed cannot carry
+the raw address in its failure text either.
 
 ```typescript
 configureNotification({

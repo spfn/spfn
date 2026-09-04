@@ -10,6 +10,7 @@
 
 import { createHmac } from 'node:crypto';
 import { getHistoryRecipientMode, getHistoryHashSecret } from './config';
+import type { SendResult } from './channels/types';
 
 /**
  * Mask an email address for logging: `jo***@example.com`.
@@ -135,4 +136,60 @@ function requireHashSecret(): string
     }
 
     return secret;
+}
+
+/**
+ * An email address anywhere in free text. The TLD is letters only, so a
+ * sentence-ending period after the address (`...check: learner@example.com.`)
+ * stays outside the match instead of being eaten as part of the domain.
+ */
+const EMAIL_TOKEN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+
+/**
+ * A phone number anywhere in free text, deliberately conservative: an E.164
+ * number, or a bare run of 10-15 digits that no letter or digit touches and
+ * that is not one side of a decimal. The guards are what keep the diagnostic
+ * parts of a provider message intact — `us-east-1` and the fields of an ISO
+ * timestamp are short runs, a hex message id has letters in it, and a Slack
+ * `ts` like `1725439200.123456` is excluded by the decimal lookahead.
+ */
+const PHONE_TOKEN = /\+[1-9]\d{6,14}|(?<![0-9A-Za-z])(?<!\d\.)\d{10,15}(?![0-9A-Za-z])(?!\.\d)/g;
+
+/**
+ * Mask the recipient values a provider embedded in its own error text.
+ *
+ * Provider failures are free text and routinely quote the address that caused
+ * them ("The following identities failed the check in region US-EAST-1:
+ * learner@example.com"). That text is logged and persisted to
+ * `history.error_message`, so without this it re-introduces the raw recipient
+ * that masked logging and hashed history were configured to keep out.
+ *
+ * Only address-shaped tokens are touched; the rest of the message — the error
+ * name, the region, the request id — is the diagnostic value and survives.
+ * Never throws: a scrubbed message is written on the failure path, where a
+ * second failure would cost the operator the original error.
+ */
+export function scrubProviderError(text: string): string
+{
+    if (typeof text !== 'string' || text.length === 0)
+    {
+        return '';
+    }
+
+    return text.replace(EMAIL_TOKEN, m => maskEmail(m)).replace(PHONE_TOKEN, m => maskPhone(m));
+}
+
+/**
+ * Scrub the error a provider returned, at the boundary where the channel
+ * receives it — so a custom adopter provider is covered by the same guarantee
+ * as the built-in ones, before the channel logs it or writes it to history.
+ */
+export function scrubSendResult(result: SendResult): SendResult
+{
+    if (!result.error)
+    {
+        return result;
+    }
+
+    return { ...result, error: scrubProviderError(result.error) };
 }

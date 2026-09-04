@@ -9,7 +9,7 @@ import { awsSesProvider } from './providers/aws-ses';
 import { getEmailFrom, getEmailReplyTo, env, isHistoryEnabled, isHistoryContentStored, isTrackingEnabled, getTrackingBaseUrl } from '../../config';
 import { processTrackingHtml } from '../../tracking/processor';
 import { renderTemplate, hasTemplate, getTemplate } from '../../templates';
-import { maskRecipients, historyRecipient } from '../../privacy';
+import { maskRecipients, historyRecipient, scrubSendResult } from '../../privacy';
 import {
     createNotificationRecord,
     createNotificationRecords,
@@ -206,7 +206,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
     }
 
     // Send via provider
-    const result = await provider.send(internalParams);
+    const result = scrubSendResult(await provider.send(internalParams));
 
     if (result.success)
     {
@@ -481,7 +481,7 @@ export async function sendEmailBulk(
 
     const sendResults = await runWithConcurrency(
         prepared,
-        (p) => provider.send(p.params),
+        (p) => provider.send(p.params).then(scrubSendResult),
         concurrency,
     );
 

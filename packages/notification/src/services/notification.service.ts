@@ -13,7 +13,7 @@ import {
     type NotificationChannel,
     type NotificationStatus,
 } from '../entities';
-import { historyRecipientFilter } from '../privacy';
+import { historyRecipientFilter, scrubProviderError } from '../privacy';
 
 /**
  * Create notification record (pending status)
@@ -87,7 +87,11 @@ export async function markNotificationSent(
 }
 
 /**
- * Mark notification as failed
+ * Mark notification as failed.
+ *
+ * The message is scrubbed here as well as at the channel boundary: this is the
+ * only place the value reaches the column, so a caller that assembled the text
+ * itself cannot write a raw address into a row whose recipient is hashed.
  */
 export async function markNotificationFailed(
     id: number,
@@ -99,7 +103,7 @@ export async function markNotificationFailed(
         { id },
         {
             status: 'failed',
-            errorMessage,
+            errorMessage: scrubProviderError(errorMessage),
         },
     );
 }
@@ -147,8 +151,9 @@ export async function markManyFailed(
         return;
     }
 
+    // Scrubbed the same way as the single-row path; still a plain bound value.
     const cases = sql.join(
-        items.map(it => sql`when ${it.id} then ${it.errorMessage}`),
+        items.map(it => sql`when ${it.id} then ${scrubProviderError(it.errorMessage)}`),
         sql` `,
     );
 
