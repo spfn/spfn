@@ -1255,6 +1255,81 @@ same 401, so whether a presented secret ever existed is not inferable. A valid t
 missing a route's scope answers 403 naming only the missing scope. `'*'` grants every
 scope.
 
+### One route, two credentials (`opsOrUser`)
+
+An operator action is scripted today — the CLI, holding an ops token — and driven from an
+admin console tomorrow, a browser holding a user session. That is one route with two
+admissible credentials, and neither middleware admits both: `authenticate` refuses an
+`spfn_ops_` bearer before any scope guard runs (see [Machine principals](#machine-principals-registermachineverifier)),
+and `opsTokenAuth` admits nothing else.
+
+```typescript
+import { opsOrUser, getAuth, getOpsToken } from '@spfn/auth/server';
+
+export const exportSignups = route.get('/admin/signups/export')
+    .use([opsOrUser({ opsScopes: ['waitlist:read'], permissions: ['admin.waitlist'] })])
+    // or by role:            opsOrUser({ opsScopes: ['waitlist:read'], roles: ['admin'] })
+    // or both (AND):         opsOrUser({ opsScopes: ['waitlist:read'], roles: ['admin'], permissions: ['admin.waitlist'] })
+    .handler(async (c) =>
+    {
+        // exactly one of these is set
+        const ops = getOpsToken(c.raw);   // the ops branch
+        const user = getAuth(c.raw);      // the session branch
+    });
+```
+
+**The branch is chosen by credential shape, never by caller choice.** The raw
+`Authorization` bearer is tested with [`isOpsToken`](#ops-tokens-spfn-ops); a match runs
+`opsTokenAuth` then `requireOpsScope(...opsScopes)`, and everything else — a user JWT,
+another machine namespace, a malformed header, no header — runs `authenticate` then the
+session guards. Nothing in the request selects a branch except the credential it presents,
+so a caller cannot ask for the weaker check.
+
+**`roles` and `permissions` are AND, roles first.** Two lists only ever narrow. An OR would
+mean that adding one role voids the whole permission list, which is the opposite of what a
+reader of the two lists expects. Roles run first because the role is already on the auth
+context while permissions cost a lookup — so a caller with the wrong role is refused for the
+wrong role. Giving neither list is a definition-time error, as is an empty `opsScopes`: a
+configuration that would admit a credential unchecked fails at boot, not on a request.
+
+**No implicit admin bypass.** Permissions match by name only, and the ops branch has no role
+concept, so neither branch has a principal that passes by virtue of being an administrator.
+A refusal is the selected branch's own refusal, with that branch's existing status and
+message — no error class and no wire message is introduced here.
+
+`opsOrUser` carries `skips: ['auth']`, so a route using it auto-skips the server-level
+`auth` middleware exactly as `optionalAuth` and `opsTokenAuth` do. No `.skip(['auth'])` by
+hand.
+
+**Cookies.** The backend never reads them. A browser session reaches a route as a Bearer
+token because `@spfn/auth/nextjs/api` forwards it as one, so through the app a console
+request is the session rows below; a request carrying only a `Cookie` header is an
+unauthenticated request here.
+
+| bearer | branch | answer |
+|---|---|---|
+| `spfn_ops_…` valid, scope present (or `*`) | ops | 200; `getOpsToken` set, `getAuth` null |
+| `spfn_ops_…` valid, scope missing | ops | 403 `Ops token lacks scope` |
+| `spfn_ops_…` unknown / revoked / expired | ops | 401 `Invalid ops token` (one message for all three) |
+| `spfn_ops_` prefix alone | ops | 401 `Invalid ops token` |
+| user JWT valid, permission held | user | 200; `getAuth` set, `getOpsToken` null |
+| user JWT valid, permission missing | user | 403 `InsufficientPermissionsError` |
+| user JWT expired / bad signature | user | 401 (the existing `authenticate` message) |
+| token in a *registered* machine namespace, not ops | user | 401 — the user path admits no machine credential |
+| malformed bearer / no `Authorization` | user | 401 |
+| session cookie only, no bearer | user | 401 — see Cookies above |
+| `x-spfn-auth-profile` + user JWT | user | `PROFILE_REJECTED` (existing `authenticate` behaviour) |
+| `x-spfn-auth-profile` + ops token | ops | header ignored; `opsTokenAuth` reads `Authorization` only |
+| ops token on a plain `authenticate` route | — | 401, unchanged |
+| `opsScopes: []`, or neither `roles` nor `permissions` | — | throws at definition |
+| server-level `auth` registered | — | auto-skipped on this route |
+| `roles: ['admin']` only; role admin | user | 200 |
+| `roles: ['admin']` only; role user | user | 403 `InsufficientRoleError` |
+| `roles` + `permissions`; role matches, permission missing | user | 403 `InsufficientPermissionsError` |
+| `roles` + `permissions`; permission held, role wrong | user | 403 `InsufficientRoleError` (role is checked first) |
+
+`opsOrUser` is available from **0.3.0-beta.11**.
+
 ## Mobile clientProofV1 (`@spfn/auth/client-proof`)
 
 Server side of the spfn-mobile native SDK auth profile (issue #46; asymmetric revision in
@@ -1649,6 +1724,9 @@ signature you can verify offline (`kidPrefix` + JWKS) over a secret you must loo
 `opsTokenAuth` is the built-in instance of exactly this pattern, hand-written for one
 credential before the registry existed: its own context key (`opsToken`), its own scope guard,
 `AuthContext` never set. It keeps its own implementation and is not registered here.
+A route that must admit an ops token *or* a user session uses
+[`opsOrUser`](#one-route-two-credentials-opsoruser), which composes the two existing
+middleware pairs behind one branch on credential shape rather than widening either path.
 
 ## Account Deletion & Recovery
 
