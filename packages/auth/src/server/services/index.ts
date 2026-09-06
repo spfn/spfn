@@ -237,6 +237,8 @@ export {
     verifyOpsTokenService,
     revokeOpsTokenService,
     listOpsTokensService,
+    isOpsToken,
+    OPS_TOKEN_PREFIX,
 } from './ops-token.service';
 
 export type {

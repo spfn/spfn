@@ -25,10 +25,12 @@ import { registerRoutes } from '@spfn/core/route';
 
 import { opsTokenAuth, requireOpsScope } from '@/server/middleware/ops-token-auth';
 import {
+    isOpsToken,
     issueOpsTokenService,
     listOpsTokensService,
     revokeOpsTokenService,
     verifyOpsTokenService,
+    OPS_TOKEN_PREFIX,
 } from '@/server/services/ops-token.service';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '../helpers/db';
 
@@ -225,6 +227,15 @@ describe.skipIf(!dbAvailable)('Ops tokens', () =>
 
             const listed = await listOpsTokensService();
             expect(listed[0]!.revokedAt?.getTime()).toBe(first!.revokedAt!.getTime());
+        });
+
+        it('an issued token carries the exported shape, a session JWT does not', async () =>
+        {
+            const { token } = await issueOpsTokenService('t', ['waitlist:read'], null);
+
+            expect(token.startsWith(OPS_TOKEN_PREFIX)).toBe(true);
+            expect(isOpsToken(token)).toBe(true);
+            expect(isOpsToken('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.c2ln')).toBe(false);
         });
 
         it('verification answers null without touching lastUsedAt for a refused token', async () =>

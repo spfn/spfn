@@ -1205,6 +1205,13 @@ export const opsRouter = createOpsRouter({
 }, { auth: opsTokenAuth });
 ```
 
+An application that admits both credentials on one route has to tell an ops token from a
+session JWT *before* either is verified. Do not re-type the literal: `isOpsToken(bearer)`
+and the `OPS_TOKEN_PREFIX` it tests against are both exported from `@spfn/auth/server`, so
+the shape has one definition and a copy in application code cannot drift from it.
+`isOpsToken` answers shape only — it takes a raw header value, returns `false` for a
+missing or non-string one, and leaves unknown/revoked/expired to verification.
+
 `opsRoute` comes from `@spfn/core` **0.3.0-beta.2** onwards; before that release an ops
 route spelled its own `/_ops/` prefix with `route`.
 
@@ -1537,8 +1544,9 @@ scopes, and nothing here resolves a machine subject to a user.
 ### Registering a verifier
 
 A verifier claims one namespace, by a raw `tokenPrefix` (for an opaque secret, the
-`spfn_ops_` shape) or by a `kidPrefix` on the unverified JOSE header of a JWS. Register at
-boot, before the first request:
+`spfn_ops_` shape) or by a `kidPrefix` on the unverified JOSE header of a JWS. The built-in
+ops token's own shape is exported rather than spelled out — match it with `isOpsToken` or
+`OPS_TOKEN_PREFIX` from `@spfn/auth/server`. Register at boot, before the first request:
 
 ```typescript
 import { registerMachineVerifier } from '@spfn/auth/server';

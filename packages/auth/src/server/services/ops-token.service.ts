@@ -16,7 +16,27 @@ import { opsTokensRepository } from '../repositories/ops-tokens.repository';
 import type { OpsToken } from '../entities/ops-tokens';
 import { authLogger } from '../logger';
 
-const OPS_TOKEN_PREFIX = 'spfn_ops_';
+/**
+ * The shape every ops-token secret carries.
+ *
+ * Exported because an application that admits both an ops token and a user
+ * session on one route has to tell the two apart before either is verified,
+ * and a literal copied into application code drifts silently when this
+ * package changes the shape.
+ */
+export const OPS_TOKEN_PREFIX = 'spfn_ops_';
+
+/**
+ * Whether a presented bearer credential has the ops-token shape.
+ *
+ * Shape only — a token of this shape may still be unknown, revoked, or
+ * expired; `verifyOpsTokenService` decides that. Callers read a raw header,
+ * so a missing or non-string argument answers false rather than throwing.
+ */
+export function isOpsToken(bearer: string): boolean
+{
+    return typeof bearer === 'string' && bearer.startsWith(OPS_TOKEN_PREFIX);
+}
 
 /** What a verified token authorizes — the principal ops middleware exposes. */
 export interface VerifiedOpsToken
@@ -72,7 +92,7 @@ export async function issueOpsTokenService(
  */
 export async function verifyOpsTokenService(token: string): Promise<VerifiedOpsToken | null>
 {
-    if (!token.startsWith(OPS_TOKEN_PREFIX))
+    if (!isOpsToken(token))
     {
         return null;
     }
