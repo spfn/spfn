@@ -1,6 +1,20 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Type } from '@sinclair/typebox';
-import { job } from '../job-builder';
+import { job, resetSingletonKeyWarnings } from '../job-builder';
+
+// Mock the logger so the once-per-job singletonKey warning can be observed.
+vi.mock('@spfn/core/logger', () =>
+{
+    const sink: any = { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() };
+    sink.child = () => sink;
+
+    return { logger: sink };
+});
+import { logger } from '@spfn/core/logger';
+
+const { mockBoss } = vi.hoisted(() => ({ mockBoss: { send: vi.fn(), insert: vi.fn() } }));
+
+vi.mock('../boss', () => ({ getBoss: () => mockBoss }));
 
 describe('job-builder', () =>
 {
@@ -317,6 +331,59 @@ describe('job-builder', () =>
 
             // _output is used for type inference, not runtime
             expect(testJob._output).toBeUndefined();
+        });
+    });
+
+    describe('send-time singletonKey warning', () =>
+    {
+        beforeEach(() =>
+        {
+            vi.clearAllMocks();
+            resetSingletonKeyWarnings();
+        });
+
+        it('row 15: warns once per job when the queue policy is standard but still sends', async () =>
+        {
+            const testJob = job('send-report')
+                .input(Type.Object({ id: Type.String() }))
+                .handler(async () =>
+                {});
+
+            await testJob.send({ id: '1' }, { singletonKey: 'report' });
+            await testJob.send({ id: '2' }, { singletonKey: 'report' });
+
+            expect(logger.warn).toHaveBeenCalledTimes(1);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining('[Job:send-report] singletonKey ignored'),
+            );
+            expect(mockBoss.send).toHaveBeenCalledTimes(2);
+            expect(mockBoss.send).toHaveBeenNthCalledWith(
+                1,
+                'send-report',
+                { id: '1' },
+                expect.objectContaining({ singletonKey: 'report' }),
+            );
+            expect(mockBoss.send).toHaveBeenNthCalledWith(
+                2,
+                'send-report',
+                { id: '2' },
+                expect.objectContaining({ singletonKey: 'report' }),
+            );
+        });
+
+        it('row 16: stays silent when the job declares a non-standard policy', async () =>
+        {
+            const testJob = job('send-report-exclusive')
+                .input(Type.Object({ id: Type.String() }))
+                .options({ policy: 'exclusive' })
+                .handler(async () =>
+                {});
+
+            await testJob.send({ id: '1' }, { singletonKey: 'report' });
+            await testJob.send({ id: '2' }, { singletonKey: 'report' });
+
+            expect(logger.warn).not.toHaveBeenCalled();
+            expect(mockBoss.send).toHaveBeenCalledTimes(2);
         });
     });
 });

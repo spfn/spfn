@@ -7,9 +7,10 @@
 import type PgBoss from 'pg-boss';
 import { logger } from '@spfn/core/logger';
 import { env } from '@spfn/core/config';
-import type { JobDef, JobOptions, JobRouter } from './types';
+import type { JobDef, JobOptions, JobQueuePolicy, JobRouter } from './types';
 import type { EventDef } from '@spfn/core/event';
-import { collectJobs } from './job-router';
+import { collectJobEntries, collectJobs } from './job-router';
+import { resolveQueuePolicy } from './queue-policy';
 import { getBoss, shouldClearOnStart, shouldSweepOrphanSchedules } from './boss';
 
 const jobLogger = logger.child('@spfn/core:job');
@@ -81,6 +82,8 @@ export async function registerJobs(router: JobRouter<any>): Promise<void>
         );
     }
 
+    assertUniqueJobNames(router);
+
     const jobs = collectJobs(router);
     const clearOnStart = shouldClearOnStart();
 
@@ -123,6 +126,37 @@ export async function registerJobs(router: JobRouter<any>): Promise<void>
     }
 
     jobLogger.info('All jobs registered successfully');
+}
+
+/**
+ * Reject two job definitions that share a `name`
+ *
+ * A job name *is* its pg-boss queue name, so two jobs with the same name share
+ * one queue and one worker: whichever registered last silently handles both.
+ * Merged routers make this easy to hit, and it must fail before any queue or
+ * worker exists.
+ *
+ * @throws if two collected jobs share a name
+ */
+function assertUniqueJobNames(router: JobRouter<any>): void
+{
+    const keysByName = new Map<string, string>();
+
+    for (const { key, job } of collectJobEntries(router))
+    {
+        const existingKey = keysByName.get(job.name);
+
+        if (existingKey)
+        {
+            throw new Error(
+                `registerJobs(): job name "${job.name}" is defined twice ` +
+                `(keys "${existingKey}" and "${key}"); ` +
+                'job names are pg-boss queue names and must be unique',
+            );
+        }
+
+        keysByName.set(job.name, key);
+    }
 }
 
 // Cron names accumulate across registerJobs() calls so a sweep in one call
@@ -200,11 +234,68 @@ async function sweepOrphanSchedules(boss: PgBoss): Promise<void>
 }
 
 /**
- * Create queue if not exists (required for pg-boss v11+)
+ * Create the queue with the wanted policy, or report that it already differs
+ *
+ * pg-boss `create_queue` is `INSERT … ON CONFLICT DO NOTHING`, so a queue
+ * created by an earlier version keeps its old policy and `createQueue` is a
+ * silent no-op. `updateQueue` cannot change a policy either. Comparing against
+ * `getQueue` is the only way an already-deployed app ever gets the fix.
+ *
+ * Recreating the queue drops its job rows, so that only happens under
+ * `clearOnStart` (development). Otherwise the mismatch is logged and boot
+ * continues — a queue that does not deduplicate is a degraded queue, not a
+ * broken one.
  */
-async function ensureQueue(boss: PgBoss, queueName: string): Promise<void>
+async function ensureQueue(boss: PgBoss, queueName: string, policy: JobQueuePolicy): Promise<void>
 {
-    await boss.createQueue(queueName);
+    await boss.createQueue(queueName, { policy });
+
+    // null = queue missing (nothing to compare); pg-boss defaults it to 'standard'
+    const existing = await boss.getQueue(queueName);
+    if (!existing || existing.policy === policy)
+    {
+        return;
+    }
+
+    if (shouldClearOnStart())
+    {
+        await boss.deleteQueue(queueName);
+        await boss.createQueue(queueName, { policy });
+        jobLogger.info(`[Queue:${queueName}] policy ${existing.policy} → ${policy} (recreated: clearOnStart)`);
+
+        return;
+    }
+
+    jobLogger.error(
+        `[Queue:${queueName}] policy mismatch: the queue exists as "${existing.policy}" but its jobs ` +
+        `require "${policy}". Delete the queue in a quiet window ` +
+        `(getBoss().deleteQueue('${queueName}') drops its job rows) or set clearOnStart in development; ` +
+        'until then singletonKey/runOnce on this queue do not deduplicate',
+    );
+}
+
+/**
+ * Build the once-per-queue ensure used by a single registerJob() call
+ *
+ * registerJob touches its queue up to three times (worker, cron, runOnce) and
+ * all three want the same policy, so the queue is ensured on first use only —
+ * otherwise the same mismatch would be created and logged three times over.
+ */
+function createQueueEnsurer(boss: PgBoss, policy: JobQueuePolicy): (queueName: string) => Promise<void>
+{
+    const ensured = new Set<string>();
+
+    return async (queueName: string) =>
+    {
+        if (ensured.has(queueName))
+        {
+            return;
+        }
+
+        ensured.add(queueName);
+
+        await ensureQueue(boss, queueName, policy);
+    };
 }
 
 /**
@@ -259,10 +350,11 @@ async function registerWorker(
     boss: PgBoss,
     job: JobDef<any>,
     queueName: string,
+    ensureQueueOnce: (queueName: string) => Promise<void>,
 ): Promise<void>
 {
     // Ensure queue exists before registering worker
-    await ensureQueue(boss, queueName);
+    await ensureQueueOnce(queueName);
 
     const batchSize = job.options?.batchSize ?? 1;
     const pollingIntervalSeconds = job.options?.pollingIntervalSeconds ?? env.JOB_POLLING_INTERVAL_SECONDS;
@@ -335,7 +427,11 @@ function connectEventToQueue(
 /**
  * Register cron schedule for a job
  */
-async function registerCronSchedule(boss: PgBoss, job: JobDef<any>): Promise<void>
+async function registerCronSchedule(
+    boss: PgBoss,
+    job: JobDef<any>,
+    ensureQueueOnce: (queueName: string) => Promise<void>,
+): Promise<void>
 {
     if (!job.cronExpression)
     {
@@ -345,7 +441,7 @@ async function registerCronSchedule(boss: PgBoss, job: JobDef<any>): Promise<voi
     jobLogger.debug(`[Job:${job.name}] Scheduling cron: ${job.cronExpression}`);
 
     // Ensure queue exists for cron jobs (uses job.name as queue)
-    await ensureQueue(boss, job.name);
+    await ensureQueueOnce(job.name);
 
     await boss.schedule(
         job.name,
@@ -360,7 +456,11 @@ async function registerCronSchedule(boss: PgBoss, job: JobDef<any>): Promise<voi
 /**
  * Queue a runOnce job
  */
-async function queueRunOnceJob(boss: PgBoss, job: JobDef<any>): Promise<void>
+async function queueRunOnceJob(
+    boss: PgBoss,
+    job: JobDef<any>,
+    ensureQueueOnce: (queueName: string) => Promise<void>,
+): Promise<void>
 {
     if (!job.runOnce)
     {
@@ -370,7 +470,7 @@ async function queueRunOnceJob(boss: PgBoss, job: JobDef<any>): Promise<void>
     jobLogger.debug(`[Job:${job.name}] Queuing runOnce job`);
 
     // Ensure queue exists for runOnce jobs (uses job.name as queue)
-    await ensureQueue(boss, job.name);
+    await ensureQueueOnce(job.name);
 
     await boss.send(
         job.name,
@@ -404,10 +504,12 @@ async function registerJob(job: JobDef<any>): Promise<void>
         subscribedEvent: job.subscribedEvent,
     });
 
-    await registerWorker(boss, job, queueName);
+    const ensureQueueOnce = createQueueEnsurer(boss, resolveQueuePolicy(job));
+
+    await registerWorker(boss, job, queueName, ensureQueueOnce);
     connectEventToQueue(boss, job, queueName);
-    await registerCronSchedule(boss, job);
-    await queueRunOnceJob(boss, job);
+    await registerCronSchedule(boss, job, ensureQueueOnce);
+    await queueRunOnceJob(boss, job, ensureQueueOnce);
 
     jobLogger.debug(`Job registered: ${job.name}`);
 }

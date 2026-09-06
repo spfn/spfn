@@ -76,6 +76,75 @@ export function defineJobRouter<
 }
 
 /**
+ * Merge two job routers into a new one
+ *
+ * `defineServerConfig().jobs()` may be called once per domain router, the way
+ * `.routes()` is; each call merges into what is already registered instead of
+ * replacing it. Keys are the router's own namespace, so a key present in both
+ * routers is a mistake the app cannot recover from silently — one of the two
+ * would disappear.
+ *
+ * Neither input is mutated: a fresh router is returned.
+ *
+ * @throws if a top-level key exists in both routers
+ */
+export function mergeJobRouters(base: JobRouter<any>, extra: JobRouter<any>): JobRouter<any>
+{
+    for (const key of Object.keys(extra.jobs))
+    {
+        if (key in base.jobs)
+        {
+            throw new Error(
+                `jobs(): key "${key}" is already registered by an earlier .jobs() call; ` +
+                'rename it or nest it under a domain router',
+            );
+        }
+    }
+
+    return defineJobRouter({ ...base.jobs, ...extra.jobs });
+}
+
+/**
+ * A collected job together with the router key path that reached it
+ *
+ * The key path (`email.sendWelcome`) is what an app author recognises, so it
+ * is what error messages about a job name should quote.
+ */
+export interface JobEntry
+{
+    readonly key: string;
+    readonly job: JobDef<any>;
+}
+
+/**
+ * Collect all JobDefs from a JobRouter (including nested) with their key paths
+ */
+export function collectJobEntries(
+    router: JobRouter<any>,
+    prefix = '',
+): JobEntry[]
+{
+    const entries: JobEntry[] = [];
+
+    for (const [key, value] of Object.entries(router.jobs))
+    {
+        const path = prefix ? `${prefix}.${key}` : key;
+
+        if (isJobRouter(value))
+        {
+            // Nested router - recurse
+            entries.push(...collectJobEntries(value, path));
+        }
+        else if (isJobDef(value))
+        {
+            entries.push({ key: path, job: value });
+        }
+    }
+
+    return entries;
+}
+
+/**
  * Collect all JobDefs from a JobRouter (including nested)
  */
 export function collectJobs(
@@ -83,22 +152,5 @@ export function collectJobs(
     prefix = '',
 ): JobDef<any>[]
 {
-    const jobs: JobDef<any>[] = [];
-
-    for (const [key, value] of Object.entries(router.jobs))
-    {
-        const name = prefix ? `${prefix}.${key}` : key;
-
-        if (isJobRouter(value))
-        {
-            // Nested router - recurse
-            jobs.push(...collectJobs(value, name));
-        }
-        else if (isJobDef(value))
-        {
-            jobs.push(value);
-        }
-    }
-
-    return jobs;
+    return collectJobEntries(router, prefix).map((entry) => entry.job);
 }

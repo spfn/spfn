@@ -12,6 +12,7 @@ import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig, SSEAuthConfig } from '../event/sse/types';
 import type { WSRouterDef, WSHandlerConfig, WSAuthConfig, WSMessageHandlers } from '../event/ws/types';
 import type { EventDef } from '../event/types';
+import { mergeJobRouters } from '../job/job-router';
 import { serverLogger } from './logger';
 
 // ============================================================================
@@ -202,6 +203,20 @@ export class ServerConfigBuilder
     /**
      * Register background jobs router
      *
+     * May be called once per domain router: repeated calls **merge** into one
+     * router, the way `.routes()` composes. Calling it several times used to
+     * keep only the last router and register nothing else, without warning.
+     *
+     * The pg-boss `config` is per server, so pass it on one call only.
+     *
+     * Two names can collide, and both fail loudly:
+     * - a router **key** present in two calls throws here, at config time;
+     * - two jobs sharing a **`job.name`** (the pg-boss queue name) throw in
+     *   `registerJobs()` at boot, before any queue or worker is created.
+     *
+     * @throws if a router key was already registered by an earlier call
+     * @throws if `config` is given when an earlier call already gave one
+     *
      * @example
      * ```typescript
      * import { job, defineJobRouter } from '@spfn/core/job';
@@ -214,13 +229,24 @@ export class ServerConfigBuilder
      *
      * export default defineServerConfig()
      *   .routes(appRouter)
-     *   .jobs(jobRouter)
+     *   .jobs(jobRouter, { clearOnStart: isDev })   // config on one call only
+     *   .jobs(billingJobRouter)                     // merged, not replaced
      *   .build();
      * ```
      */
     jobs(router: JobRouter<any>, config?: Omit<BossOptions, 'connectionString'>): this
     {
-        this.config.jobs = router;
+        if (config && this.config.jobsConfig)
+        {
+            throw new Error(
+                'jobs(): pg-boss config was already given by an earlier .jobs() call; pass it once',
+            );
+        }
+
+        this.config.jobs = this.config.jobs
+            ? mergeJobRouters(this.config.jobs, router)
+            : router;
+
         if (config)
         {
             this.config.jobsConfig = config;

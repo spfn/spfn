@@ -213,6 +213,8 @@ export interface ServerConfig
      * Jobs defined with job()...handler() style
      * Uses pg-boss for PostgreSQL-based job queue
      *
+     * Merged across every `.jobs()` call, so this holds all of them.
+     *
      * @example
      * ```typescript
      * import { job, defineJobRouter } from '@spfn/core/job';

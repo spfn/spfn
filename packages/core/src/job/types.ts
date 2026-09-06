@@ -7,6 +7,24 @@
 import type { TSchema } from '@sinclair/typebox';
 
 /**
+ * pg-boss queue policy
+ *
+ * The policy decides which unique index pg-boss puts on
+ * `(queue name, singletonKey)`, and therefore what `singletonKey` actually
+ * deduplicates. A `standard` queue has no such index: the key is stored and
+ * ignored.
+ *
+ * | policy | one job per `(queue, singletonKey)` among states… |
+ * |---|---|
+ * | `standard` | none — the key is ignored |
+ * | `short` | `created` (queued, not yet picked up) |
+ * | `singleton` | `active` (running) — many may queue, one runs at a time |
+ * | `stately` | one per state among `created`, `retry`, `active` |
+ * | `exclusive` | `created` + `retry` + `active` together |
+ */
+export type JobQueuePolicy = 'standard' | 'short' | 'singleton' | 'stately' | 'exclusive';
+
+/**
  * Job options passed to pg-boss
  */
 export interface JobOptions
@@ -44,9 +62,33 @@ export interface JobOptions
     priority?: number;
 
     /**
-     * Singleton key - only one job with this key can exist
+     * Deduplication key. What it deduplicates depends entirely on `policy`:
+     * on a `standard` queue (the default for a plain job) pg-boss stores the
+     * key and never conflicts on it, so nothing is deduplicated.
+     *
+     * Setting this without an explicit `policy` makes the queue `exclusive`.
      */
     singletonKey?: string;
+
+    /**
+     * pg-boss queue policy — what `singletonKey` deduplicates on this queue.
+     *
+     * | policy | one job per `(queue, singletonKey)` among states… |
+     * |---|---|
+     * | `standard` | none — the key is ignored |
+     * | `short` | `created` |
+     * | `singleton` | `active` |
+     * | `stately` | one per state among `created`, `retry`, `active` |
+     * | `exclusive` | `created` + `retry` + `active` together |
+     *
+     * Deduplication is scoped by queue name: different queues never
+     * deduplicate against each other. `exclusive` with no `singletonKey`
+     * collapses the whole queue to one pending job, which is why plain jobs
+     * stay `standard`.
+     *
+     * @default 'exclusive' when the job is `.runOnce()` or sets `singletonKey`, otherwise 'standard'
+     */
+    policy?: JobQueuePolicy;
 
     /**
      * Keep completed jobs for this many seconds
@@ -82,7 +124,11 @@ export interface JobSendOptions
     startAfter?: number | Date;
 
     /**
-     * Singleton key for this specific job instance
+     * Deduplication key for this specific job instance.
+     *
+     * Only takes effect when the job's queue has a non-standard `policy`: see
+     * {@link JobOptions.policy}. On a `standard` queue pg-boss stores the key
+     * and never conflicts on it, and the first such send logs a warning.
      */
     singletonKey?: string;
 

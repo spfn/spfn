@@ -7,7 +7,48 @@
 import type { Static, TSchema } from '@sinclair/typebox';
 import type { CompensateHandler, JobDef, JobHandler, JobOptions, JobSendOptions } from './types';
 import type { EventDef, InferEventPayload } from '@spfn/core/event';
+import { logger } from '@spfn/core/logger';
 import { getBoss } from './boss';
+import { resolveQueuePolicy, type QueuePolicySource } from './queue-policy';
+
+const jobLogger = logger.child('@spfn/core:job');
+
+// Job names whose ignored singletonKey has already been reported. A send-time
+// key is usually inside a loop, so warning per call would flood the log.
+const warnedIgnoredSingletonKeys = new Set<string>();
+
+/**
+ * Reset the singletonKey warn-once state
+ *
+ * @internal test-only
+ */
+export function resetSingletonKeyWarnings(): void
+{
+    warnedIgnoredSingletonKeys.clear();
+}
+
+/**
+ * Warn once when a send-time singletonKey lands on a `standard` queue
+ *
+ * pg-boss stores the key and never conflicts on it there, so the send is
+ * accepted and the deduplication the caller asked for silently does not
+ * happen. The policy lives on the definition, not on the send, so the fix is
+ * on the definition too.
+ */
+function warnIfSingletonKeyIgnored(name: string, source: QueuePolicySource): void
+{
+    if (resolveQueuePolicy(source) !== 'standard' || warnedIgnoredSingletonKeys.has(name))
+    {
+        return;
+    }
+
+    warnedIgnoredSingletonKeys.add(name);
+
+    jobLogger.warn(
+        `[Job:${name}] singletonKey ignored: queue policy is "standard"; ` +
+        "set .options({ policy: 'exclusive' }) (or another non-standard policy) to deduplicate",
+    );
+}
 
 /**
  * Build pg-boss options from job defaults and send options
@@ -243,6 +284,11 @@ export class JobBuilder<TInput = void, TOutput = void>
                 ? [inputOrOptions as TInput, maybeOptions]
                 : [undefined, inputOrOptions as JobSendOptions | undefined];
 
+            if (sendOptions?.singletonKey)
+            {
+                warnIfSingletonKeyIgnored(name, { runOnce, options });
+            }
+
             return await boss.send(
                 name,
                 input ?? {},
@@ -281,6 +327,11 @@ export class JobBuilder<TInput = void, TOutput = void>
             const [inputs, sendOptions] = inputSchema
                 ? [inputsOrOptions as TInput[], maybeOptions]
                 : [undefined, inputsOrOptions as JobSendOptions | undefined];
+
+            if (sendOptions?.singletonKey)
+            {
+                warnIfSingletonKeyIgnored(name, { runOnce, options });
+            }
 
             const pgBossOptions = buildPgBossOptions(options, sendOptions);
 

@@ -31,13 +31,15 @@ In a normal SPFN app you do **not** call `initBoss` / `registerJobs` yourself �
 From `@spfn/core/job`:
 
 - Builder: `job(name)` → `JobBuilder`
-- Router: `defineJobRouter(jobs)`, `collectJobs(router, prefix?)`, `isJobDef(v)`, `isJobRouter(v)`
+- Router: `defineJobRouter(jobs)`, `mergeJobRouters(base, extra)`, `collectJobs(router, prefix?)`,
+  `isJobDef(v)`, `isJobRouter(v)`
+- Queue policy: `resolveQueuePolicy(job)`
 - pg-boss lifecycle: `initBoss(options)`, `getBoss()`, `stopBoss()`, `isBossRunning()`,
   `shouldClearOnStart()`
 - Registration: `registerJobs(router)` — **takes a `JobRouter`, not an array**
-- Types: `JobDef`, `JobRouter`, `JobRouterEntry`, `JobOptions`, `JobSendOptions`,
-  `JobHandler`, `CompensateHandler`, `InferJobInput`, `InferJobOutput`, `BossOptions`,
-  `BossConfig` (deprecated alias of `BossOptions`)
+- Types: `JobDef`, `JobRouter`, `JobRouterEntry`, `JobOptions`, `JobQueuePolicy`,
+  `JobSendOptions`, `JobHandler`, `CompensateHandler`, `InferJobInput`, `InferJobOutput`,
+  `BossOptions`, `BossConfig` (deprecated alias of `BossOptions`)
 
 `JobBuilder` methods: `.input(schema)`, `.output(schema)`, `.on(event)`, `.cron(expr)`,
 `.runOnce()`, `.options(opts)`, `.timeout(ms)`, `.compensate(fn)`, `.handler(fn)`.
@@ -167,7 +169,13 @@ const initCache = job('init-cache')
     .handler(async () => { await cache.warmup(); });
 ```
 
-Enqueued with `singletonKey: 'runOnce:<name>'` so concurrent instances don't double-run it.
+Enqueued with `singletonKey: 'runOnce:<name>'` on an `exclusive` queue, so concurrent
+instances don't double-run it.
+
+`exclusive` deduplicates against the `created`, `retry` and `active` states, so a boot while
+the previous run is still queued or running is dropped. Once that run *completes*, the next
+boot enqueues it again — the guarantee is **once per server start**, not once ever. For
+once-ever semantics, keep a marker of your own in the database and return early.
 
 ### Event-driven — `.on(event)`
 
@@ -204,7 +212,8 @@ job('important-task')
         retryDelay: 5000,       // ms between retries  (default 1000)
         expireInSeconds: 600,   // handler timeout     (default 300)
         priority: 10,           // higher = first      (default 0)
-        singletonKey: 'unique', // dedupe key
+        singletonKey: 'unique', // dedupe key — see Queue policy below
+        policy: 'exclusive',    // what singletonKey dedupes (default: see below)
         retentionSeconds: 86400,// keep completed jobs (default 604800 = 7d)
         batchSize: 1,           // jobs per worker poll(default 1)
     })
@@ -223,9 +232,68 @@ job('quick').timeout(10000).handler(async () => { /* ... */ }); // expireInSecon
 | `retryDelay` | number | 1000 | ms between retries |
 | `expireInSeconds` | number | 300 | handler timeout (seconds) |
 | `priority` | number | 0 | higher = processed first |
-| `singletonKey` | string | — | only one active job per key |
+| `singletonKey` | string | — | dedup key; effect depends on [`policy`](#queue-policy-and-deduplication) |
+| `policy` | `JobQueuePolicy` | see below | [what `singletonKey` deduplicates](#queue-policy-and-deduplication) |
 | `retentionSeconds` | number | 604800 | completed-job retention |
 | `batchSize` | number | 1 | jobs fetched per worker poll; `> 1` ⇒ parallel |
+
+### Queue policy and deduplication
+
+`singletonKey` on its own deduplicates nothing. pg-boss puts a unique index on
+`(queue name, COALESCE(singleton_key, ''))` only for non-`standard` queues; on a `standard`
+queue the insert's `ON CONFLICT DO NOTHING` never conflicts, so the key is stored and
+ignored. The policy is a property of the **queue**, set from the job definition at
+registration.
+
+| policy | one job per `(queue, singletonKey)` among states… |
+|---|---|
+| `standard` | none — the key is ignored |
+| `short` | `created` (queued, not yet picked up) |
+| `singleton` | `active` (running) — many may queue, one runs at a time |
+| `stately` | one per state among `created`, `retry`, `active` |
+| `exclusive` | `created` + `retry` + `active` together — a second enqueue while one is pending or running is dropped |
+
+**Default rule:** an explicit `.options({ policy })` always wins; otherwise a job that is
+`.runOnce()` or sets `options.singletonKey` gets `exclusive`; everything else stays
+`standard`. Plain jobs must stay `standard` — `exclusive` with no key deduplicates on
+`COALESCE(singleton_key, '')` and would collapse the whole queue to one pending job.
+
+**Deduplication is scoped by queue name.** The queue name is part of every index, so two
+different queues never deduplicate against each other even with the same key. Event-driven
+jobs dedupe on their `event:<name>` queue, not on `<job.name>`.
+
+**Event-driven jobs share `event:<name>`**, so the policy resolved from one subscriber
+applies to every subscriber of that event, and `emit()` carries no `singletonKey` — a
+non-standard policy there deduplicates on the empty key, i.e. one un-started job per event
+queue. Give `.on(event)` jobs an explicit `policy: 'standard'` unless collapsing pending
+emits is exactly what you want, and don't put `options.singletonKey` on one.
+
+**A send-time `singletonKey` needs a policy on the definition.** `.send(input, {
+singletonKey })` cannot change the queue's policy. On a `standard` queue the send is
+accepted and the key silently does nothing; the first such send logs
+
+```
+[Job:<name>] singletonKey ignored: queue policy is "standard"; set .options({ policy: 'exclusive' }) (or another non-standard policy) to deduplicate
+```
+
+once per job name. Put `policy` on `.options()` to make the key take effect.
+
+```typescript
+const reindex = job('reindex')
+    .options({ policy: 'exclusive' })       // now send-time keys deduplicate
+    .handler(async () => { await search.reindex(); });
+```
+
+#### Upgrading
+
+Queues created by earlier versions of this package exist as `standard`, and pg-boss
+`create_queue` is `INSERT … ON CONFLICT DO NOTHING` — an existing queue keeps its policy and
+`updateQueue` cannot change one. Registration therefore compares the wanted policy against
+`getQueue()` and, on a mismatch, logs an error naming the queue, both policies and the
+remedy; boot continues with a queue that does not deduplicate. The remedy is to
+`getBoss().deleteQueue('<name>')` in a quiet window — **it drops that queue's job rows** —
+and restart. In development, `clearOnStart` recreates the queue with the new policy
+automatically.
 
 ---
 
@@ -318,12 +386,36 @@ export const jobRouter = defineJobRouter({
 });
 ```
 
+`mergeJobRouters(base, extra)` combines two routers into a new one (neither input is
+mutated) and throws when a top-level key exists in both. `.jobs()` uses it — you rarely call
+it directly.
+
 ---
 
 ## Server wiring
 
 `defineServerConfig().jobs(router, config?)` at server start: reads `env.DATABASE_URL`, calls
 `initBoss({ connectionString: DATABASE_URL, ...config })`, then `registerJobs(router)`.
+
+**`.jobs()` may be called once per domain router.** Repeated calls **merge**, the way
+`.routes()` composes — they do not replace one another:
+
+```typescript
+export default defineServerConfig()
+    .routes(appRouter)
+    .jobs(emailJobRouter, { clearOnStart: isDev })   // pg-boss config on one call only
+    .jobs(billingJobRouter)
+    .jobs(reportingJobRouter)
+    .build();
+```
+
+Two collisions are possible and both fail loudly:
+
+- a **router key** present in two calls throws at config time
+  (`jobs(): key "x" is already registered by an earlier .jobs() call`);
+- two jobs sharing a **`job.name`** — the pg-boss queue name — throw in `registerJobs()` at
+  boot, before any queue or worker is created;
+- passing the pg-boss `config` on more than one call throws too; there is one boss per server.
 
 ```typescript
 export default defineServerConfig()
@@ -395,7 +487,10 @@ so self-signed certs work.
   `.input()` and expect data.
 - **Job names must be unique across the (flattened) router.** Two jobs sharing a `name` map to
   the same pg-boss queue and collide. Nested router keys are namespaced into the *router* path
-  but the pg-boss queue is `job.name` — keep `name` strings unique.
+  but the pg-boss queue is `job.name` — keep `name` strings unique. `registerJobs()` throws on
+  a duplicate name at boot, quoting both router keys.
+- **`singletonKey` does nothing on a `standard` queue.** Set `policy` on the definition — see
+  [Queue policy and deduplication](#queue-policy-and-deduplication).
 - **`clearOnStart: true` deletes pending/scheduled jobs on boot.** Development only — it wipes
   queued work (and the subscribed event queues) every restart.
 - **`expireInSeconds` is a handler timeout, not a delay.** A handler exceeding it is treated as
@@ -493,7 +588,7 @@ it('processes an order', async () =>
 ```typescript
 import type {
     JobDef, JobRouter, JobRouterEntry,
-    JobOptions, JobSendOptions, JobHandler, CompensateHandler,
+    JobOptions, JobQueuePolicy, JobSendOptions, JobHandler, CompensateHandler,
     InferJobInput, InferJobOutput, BossOptions,
 } from '@spfn/core/job';
 

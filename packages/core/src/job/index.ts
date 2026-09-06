@@ -74,6 +74,7 @@ export type {
     JobRouter,
     JobRouterEntry,
     JobOptions,
+    JobQueuePolicy,
     JobSendOptions,
     JobHandler,
     CompensateHandler,
@@ -85,7 +86,10 @@ export type {
 export { job } from './job-builder';
 
 // Router
-export { defineJobRouter, isJobDef, isJobRouter, collectJobs } from './job-router';
+export { defineJobRouter, mergeJobRouters, isJobDef, isJobRouter, collectJobs } from './job-router';
+
+// Queue policy
+export { resolveQueuePolicy } from './queue-policy';
 
 // Boss (pg-boss wrapper)
 export {
